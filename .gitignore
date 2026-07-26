@@ -1,0 +1,28 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# signing — never commit
+*.jks
+*.keystore
+keystore.properties
+
+# build truststore (machine-specific, holds Avast root CA)
+build-truststore.jks
+
+# outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# scratch
+/scratch/
+*.log
