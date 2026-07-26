@@ -15,7 +15,21 @@ Read `PROFILE.md` first. It is canonical; this file only sequences the work.
 
 Nothing else gets built until this milestone passes. If Task 2 fails, stop and rethink rather than building a product around a hole.
 
-### [ ] Task 1 — ⚠ Skeleton that builds, installs, and buzzes
+### [x] Task 1 — ⚠ Skeleton that builds, installs, and buzzes — **DONE 2026-07-26**
+
+**Result:** passed both halves.
+
+```
+BUILD SUCCESSFUL in 9m 8s
+com.mosman.thrum.QaSuiteTest: tests=11 failures=0 errors=0 skipped=0 time=0.425s
+CHECK PASSED - tests green, APK 24.93 MB
+```
+
+Mutalib on his Pixel 6 Pro: *"yes it does feel different"*, and the capability card reported **true for all three** — vibrator, strength control, sharp effects. **R7 is resolved:** amplitude-only vibration reads as rhythm on this hardware, and is clearly distinguishable from the flat buzz `Demo.systemBuzz()` imitates.
+
+Cost more than it should have: the first build ran 3h 9m before failing on a rotated Avast root CA. Fixed properly, with `tools/TlsProbe.java` so it can never cost hours again. See `CLAUDE.md`.
+
+<details><summary>original task description</summary>
 
 An app with one button. Pressing it plays a hardcoded rhythmic vibration — deliberately varied, soft-then-sharp-then-soft, so the difference from the flat system buzz is obvious to the hand.
 
@@ -27,6 +41,8 @@ Also lands in this task: `check.ps1`, a `QaSuiteTest.kt` with one trivial passin
 - `check.ps1` runs green, output pasted.
 - APK installed on the Pixel via `adb install`.
 - Mutalib presses the button and confirms it feels varied, not like a flat buzz. **This also answers R7** — if amplitude-only vibration feels like stuttering rather than rhythm, we learn it now, in task 1, not task 5.
+
+</details>
 
 ### [ ] Task 2 — ⚠⚠ The wall: does it fire on a real incoming call?
 

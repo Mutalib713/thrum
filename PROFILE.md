@@ -210,7 +210,9 @@ In vibrate mode the system plays its flat pattern. If ours plays on top, it will
 **R6 — Latency.** The notification may arrive slightly after the call starts, so the vibration could begin late.
 *Resolved by:* measure it in Task 1. If it's bad, the score can be started from an offset.
 
-**R7 — Does amplitude-only vibration actually feel good?** The plan uses amplitude steps, not true frequency control. It may feel like stuttering rather than music.
+**R7 — Does amplitude-only vibration actually feel good? RESOLVED 2026-07-26.** Yes. Mutalib felt Task 1's three demo patterns on his Pixel 6 Pro and confirmed the rhythm is clearly different from the imitation of Android's flat buzz. The phone also reported `hasVibrator`, `hasAmplitudeControl` and rich primitives all true. Frequency control is not needed for v1.
+
+*Original concern:* the plan uses amplitude steps, not true frequency control, so it might feel like stuttering rather than music.
 *Resolved by:* **moved forward to Task 1.** Pressing a button and feeling a hardcoded rhythm next to an imitation of Android's flat buzz answers this as well as a full preview would, and answers it before the audio engine exists. `Demo.kt` exists for exactly that comparison.
 
 **R8 — Waveform length limits.** ⚠ Open. `VibrationEffect.createWaveform` may cap how many steps a single effect can hold. A 30-second ringtone at 20ms per step is 1,500 steps, which could be refused or silently truncated — and truncation would present as a bug that only shows up on long tracks.
