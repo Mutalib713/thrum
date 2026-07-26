@@ -94,4 +94,55 @@ class QaSuiteTest {
         assertEquals(2, swell.pulseCount())
         assertTrue("a swell must be finely graded", swell.amplitudes.distinct().size > 30)
     }
+
+    // --- Task 2: the event log, which is the only instrument available for
+    // --- measuring a real call while there is no USB cable on this machine.
+
+    @Test
+    fun `an event survives being written and read back`() {
+        val original = Event(
+            at = 1_784_000_000_000,
+            kind = Event.Kind.FIRED,
+            ringer = "vibrate",
+            latencyMs = 137,
+            note = "looping | with an awkward\nnote",
+        )
+        assertEquals(original, Event.decode(original.encode()))
+    }
+
+    @Test
+    fun `every event kind survives the round trip`() {
+        for (kind in Event.Kind.entries) {
+            val event = Event(1, kind, "silent", 0)
+            assertEquals(event, Event.decode(event.encode()))
+        }
+    }
+
+    @Test
+    fun `a corrupt event line is dropped instead of crashing the screen`() {
+        for (junk in listOf("", "x", "1|abc|FIRED|vibrate|0|", "1|1|NOPE|vibrate|0|", "9|1|FIRED|v|0|")) {
+            assertNull("decoded junk: $junk", Event.decode(junk))
+        }
+    }
+
+    @Test
+    fun `a corrupt line does not take the rest of the log with it`() {
+        val good = Event(1, Event.Kind.FIRED, "vibrate", 10)
+        val text = listOf(good.encode(), "garbage", good.encode()).joinToString("\n")
+        assertEquals(2, Event.decodeAll(text).size)
+    }
+
+    @Test
+    fun `the log stops growing forever`() {
+        val many = (1..Event.MAX_KEPT * 3).map { Event(it.toLong(), Event.Kind.FIRED, "vibrate", 0) }
+        val kept = Event.decodeAll(Event.encodeAll(many))
+        assertEquals(Event.MAX_KEPT, kept.size)
+        // The newest must be the ones that survive, not the oldest.
+        assertEquals(many.last(), kept.last())
+    }
+
+    @Test
+    fun `an empty log reads as no events`() {
+        assertEquals(emptyList<Event>(), Event.decodeAll(""))
+    }
 }

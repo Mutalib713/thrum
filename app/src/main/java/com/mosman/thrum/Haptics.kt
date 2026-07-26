@@ -53,19 +53,23 @@ object Haptics {
     }
 
     /**
-     * Play a score once.
+     * Play a score, once or on a loop.
      *
      * Usage is declared as a ringtone rather than plain feedback, because that
      * is what it is — and because Task 2 needs the same call path the real
      * feature will use, not a friendlier one that behaves differently during
      * an incoming call.
+     *
+     * A looping score runs until [stop] is called. Every caller that loops must
+     * also arm a safety cap: this runs on Mutalib's daily phone, and a loop that
+     * outlives its call would leave the phone buzzing indefinitely.
      */
-    fun play(ctx: Context, score: Score) {
+    fun play(ctx: Context, score: Score, loop: Boolean = false) {
         if (score.amplitudes.isEmpty()) return
         val effect = VibrationEffect.createWaveform(
             score.timings(),
             score.amplitudes.toIntArray(),
-            NO_REPEAT,
+            if (loop) REPEAT_FROM_START else NO_REPEAT,
         )
         val v = vibrator(ctx)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -95,4 +99,5 @@ object Haptics {
     }
 
     private const val NO_REPEAT = -1
+    private const val REPEAT_FROM_START = 0
 }
