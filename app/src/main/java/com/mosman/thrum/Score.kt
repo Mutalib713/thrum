@@ -1,0 +1,107 @@
+package com.mosman.thrum
+
+/**
+ * A vibration score: one strength value per fixed-length step of time.
+ *
+ * Deliberately pure Kotlin — no Android imports, no JSON library, no framework
+ * types. This machine has no emulator, so the only code that can be tested
+ * before it reaches a phone is code that doesn't need one. Everything worth
+ * getting right lives here; the vibrator wrapper stays as thin as possible.
+ *
+ * [amplitudes] is a strength per step, 0 (still) to 255 (hardest the motor
+ * goes). A uniform [stepMs] means the timings array handed to the vibrator is
+ * derived rather than stored, so the two can never drift out of sync — a
+ * mismatch there throws at the vibrator and takes the app down with it.
+ */
+data class Score(
+    val stepMs: Int,
+    val amplitudes: List<Int>,
+    val sourceName: String = "",
+) {
+    init {
+        require(stepMs > 0) { "stepMs must be positive, was $stepMs" }
+        require(amplitudes.all { it in 0..MAX_AMPLITUDE }) {
+            "amplitudes must all be 0..$MAX_AMPLITUDE"
+        }
+    }
+
+    val durationMs: Long get() = stepMs.toLong() * amplitudes.size
+
+    /** Step durations for the vibrator, one per amplitude. Equal length by construction. */
+    fun timings(): LongArray = LongArray(amplitudes.size) { stepMs.toLong() }
+
+    fun isSilent(): Boolean = amplitudes.all { it == 0 }
+
+    /** Number of separate pulses — a run of non-zero steps counts once. */
+    fun pulseCount(): Int {
+        var count = 0
+        var inPulse = false
+        for (a in amplitudes) {
+            if (a > 0 && !inPulse) count++
+            inPulse = a > 0
+        }
+        return count
+    }
+
+    /**
+     * A compact single-line form for SharedPreferences.
+     *
+     * Not JSON: a score is a few thousand small integers, and the JSON library
+     * available inside Android unit tests is a stub that throws on every call.
+     * Hand-rolling the format keeps the whole thing testable on the PC.
+     *
+     * Layout: `1|stepMs|escapedName|amp,amp,amp`
+     */
+    fun encode(): String = buildString {
+        append(FORMAT_VERSION).append(SEP)
+        append(stepMs).append(SEP)
+        append(escape(sourceName)).append(SEP)
+        amplitudes.joinTo(this, ",")
+    }
+
+    companion object {
+        const val MAX_AMPLITUDE = 255
+        private const val FORMAT_VERSION = 1
+        private const val SEP = '|'
+
+        /** Returns null for anything unparseable, so a corrupt store degrades to "no score". */
+        fun decode(text: String): Score? {
+            val parts = text.split(SEP)
+            if (parts.size != 4) return null
+            if (parts[0].toIntOrNull() != FORMAT_VERSION) return null
+            val step = parts[1].toIntOrNull() ?: return null
+            if (step <= 0) return null
+            val amps = if (parts[3].isEmpty()) {
+                emptyList()
+            } else {
+                parts[3].split(",").map { it.toIntOrNull() ?: return null }
+            }
+            if (amps.any { it !in 0..MAX_AMPLITUDE }) return null
+            return Score(step, amps, unescape(parts[2]))
+        }
+
+        private fun escape(s: String) =
+            s.replace("\\", "\\\\").replace("|", "\\p").replace("\n", "\\n")
+
+        private fun unescape(s: String): String {
+            val out = StringBuilder(s.length)
+            var i = 0
+            while (i < s.length) {
+                val c = s[i]
+                if (c == '\\' && i + 1 < s.length) {
+                    when (s[i + 1]) {
+                        '\\' -> out.append('\\')
+                        'p' -> out.append('|')
+                        'n' -> out.append('\n')
+                        else -> out.append(s[i + 1])
+                    }
+                    i += 2
+                } else {
+                    out.append(c)
+                    i++
+                }
+            }
+            return out.toString()
+        }
+    }
+}

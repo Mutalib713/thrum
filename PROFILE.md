@@ -119,16 +119,19 @@ first launch → capability check → (incapable? honest dead-end screen)
 
 ## 8. DATA MODEL
 
-Everything in SharedPreferences as JSON. No database.
+Everything in SharedPreferences. No database.
 
-**`Score`** — the active vibration score
-- `sourceUri: String` — the audio file it came from
+**`Score`** — the active vibration score. Pure Kotlin, no Android or JSON imports, because it is the only layer that can be tested without a phone (§12).
+- `stepMs: Int` — one amplitude covers this many milliseconds. Default 20ms, tune in Task 4
+- `amplitudes: List<Int>` — 0–255 per step. 0 is still, 255 is as hard as the motor goes
 - `sourceName: String` — display name for the UI
-- `timings: LongArray` — millisecond step durations
-- `amplitudes: IntArray` — 0–255 per step, same length as `timings`
-- `durationMs: Long`
-- `createdAt: Long`
-- `stepMs: Int` — analysis resolution (candidate default 20ms, tune in Task 3)
+- `sourceUri: String` — the audio file it came from, so a score can be rebuilt later
+- `durationMs` and `timings()` are **derived**, not stored
+
+*Two deviations from the first draft of this spec, both deliberate:*
+
+1. **`timings` is derived from a uniform `stepMs` rather than stored.** A `timings`/`amplitudes` length mismatch throws inside the vibrator and takes the app down. Deriving one from the other makes that class of bug impossible instead of merely tested for.
+2. **Serialized as a compact single line, not JSON** — `1|stepMs|escapedName|amp,amp,amp`. A score is a few thousand small integers, so JSON's overhead buys nothing, and the `org.json` available inside Android unit tests is a stub that throws on every call. Hand-rolling it keeps the whole score layer testable on the PC. `decode()` returns null rather than throwing, so corrupt stored data degrades to "no score" instead of a crash loop.
 
 **`Settings`**
 - `armed: Boolean`
@@ -208,7 +211,10 @@ In vibrate mode the system plays its flat pattern. If ours plays on top, it will
 *Resolved by:* measure it in Task 1. If it's bad, the score can be started from an offset.
 
 **R7 — Does amplitude-only vibration actually feel good?** The plan uses amplitude steps, not true frequency control. It may feel like stuttering rather than music.
-*Resolved by:* Task 3's preview. This is a taste judgment and only Mutalib's hand can make it.
+*Resolved by:* **moved forward to Task 1.** Pressing a button and feeling a hardcoded rhythm next to an imitation of Android's flat buzz answers this as well as a full preview would, and answers it before the audio engine exists. `Demo.kt` exists for exactly that comparison.
+
+**R8 — Waveform length limits.** ⚠ Open. `VibrationEffect.createWaveform` may cap how many steps a single effect can hold. A 30-second ringtone at 20ms per step is 1,500 steps, which could be refused or silently truncated — and truncation would present as a bug that only shows up on long tracks.
+*Resolved by:* Task 3 or 4. Play a deliberately long score on the phone and find the real limit rather than guessing a safe number. If there is a cap, either widen `stepMs` for long tracks or play the score in chunks.
 
 **Open question — the name.** "Thrum" is provisional. Decide before the Play Store listing exists.
 
