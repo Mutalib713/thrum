@@ -3,7 +3,10 @@
 /local.properties
 /.idea/
 .DS_Store
-/build
+# "build/" not "/build" — the leading slash only matches the repo root, which
+# left every app/build artifact untracked-but-visible and swept thousands of
+# generated files into the first `git add -A`.
+build/
 /captures
 .externalNativeBuild
 .cxx
@@ -16,6 +19,7 @@ keystore.properties
 
 # build truststore (machine-specific, holds Avast root CA)
 build-truststore.jks
+build-truststore.p12
 
 # outputs
 *.apk

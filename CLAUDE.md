@@ -50,6 +50,36 @@ Install to the phone (USB debugging on):
 adb install -r C:\Users\mutal\thrum\app\build\outputs\apk\debug\app-debug.apk
 ```
 
+## Fresh clone setup
+
+Two files are machine-specific and deliberately gitignored, so a fresh clone will not build until they exist:
+
+- **`local.properties`** — `sdk.dir=C\:\\Users\\mutal\\AppData\\Local\\Android\\Sdk`. Without it Gradle fails with *"SDK location not found"* before it compiles anything.
+- **`build-truststore.p12`** — password `routines`. Holds every public root the JDK trusts, plus Avast's current root CA. Without it dependency downloads fail on a certificate error, or with a misleading *"plugin not found"*.
+
+### Rebuilding the truststore (when downloads start failing on certificates)
+
+**Avast rotates its root CA.** When it does, every Gradle download dies with *"PKIX path validation failed: Path does not chain with any of the trust anchors"* — and Gradle retries SSL for a very long time first, so the symptom is a build that runs for hours and then fails. This happened on 2026-07-26: the store held Avast root `8C:03:24:1F:…` while Avast had moved to `EB:DA:66:64:…`.
+
+Do not hand-pick server certificates — that was the old approach here and it also breaks whenever `dl.google.com` rotates its own leaf. Start from the JDK's full `cacerts` and add Avast on top:
+
+```powershell
+$jbr = 'C:\Program Files\Android\Android Studio\jbr'
+$cert = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -like '*Avast*Shield Root*' } | Select-Object -First 1
+[System.IO.File]::WriteAllBytes("$env:TEMP\avast-root.cer", $cert.RawData)
+Copy-Item "$jbr\lib\security\cacerts" 'C:\Users\mutal\thrum\build-truststore.p12' -Force
+& "$jbr\bin\keytool.exe" -storepasswd -keystore 'C:\Users\mutal\thrum\build-truststore.p12' -storepass changeit -new routines
+& "$jbr\bin\keytool.exe" -importcert -noprompt -alias avast-root -file "$env:TEMP\avast-root.cer" -keystore 'C:\Users\mutal\thrum\build-truststore.p12' -storepass routines
+```
+
+**Verify in seconds instead of discovering it after a three-hour build.** Run the probe before trusting a long build:
+
+```powershell
+& "$jbr\bin\java.exe" "-Djavax.net.ssl.trustStore=C:\Users\mutal\thrum\build-truststore.p12" "-Djavax.net.ssl.trustStorePassword=routines" "-Djavax.net.ssl.trustStoreType=PKCS12" TlsProbe.java
+```
+
+A copy of `TlsProbe.java` lives in `tools/`. It fetches one artifact from Maven Central, Google's Maven, and the Gradle plugin portal, and prints `TLS OK` or the exact failure.
+
 ## Machine gotchas (learned the hard way on pixel-routines)
 
 - **Avast MITMs all HTTPS.** JVMs fail certificate checks and Gradle reports a misleading "plugin not found". Fix: local JKS truststore wired via `systemProp.javax.net.ssl.trustStore*` in `gradle.properties`. `trustStoreType=Windows-ROOT` does NOT work.
