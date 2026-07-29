@@ -17,7 +17,8 @@ local.properties
 *.keystore
 keystore.properties
 
-# build truststore (machine-specific, holds Avast root CA)
+# build truststore â€” obsolete since the 2026-07-29 laptop change (Avast is gone).
+# Kept ignored so a stale copy from the old machine can never be committed.
 build-truststore.jks
 build-truststore.p12
 
