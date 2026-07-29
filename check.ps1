@@ -1,10 +1,10 @@
 # Thrum's gate. Must pass before any commit that touches code.
 #
-#   powershell -File C:\Users\mutal\thrum\check.ps1
+#   powershell -File C:\Users\USER\MyClaudeProjects\thrum\check.ps1
 #
 # Runs the QA suite on the PC (seconds, no device) and then a debug build.
-# --max-workers=1 is not optional on this machine: Avast locks Gradle transform
-# outputs mid-build and a parallel build loses the race. See CLAUDE.md.
+# Uses the Gradle wrapper, so it works from a fresh clone with no hand-placed
+# Gradle distribution. See CLAUDE.md.
 
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -15,15 +15,14 @@ if (-not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
     exit 1
 }
 
-$gradle = Get-ChildItem 'C:\Users\mutal\.gradle\wrapper\dists\gradle-9.4.1-bin\*\gradle-9.4.1\bin\gradle.bat' -ErrorAction SilentlyContinue |
-    Select-Object -First 1
-if ($null -eq $gradle) {
-    Write-Host 'CHECK FAILED: gradle 9.4.1 distribution not found' -ForegroundColor Red
+$gradlew = Join-Path $root 'gradlew.bat'
+if (-not (Test-Path $gradlew)) {
+    Write-Host "CHECK FAILED: no Gradle wrapper at $gradlew" -ForegroundColor Red
     exit 1
 }
 
 Write-Host '--- QA suite + debug build ---' -ForegroundColor Cyan
-& $gradle.FullName -p $root :app:testDebugUnitTest :app:assembleDebug --no-daemon --max-workers=1
+& $gradlew -p $root :app:testDebugUnitTest :app:assembleDebug
 $gradleExit = $LASTEXITCODE
 
 if ($gradleExit -ne 0) {

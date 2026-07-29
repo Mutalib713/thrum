@@ -29,69 +29,46 @@ Makes Android's vibrate mode follow the rhythm of your own ringtone instead of b
 
 ## Build commands
 
-This machine has no working Android Studio and no emulator. Command line only.
+Repo lives at `C:\Users\USER\MyClaudeProjects\thrum` on the current laptop (2026-07-29 onward).
+Anything in older notes reading `C:\Users\mutal\...` is a dead path.
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-& 'C:\Users\mutal\.gradle\wrapper\dists\gradle-9.4.1-bin\arn2x92ynaizyzdaamcbpbhtj\gradle-9.4.1\bin\gradle.bat' -p C:\Users\mutal\thrum :app:assembleDebug --no-daemon --max-workers=1
+.\gradlew.bat :app:assembleDebug
 ```
 
-`JAVA_HOME` must be set in the shell — `gradle.bat` needs it before `gradle.properties` applies.
+`JAVA_HOME` must be set in the shell — the launcher needs it before `gradle.properties` applies.
 
 Full gate before committing code:
 
 ```powershell
-powershell -File C:\Users\mutal\thrum\check.ps1
+powershell -File C:\Users\USER\MyClaudeProjects\thrum\check.ps1
 ```
 
 Install to the phone (USB debugging on):
 
 ```powershell
-adb install -r C:\Users\mutal\thrum\app\build\outputs\apk\debug\app-debug.apk
+adb install -r C:\Users\USER\MyClaudeProjects\thrum\app\build\outputs\apk\debug\app-debug.apk
 ```
 
 ## Fresh clone setup
 
-Two files are machine-specific and deliberately gitignored, so a fresh clone will not build until they exist:
+One file is machine-specific and deliberately gitignored, so a fresh clone will not build until it exists:
 
-- **`local.properties`** — `sdk.dir=C\:\\Users\\mutal\\AppData\\Local\\Android\\Sdk`. Without it Gradle fails with *"SDK location not found"* before it compiles anything.
-- **`build-truststore.p12`** — password `routines`. Holds every public root the JDK trusts, plus Avast's current root CA. Without it dependency downloads fail on a certificate error, or with a misleading *"plugin not found"*.
+- **`local.properties`** — `sdk.dir=C\:\\Users\\USER\\AppData\\Local\\Android\\Sdk`. Without it Gradle fails with *"SDK location not found"* before it compiles anything.
 
-### Rebuilding the truststore (when downloads start failing on certificates)
+**No truststore any more.** The old `build-truststore.p12` existed only because Avast re-signed every HTTPS connection on the previous laptop. Avast is not installed on this one — verified absent, with zero Avast roots in either certificate store — so Java's own `cacerts` is correct and the three `systemProp.javax.net.ssl.*` lines are gone from `gradle.properties`. `tools/TlsProbe.java` stays, because it diagnoses any future certificate failure in seconds instead of after a long build.
 
-**Avast rotates its root CA.** When it does, every Gradle download dies with *"PKIX path validation failed: Path does not chain with any of the trust anchors"* — and Gradle retries SSL for a very long time first, so the symptom is a build that runs for hours and then fails. This happened on 2026-07-26: the store held Avast root `8C:03:24:1F:…` while Avast had moved to `EB:DA:66:64:…`.
+## Machine gotchas
 
-Do not hand-pick server certificates — that was the old approach here and it also breaks whenever `dl.google.com` rotates its own leaf. Start from the JDK's full `cacerts` and add Avast on top:
-
-```powershell
-$jbr = 'C:\Program Files\Android\Android Studio\jbr'
-$cert = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -like '*Avast*Shield Root*' } | Select-Object -First 1
-[System.IO.File]::WriteAllBytes("$env:TEMP\avast-root.cer", $cert.RawData)
-Copy-Item "$jbr\lib\security\cacerts" 'C:\Users\mutal\thrum\build-truststore.p12' -Force
-& "$jbr\bin\keytool.exe" -storepasswd -keystore 'C:\Users\mutal\thrum\build-truststore.p12' -storepass changeit -new routines
-& "$jbr\bin\keytool.exe" -importcert -noprompt -alias avast-root -file "$env:TEMP\avast-root.cer" -keystore 'C:\Users\mutal\thrum\build-truststore.p12' -storepass routines
-```
-
-**Verify in seconds instead of discovering it after a three-hour build.** Run the probe before trusting a long build:
-
-```powershell
-& "$jbr\bin\java.exe" "-Djavax.net.ssl.trustStore=C:\Users\mutal\thrum\build-truststore.p12" "-Djavax.net.ssl.trustStorePassword=routines" "-Djavax.net.ssl.trustStoreType=PKCS12" TlsProbe.java
-```
-
-A copy of `TlsProbe.java` lives in `tools/`. It fetches one artifact from Maven Central, Google's Maven, and the Gradle plugin portal, and prints `TLS OK` or the exact failure.
-
-## Machine gotchas (learned the hard way on pixel-routines)
-
-- **Avast MITMs all HTTPS.** JVMs fail certificate checks and Gradle reports a misleading "plugin not found". Fix: local JKS truststore wired via `systemProp.javax.net.ssl.trustStore*` in `gradle.properties`. `trustStoreType=Windows-ROOT` does NOT work.
-- **Avast also locks Gradle transform outputs mid-build** → *"Could not move temporary workspace … to immutable location"*. Build with `--max-workers=1`, or just re-run.
-- **AGP 9 has built-in Kotlin.** Do NOT apply `org.jetbrains.kotlin.android` — it collides with "Cannot add extension 'kotlin'". Apply only `com.android.application` + `org.jetbrains.kotlin.plugin.compose`.
-- Builds take about 4 minutes. Don't design a task that needs ten build cycles.
+- **AGP 9 has built-in Kotlin.** Do NOT apply `org.jetbrains.kotlin.android` — it collides with "Cannot add extension 'kotlin'". Apply only `com.android.application` + `org.jetbrains.kotlin.plugin.compose`. This is about AGP, not the machine, so it survived the laptop change.
+- Builds took about 4 minutes on the old laptop and should be faster here. Still: don't design a task that needs ten build cycles.
 - **R8 renames enum constants.** If anything persists an enum by name via JSON + `valueOf()`, add `-keepclassmembers enum com.mosman.thrum.** { *; }` or saved data silently wipes on upgrade. This exact bug bit `pixel-routines`.
 - Screenshots are flaky on this machine. Prefer logs, measurements, and Mutalib's hand on the phone.
 
 ## Testing reality
 
-- **Vibration cannot be tested without the physical phone.** No emulator here, and emulators don't do haptics.
+- **Vibration cannot be tested without the physical phone.** Emulators don't do haptics, so an emulator being available on this laptop changes nothing here.
 - So the analysis layer is deliberately pure Kotlin with no Android dependencies — it gets real unit tests that run on the PC in seconds. Put logic there, not in Activities.
 - Anything touching the vibrator or the notification listener needs Mutalib's Pixel 6 Pro and a real incoming call.
 
@@ -101,4 +78,4 @@ Android's call ringer (`Ringer.java`, AOSP Telecom) only reads a ringtone's embe
 
 ## Related projects
 
-`pixel-routines` (`C:\Users\mutal\pixel-routines`) already solves several problems this app needs: a working `NotificationListenerService`, Material You theming, the permission-grant card pattern, and this exact build setup. Read from it rather than reinventing.
+`pixel-routines` (`C:\Users\USER\MyClaudeProjects\pixel-routines`) already solves several problems this app needs: a working `NotificationListenerService`, Material You theming, the permission-grant card pattern, and this exact build setup. Read from it rather than reinventing.
