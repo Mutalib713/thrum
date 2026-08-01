@@ -230,6 +230,17 @@ class ScoreBuilder(
                 return Score(stepMs, List(levels.onsets.size) { 0 }, name)
             }
 
+            // Headroom the floor may never eat into.
+            //
+            // A kick is mapped as floor + curve × (255 − floor), so a floor of
+            // 255 leaves a range of zero and every hit in the track comes out at
+            // exactly 255 — loud ones, quiet ones, all identical. Mutalib had
+            // Punch at its maximum and reported that every other setting felt
+            // the same, which is precisely what a score with no dynamic range
+            // feels like. A dial that can flatten the whole output must not be
+            // able to reach that point.
+            val floor = minFelt.coerceIn(0, Score.MAX_AMPLITUDE - MIN_HEADROOM)
+
             val hits = levels.onsets.map { level ->
                 if (level < gate) {
                     0
@@ -243,8 +254,8 @@ class ScoreBuilder(
                     // Android's own buzz shakes it. Quiet hits must still be hits.
                     val above = ((level - gate) / (1f - gate)).coerceIn(0f, 1f)
                     val curved = above.toDouble().pow(curve)
-                    val range = Score.MAX_AMPLITUDE - minFelt
-                    (minFelt + curved * range).roundToInt().coerceIn(0, Score.MAX_AMPLITUDE)
+                    val range = Score.MAX_AMPLITUDE - floor
+                    (floor + curved * range).roundToInt().coerceIn(0, Score.MAX_AMPLITUDE)
                 }
             }
 
@@ -269,7 +280,8 @@ class ScoreBuilder(
             //
             // A detail hit is either worth feeling or it is zero. There is
             // nothing in between on this hardware.
-            val ceiling = bodyCeiling.coerceAtMost(Score.MAX_AMPLITUDE)
+            // Detail tops out where the kick floor begins, so the beat leads.
+            val ceiling = bodyCeiling.coerceAtMost(floor)
             val detail = if (ceiling <= DETAIL_MIN) {
                 List(levels.detail.size) { 0 }
             } else {
@@ -366,6 +378,14 @@ class ScoreBuilder(
          * than a kick — but not lower than the hardware's floor.
          */
         const val DETAIL_MIN = 130
+
+        /**
+         * How much of the motor's range is reserved for dynamics, whatever the
+         * Punch dial says. Without it a floor of 255 leaves nothing between the
+         * quietest hit and the loudest, and a track's rhythm flattens into one
+         * repeated value.
+         */
+        const val MIN_HEADROOM = 45
 
         /** Same shape as the kick's curve, so the two bands feel like one kit. */
         const val DETAIL_CURVE = 0.6

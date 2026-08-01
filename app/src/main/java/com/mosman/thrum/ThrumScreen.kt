@@ -665,7 +665,9 @@ private fun Ready(
             label = stringResource(R.string.tune_punch, punch),
             help = stringResource(R.string.tune_punch_help),
             value = punch.toFloat(),
-            range = 120f..255f,
+            // Never to 255: see ScoreBuilder.MIN_HEADROOM. A floor at the
+            // ceiling leaves no room for a track to have loud and quiet beats.
+            range = 120f..(Score.MAX_AMPLITUDE - ScoreBuilder.MIN_HEADROOM).toFloat(),
             onChange = onPunch,
         )
         Dial(

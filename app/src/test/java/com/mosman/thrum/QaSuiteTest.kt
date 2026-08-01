@@ -388,6 +388,24 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `a track keeps its loud and quiet beats however hard Punch is pushed`() {
+        // Mutalib pushed Punch to its maximum and then reported that no other
+        // setting made any difference. It didn't: a kick is mapped as
+        // floor + curve × (255 − floor), so a floor of 255 leaves a range of
+        // zero and every hit in the track comes out at exactly 255 — the loud
+        // ones and the quiet ones alike. A dial that can flatten the whole
+        // output must not be able to reach that point.
+        for (requested in listOf(180, 220, 255, 300)) {
+            val score = analyse(punch = requested) { fourOnTheFloor(bars = 3, bpm = 120) }
+            val hits = score.amplitudes.filter { it > 0 }.distinct()
+            assertTrue(
+                "punch=$requested produced ${hits.size} distinct amplitude(s)",
+                hits.size > 1,
+            )
+        }
+    }
+
+    @Test
     fun `moving the detail dial actually changes the score`() {
         // The regression that started this: the dial moved and nothing changed.
         val quiet = analyse(detailCeiling = 0) { fourOnTheFloor(bars = 2, bpm = 120, hats = 7000) }
@@ -580,12 +598,18 @@ class QaSuiteTest {
     private fun analyse(
         sampleRate: Int = 44_100,
         detailCeiling: Int = ScoreBuilder.BODY_CEILING,
+        punch: Int = ScoreBuilder.MIN_FELT,
         build: Fixture.() -> Unit,
     ): Score {
         val fixture = Fixture(sampleRate).apply(build)
         val samples = fixture.samples()
         val builder = ScoreBuilder(sampleRate).apply { feed(samples, samples.size) }
-        return ScoreBuilder.toScore(builder.levels(), builder.stepMsUsed, bodyCeiling = detailCeiling)
+        return ScoreBuilder.toScore(
+            builder.levels(),
+            builder.stepMsUsed,
+            minFelt = punch,
+            bodyCeiling = detailCeiling,
+        )
     }
 
     /** Builds synthetic mono audio, so the analyser can be tested without a phone or a file. */
