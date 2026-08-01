@@ -68,15 +68,33 @@ object Haptics {
      * @return null when the vibration was accepted, or a plain-language reason
      *   when it was not.
      *
-     * Returning the failure rather than throwing exists for two reasons. It is
-     * how **R8** gets answered — a four-minute track is about 12,000 steps, and
-     * whether `createWaveform` accepts that is a question only a device can
-     * settle. And [NotifService] plays scores from a notification callback,
-     * where an uncaught throw would take down the listener and quietly end the
-     * app's whole reason for existing.
+     * Returning the failure rather than throwing exists because [NotifService]
+     * plays scores from a notification callback, where an uncaught throw would
+     * take down the listener and quietly end the app's whole reason for existing.
+     *
+     * **This cannot detect an over-long score on its own, which is why
+     * [MAX_STEPS] is checked before the call.** See R8 in PROFILE.md: an
+     * oversized waveform is accepted here without complaint, fails crossing into
+     * the system process, and never reaches the motor. `vibrate()` throws
+     * nothing and returns nothing. The length check below is the only thing
+     * standing between a user and a ringtone that silently does not happen.
      */
-    fun play(ctx: Context, score: Score, loop: Boolean = false): String? {
+    fun play(
+        ctx: Context,
+        score: Score,
+        loop: Boolean = false,
+        /**
+         * Only the R8 probe sets this false, because its whole job is to send
+         * scores past the limit and have the system report what happened. Every
+         * other caller wants the guard.
+         */
+        enforceLimit: Boolean = true,
+    ): String? {
         if (score.amplitudes.isEmpty()) return "That score has no steps in it."
+        if (enforceLimit && score.amplitudes.size > MAX_STEPS) {
+            return "That score is ${score.amplitudes.size} steps; anything over " +
+                "$MAX_STEPS is dropped on the way to the motor. Coarsen it first."
+        }
         return try {
             val effect = VibrationEffect.createWaveform(
                 score.timings(),
@@ -114,6 +132,23 @@ object Haptics {
             else -> "unknown"
         }
     }
+
+    /**
+     * The most steps one vibration may contain. **R8, measured rather than guessed.**
+     *
+     * Probed on the Pixel 6 Pro, 2026-08-01, two runs agreeing exactly:
+     * 8,000 · 9,000 · 9,500 · 10,000 · 10,500 all reached the motor;
+     * 11,000 · 11,500 · 12,000 did not. The failure is a `FAILED_TRANSACTION`
+     * in the binder log and nothing at all in the app — the request is simply
+     * too large to cross into the system process.
+     *
+     * 8,000 rather than 10,500 because that buffer is **shared across the whole
+     * process**: how much of it is free depends on what else is in flight, so a
+     * limit measured on an idle phone is an upper bound, not a safe one. 8,000
+     * steps is still 2 minutes 40 at 20 ms, and a phone rings for about thirty
+     * seconds — roughly 1,500 steps. The margin costs nothing real.
+     */
+    const val MAX_STEPS = 8_000
 
     private const val NO_REPEAT = -1
     private const val REPEAT_FROM_START = 0

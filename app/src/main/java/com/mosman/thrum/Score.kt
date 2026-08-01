@@ -53,6 +53,22 @@ data class Score(
         return Score(stepMs * factor, merged, sourceName)
     }
 
+    /**
+     * The same score, coarsened just enough to fit within [maxSteps].
+     *
+     * Widening the step is the honest trade: a score that covers the whole track
+     * at 40 ms beats one that covers the first two thirds at 20 ms and stops
+     * without saying so. Returns `this` when it already fits, so a normal-length
+     * score keeps full resolution.
+     */
+    fun fitWithin(maxSteps: Int): Score {
+        require(maxSteps > 0) { "maxSteps must be positive, was $maxSteps" }
+        if (amplitudes.size <= maxSteps) return this
+        // Round up, or the result lands one group over the limit.
+        val factor = (amplitudes.size + maxSteps - 1) / maxSteps
+        return coarsen(factor)
+    }
+
     /** Number of separate pulses — a run of non-zero steps counts once. */
     fun pulseCount(): Int {
         var count = 0

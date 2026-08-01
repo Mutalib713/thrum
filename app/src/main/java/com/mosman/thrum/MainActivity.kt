@@ -89,6 +89,7 @@ private fun ProbeScreen() {
     var decoding by remember { mutableStateOf(false) }
     var decoded by remember { mutableStateOf<Decoded?>(null) }
     var score by remember { mutableStateOf<Score?>(null) }
+    var probing by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             decoded = null
@@ -109,7 +110,15 @@ private fun ProbeScreen() {
                         onMono = { samples, count -> builder?.feed(samples, count) },
                     )
                 }
-                score = if (result is Decoded.Ok) builder?.build() else null
+                // Fitted immediately, not at playback. A score that cannot be
+                // played is not a score, and the place to find that out is here,
+                // where the step count is still on screen — not silently at the
+                // moment a call comes in. R8.
+                score = if (result is Decoded.Ok) {
+                    builder?.build()?.fitWithin(Haptics.MAX_STEPS)
+                } else {
+                    null
+                }
                 decoded = result
                 store.addEvent(
                     Event(
@@ -323,6 +332,48 @@ private fun ProbeScreen() {
         }
 
         HorizontalDivider()
+        Text("R8: how many steps fit?", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Sends progressively longer vibrations. The app cannot tell which " +
+                "ones arrive — a too-long one fails silently between processes — " +
+                "so the answer is read afterwards from the system's own record.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(
+            onClick = {
+                probing = true
+                scope.launch {
+                    for (size in R8_LADDER) {
+                        // 1ms steps: the parcel's size depends on how many steps
+                        // there are, not how long they last, so this asks the
+                        // real question in a second rather than in minutes.
+                        val probe = Score(1, List(size) { 120 }, "probe-$size")
+                        val failure = Haptics.play(ctx, probe, enforceLimit = false)
+                        store.addEvent(
+                            Event(
+                                at = System.currentTimeMillis(),
+                                kind = Event.Kind.SKIPPED,
+                                ringer = Haptics.ringerMode(ctx),
+                                latencyMs = size.toLong(),
+                                note = failure ?: "R8 probe: sent $size steps",
+                            ),
+                        )
+                        delay(1200)
+                        Haptics.stop(ctx)
+                        delay(400)
+                    }
+                    probing = false
+                    logRefresh++
+                }
+            },
+            enabled = !probing,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (probing) "Probing…" else "Run the step-limit probe (~15s)")
+        }
+
+        HorizontalDivider()
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -373,6 +424,13 @@ private fun summarise(result: Decoded): String = when (result) {
         )
     }
 }
+
+/**
+ * Step counts for the R8 probe, coarse to fine around where the wall is
+ * expected. A 3:58 track is 11,922 steps and failed; 500 is a 10-second
+ * ringtone, which must work or the product does not exist.
+ */
+private val R8_LADDER = listOf(8000, 9000, 9500, 10000, 10500, 11000, 11500, 12000)
 
 /** One line describing a built score, for the event log. */
 private fun summarise(score: Score): String =

@@ -387,6 +387,34 @@ class QaSuiteTest {
         Score(20, listOf(1, 2)).coarsen(0)
     }
 
+    @Test
+    fun `a score too long for the vibrator is coarsened until it fits`() {
+        // The measured wall on the Pixel 6 Pro is between 10,500 and 11,000
+        // steps; over it, the vibration silently never reaches the motor.
+        val fourMinutes = Score(20, List(11_922) { 100 })
+        val fitted = fourMinutes.fitWithin(Haptics.MAX_STEPS)
+        assertTrue("was ${fitted.amplitudes.size}", fitted.amplitudes.size <= Haptics.MAX_STEPS)
+        // Coverage is what must survive: the whole track, at a coarser step.
+        assertTrue(fitted.durationMs >= fourMinutes.durationMs)
+        assertEquals(40, fitted.stepMs)
+    }
+
+    @Test
+    fun `a score that already fits is left alone`() {
+        val short = Score(20, List(1500) { 100 })
+        assertEquals(short, short.fitWithin(Haptics.MAX_STEPS))
+    }
+
+    @Test
+    fun `fitting never lands one group over the limit`() {
+        // Rounding down here would produce a score that still fails, and fails
+        // invisibly, which is the whole bug being defended against.
+        for (size in listOf(8001, 12_000, 16_001, 40_000, 99_999)) {
+            val fitted = Score(20, List(size) { 50 }).fitWithin(Haptics.MAX_STEPS)
+            assertTrue("$size -> ${fitted.amplitudes.size}", fitted.amplitudes.size <= Haptics.MAX_STEPS)
+        }
+    }
+
     private fun analyse(sampleRate: Int = 44_100, build: Fixture.() -> Unit): Score {
         val fixture = Fixture(sampleRate).apply(build)
         val samples = fixture.samples()
