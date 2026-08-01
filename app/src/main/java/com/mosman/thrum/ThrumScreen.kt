@@ -34,6 +34,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -94,6 +95,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var failure by remember { mutableStateOf<String?>(null) }
     var pickedUri by remember { mutableStateOf<Uri?>(null) }
     var progress by remember { mutableStateOf(-1f) }
+    var ringMode by remember { mutableStateOf(store.fireInRingMode) }
 
     // Polled rather than observed: the user leaves for system settings and
     // comes back, and a screen still showing "grant permission" after they
@@ -155,7 +157,13 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                 }
 
                 is Decoded.Ok -> {
-                    val built = builder?.build()?.fitWithin(Haptics.MAX_STEPS)
+                    // Trim before fitting. Trimming keeps 20 ms steps; fitting
+                    // would have halved them to 40 ms across the whole track,
+                    // which is the chunkiness Mutalib felt. fitWithin stays as
+                    // the backstop for anything the trim does not catch.
+                    val built = builder?.build()
+                        ?.firstSeconds(RINGTONE_SECONDS)
+                        ?.fitWithin(Haptics.MAX_STEPS)
                     if (built == null || built.isSilent()) {
                         failure = ctx.getString(R.string.error_silent)
                         score = null
@@ -250,6 +258,8 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     score = state.score,
                     armed = state.armed,
                     progress = progress,
+                    ringMode = ringMode,
+                    onRingMode = { on -> ringMode = on; store.fireInRingMode = on },
                     onArm = {
                         store.armedScore = state.score
                         armed = true
@@ -455,6 +465,8 @@ private fun Ready(
     score: Score,
     armed: Boolean,
     progress: Float,
+    ringMode: Boolean,
+    onRingMode: (Boolean) -> Unit,
     onArm: () -> Unit,
     onPreview: () -> Unit,
     onFeel: () -> Unit,
@@ -496,11 +508,31 @@ private fun Ready(
                 stringResource(R.string.armed_body),
                 style = MaterialTheme.typography.bodyLarge,
             )
-            Text(
-                stringResource(R.string.armed_ring_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.fillMaxWidth(0.76f)) {
+                    Text(
+                        stringResource(R.string.ring_mode_label),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        stringResource(R.string.ring_mode_help),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = ringMode, onCheckedChange = onRingMode)
+            }
+            if (!ringMode) {
+                Text(
+                    stringResource(R.string.armed_ring_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         } else {
             Primary(stringResource(R.string.ready_action), onArm)
         }
@@ -576,3 +608,12 @@ private fun Int.dpOf() = androidx.compose.ui.unit.Dp(this.toFloat())
 
 private const val POLL_MS = 800L
 private const val START_WAIT_MS = 2000L
+
+/**
+ * How much of a track becomes the ringtone.
+ *
+ * A phone rings for roughly thirty seconds, so this is the part anyone will
+ * ever feel, plus room. Keeping it short is what allows 20 ms steps instead of
+ * the 40 ms a whole song would be coarsened to.
+ */
+private const val RINGTONE_SECONDS = 45

@@ -59,10 +59,14 @@ class ScoreBuilder(
     private var sustained = 0f
 
     private var stepPeak = 0f
+    private var stepBody = 0f
     private var samplesInStep = 0
 
     /** One entry per completed step. Kept as floats until [build] knows the loudest. */
     private val steps = ArrayList<Float>()
+
+    /** The same steps, measured as level rather than as onset. See [Levels]. */
+    private val bodies = ArrayList<Float>()
 
     /**
      * Feed one chunk of mono samples. Safe to call with the reused array
@@ -104,9 +108,20 @@ class ScoreBuilder(
             val onset = envelope - sustained
 
             if (onset > stepPeak) stepPeak = onset
+            // The music's body, kept alongside the beat.
+            //
+            // Onsets alone gave 76 % silence: isolated thumps with nothing
+            // between them. That is rhythm, but it is not music, and Mutalib
+            // felt the difference immediately. The envelope itself becomes a
+            // quiet second layer under the hits, so a sustained note is
+            // *present* rather than absent — the way a bass line is present
+            // when you put your hand on a speaker cabinet.
+            if (envelope > stepBody) stepBody = envelope
             if (++samplesInStep >= samplesPerStep) {
                 steps.add(stepPeak)
+                bodies.add(stepBody)
                 stepPeak = 0f
+                stepBody = 0f
                 samplesInStep = 0
             }
         }
@@ -131,18 +146,23 @@ class ScoreBuilder(
      * means many small adjustments, and seven seconds of decoding between each
      * one is how tuning stops happening.
      */
-    fun levels(): List<Float> {
+    fun levels(): Levels {
         // The last partial step still covers real audio. Dropping it would make
         // every score up to one step shorter than its track. Guarded so calling
         // this twice cannot append it twice.
         if (samplesInStep > 0) {
             steps.add(stepPeak)
+            bodies.add(stepBody)
             stepPeak = 0f
+            stepBody = 0f
             samplesInStep = 0
         }
-        val loudest = steps.maxOrNull() ?: 0f
-        if (loudest <= 0f) return List(steps.size) { 0f }
-        return steps.map { it / loudest }
+        val loudestOnset = steps.maxOrNull() ?: 0f
+        val loudestBody = bodies.maxOrNull() ?: 0f
+        return Levels(
+            onsets = if (loudestOnset <= 0f) List(steps.size) { 0f } else steps.map { it / loudestOnset },
+            body = if (loudestBody <= 0f) List(bodies.size) { 0f } else bodies.map { it / loudestBody },
+        )
     }
 
     /** Number of steps produced so far. The count [Score.MAX_AMPLITUDE] cares about is in R8. */
@@ -176,25 +196,23 @@ class ScoreBuilder(
          * @param minPulseMs the shortest a hit may last — see [MIN_PULSE_MS].
          */
         fun toScore(
-            levels: List<Float>,
+            levels: Levels,
             stepMs: Int,
             name: String = "",
             minFelt: Int = MIN_FELT,
             curve: Double = CURVE,
             gate: Float = GATE,
             minPulseMs: Int = MIN_PULSE_MS,
+            bodyCeiling: Int = BODY_CEILING,
         ): Score {
-            if (levels.none { it > 0f }) {
+            if (levels.onsets.none { it > 0f }) {
                 // Silence in, silence out. Not an error: a silent file is a real
                 // thing a user can pick, and it must not produce a buzz.
-                return Score(stepMs, List(levels.size) { 0 }, name)
+                return Score(stepMs, List(levels.onsets.size) { 0 }, name)
             }
 
-            val amplitudes = levels.map { level ->
+            val hits = levels.onsets.map { level ->
                 if (level < gate) {
-                    // Below the gate is room tone, tape hiss, the space between
-                    // hits. Left as a buzz it would smear the rhythm into one
-                    // continuous vibration.
                     0
                 } else {
                     // Map what survives onto minFelt..255 rather than 0..255.
@@ -210,9 +228,28 @@ class ScoreBuilder(
                     (minFelt + curved * range).roundToInt().coerceIn(0, Score.MAX_AMPLITUDE)
                 }
             }
-            // Then give each hit long enough to actually move the motor.
-            val minSteps = (minPulseMs / stepMs).coerceAtLeast(1)
-            return Score(stepMs, amplitudes, name).holdPulsesAtLeast(minSteps)
+
+            // The body layer, deliberately capped below [minFelt] so it fills
+            // the gaps without ever competing with a beat. Loud enough to feel
+            // as texture, quiet enough that the hits still land on top of it.
+            val body = levels.body.map { level ->
+                if (level < BODY_GATE) {
+                    0
+                } else {
+                    val above = ((level - BODY_GATE) / (1f - BODY_GATE)).coerceIn(0f, 1f)
+                    (above.toDouble().pow(BODY_CURVE) * bodyCeiling).roundToInt()
+                        .coerceIn(0, Score.MAX_AMPLITUDE)
+                }
+            }
+
+            // Hold the hits first, then lay them over the body — holding a
+            // combined track would stretch quiet texture into fake beats.
+            val held = Score(stepMs, hits, name)
+                .holdPulsesAtLeast((minPulseMs / stepMs).coerceAtLeast(1))
+            val combined = held.amplitudes.mapIndexed { i, hit ->
+                maxOf(hit, body.getOrElse(i) { 0 })
+            }
+            return Score(stepMs, combined, name)
         }
 
         /**
@@ -266,5 +303,27 @@ class ScoreBuilder(
          * inside the gap between beats at any tempo a person dances to.
          */
         const val MIN_PULSE_MS = 120
+
+        /**
+         * The loudest the body layer may get. Below [MIN_FELT] on purpose: the
+         * texture between beats must never be mistaken for a beat.
+         */
+        const val BODY_CEILING = 135
+
+        /** Quieter than the hit gate — this layer's job is to be almost always present. */
+        const val BODY_GATE = 0.05f
+
+        /** Flatter than [CURVE], so the body reads as a steady presence rather than more accents. */
+        const val BODY_CURVE = 0.9
     }
 }
+
+/**
+ * A track measured two ways over the same steps.
+ *
+ * [onsets] is what *rises* — the beat. [body] is how loud the music simply is —
+ * its presence. A score built from onsets alone is 76 % silence and feels like
+ * isolated thumps; one built from body alone is a continuous massage (Task 4's
+ * first attempt). Mixed, with the body capped below the hits, it reads as music.
+ */
+data class Levels(val onsets: List<Float>, val body: List<Float>)

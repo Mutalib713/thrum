@@ -16,13 +16,18 @@ class Store(ctx: Context) {
     /**
      * Whether to also play a score when the phone is in normal ring mode.
      *
-     * Off by default. In ring mode Android already plays a stock ringtone's own
-     * haptics correctly, so firing as well would put two vibrations on top of
-     * each other. It is switchable only because Task 2 needs to observe every
-     * mode to fill in its results table.
+     * **On by default since 2026-08-01, at Mutalib's request.** It was off
+     * originally on the assumption that our vibration would fight the ringtone's
+     * own — Task 2 disproved that: the last `RINGTONE` vibration wins, so ours
+     * supersedes the system's cleanly.
+     *
+     * The honest caveat, surfaced in the UI rather than buried here: with the
+     * ringer on, the user hears their *ringtone* and feels their *chosen track*.
+     * Unless those are the same file, sound and vibration are playing different
+     * music. That is why it stays a switch.
      */
     var fireInRingMode: Boolean
-        get() = prefs.getBoolean(KEY_RING_MODE, false)
+        get() = prefs.getBoolean(KEY_RING_MODE, true)
         set(v) = prefs.edit().putBoolean(KEY_RING_MODE, v).apply()
 
     /** Loop the score while the phone rings, rather than playing it once. */

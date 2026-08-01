@@ -54,6 +54,25 @@ data class Score(
     }
 
     /**
+     * The first [seconds] of the score, at full resolution.
+     *
+     * Preferred over [fitWithin] for a ringtone. A four-minute track at 20 ms is
+     * 11,922 steps — over the vibrator's limit — and coarsening it to fit costs
+     * every step half its precision, so the whole rhythm updates 25 times a
+     * second instead of 50. Mutalib felt that as chunky rather than smooth.
+     *
+     * A phone rings for about thirty seconds. Trimming keeps the part anyone
+     * will actually feel and keeps it sharp, instead of blurring four minutes
+     * nobody hears.
+     */
+    fun firstSeconds(seconds: Int): Score {
+        require(seconds > 0) { "seconds must be positive, was $seconds" }
+        val keep = seconds * 1000 / stepMs
+        if (amplitudes.size <= keep) return this
+        return Score(stepMs, amplitudes.take(keep), sourceName)
+    }
+
+    /**
      * The same score, coarsened just enough to fit within [maxSteps].
      *
      * Widening the step is the honest trade: a score that covers the whole track

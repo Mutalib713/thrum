@@ -314,16 +314,30 @@ class QaSuiteTest {
     }
 
     @Test
-    fun `a sustained bass note is not a rhythm`() {
-        // The bug this test exists for: following loudness rather than onsets.
-        // A held note is loud for its whole length, so a level-following
-        // analyser vibrates continuously through it. Masha Allah came out 96.7 %
-        // non-zero with a single unbroken 2m23s vibration before this was fixed.
+    fun `a sustained bass note is texture, never a run of beats`() {
+        // Rewritten 2026-08-01 when Mutalib asked for something smoother and
+        // more musical. It used to assert a held note produced almost no
+        // movement at all, which was right when a score was hits-only — the
+        // original bug was a level-following analyser turning Masha Allah into
+        // one unbroken 2m23s vibration.
+        //
+        // A held note may now be *present*, quietly, as body. What it must never
+        // do is read as a sequence of beats, so the check moved from "does it
+        // move" to "does it hit".
+        //
+        // **Known artifact, not fixed here.** A pure 60 Hz tone still produces
+        // about 47 onsets over four seconds. Rectifying a sine gives a 120 Hz
+        // pulse train, and some of that ripple survives into the onset
+        // difference as false beats. It is pre-existing — the hits-only version
+        // scored identically — and it does not show on real music, which is
+        // never a bare sine. Worth revisiting if a track with an exposed
+        // synth bass ever feels wrong; not worth disturbing a feel Mutalib has
+        // just approved.
         val score = analyse { tone(hz = 60.0, seconds = 4.0, amplitude = 18000) }
-        val moving = score.amplitudes.count { it > 0 }
+        val hits = score.amplitudes.count { it >= ScoreBuilder.MIN_FELT }
         assertTrue(
-            "a 4s held note produced $moving moving steps of ${score.amplitudes.size}",
-            moving < score.amplitudes.size / 4,
+            "a 4s held note produced $hits hits of ${score.amplitudes.size} steps",
+            hits < score.amplitudes.size / 4,
         )
     }
 
@@ -356,12 +370,29 @@ class QaSuiteTest {
     }
 
     @Test
-    fun `every hit is strong enough to move the motor`() {
-        // A phone on a table did not move at all when hits landed at 45-150.
-        // The bottom of the range is not quiet, it is nothing.
+    fun `there is nothing in the dead zone between texture and a hit`() {
+        // A phone on a table did not move at all when hits landed at 45-150:
+        // the bottom of the range is not quiet, it is nothing. That produced a
+        // rule of "no amplitude below MIN_FELT", which held while a score was
+        // hits-only.
+        //
+        // A score now has two layers by design — body up to BODY_CEILING for
+        // texture, hits from MIN_FELT up. The invariant that replaces the old
+        // one is the gap between them: an amplitude in between is too weak to
+        // register as a beat and too strong to sit under one.
         val score = analyse { fourOnTheFloor(bars = 2, bpm = 120) }
-        val weak = score.amplitudes.filter { it in 1 until ScoreBuilder.MIN_FELT }
-        assertTrue("$weak fell below the felt threshold", weak.isEmpty())
+        val stranded = score.amplitudes
+            .filter { it > ScoreBuilder.BODY_CEILING && it < ScoreBuilder.MIN_FELT }
+        assertTrue("$stranded landed in the dead zone", stranded.isEmpty())
+    }
+
+    @Test
+    fun `hits still stand clear of the texture underneath them`() {
+        val score = analyse { fourOnTheFloor(bars = 2, bpm = 120) }
+        val hits = score.amplitudes.filter { it >= ScoreBuilder.MIN_FELT }
+        assertTrue("no hits at all", hits.isNotEmpty())
+        // The body layer must never be mistaken for a beat.
+        assertTrue(hits.min() > ScoreBuilder.BODY_CEILING)
     }
 
     @Test

@@ -103,7 +103,7 @@ private fun ProbeScreen() {
     var score by remember { mutableStateOf<Score?>(null) }
     var probing by remember { mutableStateOf(false) }
     var pickedUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    var levels by remember { mutableStateOf<List<Float>?>(null) }
+    var levels by remember { mutableStateOf<Levels?>(null) }
     var levelStepMs by remember { mutableStateOf(Demo.STEP_MS) }
     var strength by remember { mutableStateOf(ScoreBuilder.MIN_FELT.toFloat()) }
     var playingTogether by remember { mutableStateOf(false) }
