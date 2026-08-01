@@ -52,6 +52,9 @@ class ScoreBuilder(
     private val attackCoef = coefFor(ATTACK_SECONDS)
     private val releaseCoef = coefFor(RELEASE_SECONDS)
     private val sustainedCoef = coefFor(SUSTAINED_SECONDS)
+    private val highAttackCoef = coefFor(HIGH_ATTACK_SECONDS)
+    private val highReleaseCoef = coefFor(HIGH_RELEASE_SECONDS)
+    private val highSustainedCoef = coefFor(HIGH_SUSTAINED_SECONDS)
 
     private var lp1 = 0f
     private var lp2 = 0f
@@ -59,14 +62,16 @@ class ScoreBuilder(
     private var sustained = 0f
 
     private var stepPeak = 0f
-    private var stepBody = 0f
+    private var stepDetail = 0f
+    private var highEnv = 0f
+    private var highSustained = 0f
     private var samplesInStep = 0
 
     /** One entry per completed step. Kept as floats until [build] knows the loudest. */
     private val steps = ArrayList<Float>()
 
     /** The same steps, measured as level rather than as onset. See [Levels]. */
-    private val bodies = ArrayList<Float>()
+    private val details = ArrayList<Float>()
 
     /**
      * Feed one chunk of mono samples. Safe to call with the reused array
@@ -108,20 +113,34 @@ class ScoreBuilder(
             val onset = envelope - sustained
 
             if (onset > stepPeak) stepPeak = onset
-            // The music's body, kept alongside the beat.
+
+            // The rest of the kit.
             //
-            // Onsets alone gave 76 % silence: isolated thumps with nothing
-            // between them. That is rhythm, but it is not music, and Mutalib
-            // felt the difference immediately. The envelope itself becomes a
-            // quiet second layer under the hits, so a sustained note is
-            // *present* rather than absent — the way a bass line is present
-            // when you put your hand on a speaker cabinet.
-            if (envelope > stepBody) stepBody = envelope
+            // The low-pass keeps the kick and drops everything else, so a score
+            // was only ever the bass drum — one voice of a pattern that has
+            // three or four. That is why it read as thumping rather than as
+            // music. What the low-pass threw away is exactly the snare, the rim,
+            // the hats: the detail that makes a rhythm sound played rather than
+            // pulsed.
+            //
+            // Subtracting the filtered signal from the original leaves the upper
+            // band, and the same onset trick applies to it. These become lighter
+            // hits, mapped below the kick's range so the beat still leads.
+            val high = x - lp2
+            val highLevel = abs(high)
+            highEnv += if (highLevel > highEnv) {
+                highAttackCoef * (highLevel - highEnv)
+            } else {
+                highReleaseCoef * (highLevel - highEnv)
+            }
+            highSustained += highSustainedCoef * (highEnv - highSustained)
+            val highOnset = highEnv - highSustained
+            if (highOnset > stepDetail) stepDetail = highOnset
             if (++samplesInStep >= samplesPerStep) {
                 steps.add(stepPeak)
-                bodies.add(stepBody)
+                details.add(stepDetail)
                 stepPeak = 0f
-                stepBody = 0f
+                stepDetail = 0f
                 samplesInStep = 0
             }
         }
@@ -152,16 +171,16 @@ class ScoreBuilder(
         // this twice cannot append it twice.
         if (samplesInStep > 0) {
             steps.add(stepPeak)
-            bodies.add(stepBody)
+            details.add(stepDetail)
             stepPeak = 0f
-            stepBody = 0f
+            stepDetail = 0f
             samplesInStep = 0
         }
         val loudestOnset = steps.maxOrNull() ?: 0f
-        val loudestBody = bodies.maxOrNull() ?: 0f
+        val loudestDetail = details.maxOrNull() ?: 0f
         return Levels(
             onsets = if (loudestOnset <= 0f) List(steps.size) { 0f } else steps.map { it / loudestOnset },
-            body = if (loudestBody <= 0f) List(bodies.size) { 0f } else bodies.map { it / loudestBody },
+            detail = if (loudestDetail <= 0f) List(details.size) { 0f } else details.map { it / loudestDetail },
         )
     }
 
@@ -229,25 +248,33 @@ class ScoreBuilder(
                 }
             }
 
-            // The body layer, deliberately capped below [minFelt] so it fills
-            // the gaps without ever competing with a beat. Loud enough to feel
-            // as texture, quiet enough that the hits still land on top of it.
-            val body = levels.body.map { level ->
-                if (level < BODY_GATE) {
+            // The upper band's own hits — snare, rim, hats. Capped below
+            // [minFelt] so the kick always leads: a pattern where every voice
+            // is equally loud is not a pattern, it is noise.
+            //
+            // Replaced the earlier "body" layer, which took the *level* rather
+            // than the onsets and was built on the fast envelope, so it
+            // collapsed to nothing between beats and did almost no work: with it
+            // at maximum a real track still measured 75.2 % silent. Mutalib
+            // reached the same verdict by hand — the setting he preferred was
+            // zero.
+            val detail = levels.detail.map { level ->
+                if (level < DETAIL_GATE) {
                     0
                 } else {
-                    val above = ((level - BODY_GATE) / (1f - BODY_GATE)).coerceIn(0f, 1f)
-                    (above.toDouble().pow(BODY_CURVE) * bodyCeiling).roundToInt()
+                    val above = ((level - DETAIL_GATE) / (1f - DETAIL_GATE)).coerceIn(0f, 1f)
+                    (above.toDouble().pow(DETAIL_CURVE) * bodyCeiling).roundToInt()
                         .coerceIn(0, Score.MAX_AMPLITUDE)
                 }
             }
 
-            // Hold the hits first, then lay them over the body — holding a
-            // combined track would stretch quiet texture into fake beats.
+            // Hold the kicks first, then lay the detail over them. Holding a
+            // combined track would stretch a hat into something the length of a
+            // kick, which is exactly the difference between the two.
             val held = Score(stepMs, hits, name)
                 .holdPulsesAtLeast((minPulseMs / stepMs).coerceAtLeast(1), HIT_DECAY)
             val combined = held.amplitudes.mapIndexed { i, hit ->
-                maxOf(hit, body.getOrElse(i) { 0 })
+                maxOf(hit, detail.getOrElse(i) { 0 })
             }
             return Score(stepMs, combined, name)
         }
@@ -305,16 +332,22 @@ class ScoreBuilder(
         const val MIN_PULSE_MS = 120
 
         /**
-         * The loudest the body layer may get. Below [MIN_FELT] on purpose: the
-         * texture between beats must never be mistaken for a beat.
+         * The loudest a detail hit may get. Below [MIN_FELT] on purpose: the
+         * kick has to lead, or a pattern where every voice is equally loud stops
+         * being a pattern.
          */
-        const val BODY_CEILING = 135
+        const val BODY_CEILING = 150
 
-        /** Quieter than the hit gate — this layer's job is to be almost always present. */
-        const val BODY_GATE = 0.05f
+        /** High enough that only a real transient counts, not the wash of a held note. */
+        const val DETAIL_GATE = 0.16f
 
-        /** Flatter than [CURVE], so the body reads as a steady presence rather than more accents. */
-        const val BODY_CURVE = 0.9
+        /** Same shape as the kick's curve, so the two bands feel like one kit. */
+        const val DETAIL_CURVE = 0.6
+
+        /** A hat is over almost before it starts, so this band follows much faster. */
+        const val HIGH_ATTACK_SECONDS = 0.002
+        const val HIGH_RELEASE_SECONDS = 0.040
+        const val HIGH_SUSTAINED_SECONDS = 0.250
 
         /**
          * How far a hit fades across the steps it is held for. A drum decays; a
@@ -327,11 +360,19 @@ class ScoreBuilder(
 }
 
 /**
- * A track measured two ways over the same steps.
+ * A track measured in two frequency bands over the same steps.
  *
- * [onsets] is what *rises* — the beat. [body] is how loud the music simply is —
- * its presence. A score built from onsets alone is 76 % silence and feels like
- * isolated thumps; one built from body alone is a continuous massage (Task 4's
- * first attempt). Mixed, with the body capped below the hits, it reads as music.
+ * [onsets] is the low band rising — the kick, the beat to lead with. [detail] is
+ * the same measurement applied to everything the low-pass threw away: snare,
+ * rim, hats.
+ *
+ * A score from the low band alone is only ever the bass drum, which is one voice
+ * of a pattern that has three or four — that is why it thumped rather than
+ * played. Mixed, with detail capped below the kick, it reads as a kit.
+ *
+ * The layer this replaced measured *level* rather than onsets, on the fast
+ * envelope, so it collapsed between beats and did almost nothing: at maximum a
+ * real track still came out 75.2 % silent. Mutalib reached the same verdict by
+ * hand — the setting he preferred was zero.
  */
-data class Levels(val onsets: List<Float>, val body: List<Float>)
+data class Levels(val onsets: List<Float>, val detail: List<Float>)
