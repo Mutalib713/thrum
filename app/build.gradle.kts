@@ -23,6 +23,8 @@ android {
 
     buildFeatures {
         compose = true
+        // The diagnostics probe is reachable in debug builds only.
+        buildConfig = true
     }
 
     testOptions {

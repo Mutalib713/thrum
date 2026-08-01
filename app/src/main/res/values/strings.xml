@@ -1,4 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Thrum</string>
+    <string name="tagline">Vibrate mode, playing your own music</string>
+
+    <!-- Blocked: the motor cannot vary strength. Terminal, and honest about it. -->
+    <string name="blocked_title">This phone can\'t do it</string>
+    <string name="blocked_body">Thrum needs a motor that can change strength. Yours has one
+        speed. Every rhythm would reach you as the same flat buzz your phone already makes, and
+        no setting, update, or future version of this app will change that.</string>
+    <string name="blocked_detail">Motor: %1$s. Strength control: %2$s.</string>
+
+    <!-- Permission -->
+    <string name="permission_title">Thrum has to see your call notifications</string>
+    <string name="permission_body">It is how the app knows a call has started. Thrum checks one
+        thing: is this a call? The rest it ignores. Nothing leaves your phone. There is no
+        internet permission in this app and there never will be.</string>
+    <string name="permission_action">Turn on notification access</string>
+
+    <!-- Empty -->
+    <string name="empty_title">Pick the song you want to feel</string>
+    <string name="empty_body">Any track on your phone. Thrum follows the bass and drums, and
+        makes your phone vibrate to them when someone calls.</string>
+    <string name="empty_action">Choose a song</string>
+
+    <!-- Loading -->
+    <string name="loading_title">Reading %1$s</string>
+    <string name="loading_body">A few seconds. Longer tracks take longer.</string>
+
+    <!-- Errors -->
+    <string name="error_title">That one didn\'t work</string>
+    <string name="error_silent">There is no sound in that file, so there is nothing to feel. Pick
+        a track with music in it.</string>
+    <string name="error_action">Choose a different song</string>
+
+    <!-- Ready -->
+    <string name="ready_meta">%1$s · %2$d hits</string>
+    <string name="ready_action">Use this when someone calls</string>
+    <string name="ready_preview">Play it with the song</string>
+    <string name="ready_feel">Feel it on its own</string>
+    <string name="ready_stop">Stop</string>
+
+    <!-- Armed -->
+    <string name="armed_title">Ready</string>
+    <string name="armed_body">Put your phone on vibrate. Next time it rings, this is what you
+        feel.</string>
+    <string name="armed_ring_note">Leave the ringer on and nothing changes. Your phone plays its
+        usual ringtone, and Thrum keeps out of the way.</string>
+    <string name="armed_change">Choose a different song</string>
+
+    <!-- The technical row, for the kind of person who wants the numbers -->
+    <string name="tech_row">%1$d steps · %2$d ms each · still %3$d%% of the time</string>
+    <string name="armed_indicator">Armed</string>
+
+    <!-- Debug builds only -->
+    <string name="diagnostics">Diagnostics</string>
 </resources>

@@ -92,11 +92,29 @@ class NotifService : NotificationListenerService() {
             return
         }
 
+        // The user's own track if they have armed one. The demo pattern is the
+        // fallback rather than silence: a call that vibrates with the wrong
+        // rhythm is a bug, while a call that does not vibrate at all is
+        // indistinguishable from the app being broken.
+        val armed = store.armedScore
+        val score = armed ?: Demo.rhythm()
+
         val loop = store.loopWhileRinging
         activeKey = sbn.key
         lastFireAt = SystemClock.uptimeMillis()
-        Haptics.play(this, Demo.rhythm(), loop = loop)
-        record(Event.Kind.FIRED, ringer, latency, if (loop) "looping" else "once")
+        val failure = Haptics.play(this, score, loop = loop)
+        if (failure != null) {
+            record(Event.Kind.SKIPPED, ringer, latency, failure)
+            activeKey = null
+            return
+        }
+        record(
+            Event.Kind.FIRED,
+            ringer,
+            latency,
+            (if (armed == null) "demo pattern" else "armed: ${armed.sourceName}") +
+                if (loop) " · looping" else " · once",
+        )
 
         // Safety cap. A looping waveform runs until something cancels it, and if
         // the removal callback never arrives — killed listener, missed update —

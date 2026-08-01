@@ -1,4 +1,4 @@
-﻿package com.mosman.thrum
+package com.mosman.thrum
 
 import android.content.Intent
 import android.os.Bundle
@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -60,13 +61,22 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
+            var diagnostics by remember { mutableStateOf(false) }
             ThrumTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    ProbeScreen()
+                if (diagnostics) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        ProbeScreen()
+                    }
+                } else {
+                    // The probe stays reachable in debug builds — Task 10's soak
+                    // needs its event log, and the R8 ladder has to run again on
+                    // every new phone. It is not product surface.
+                    ThrumApp(onDiagnostics = if (BuildConfig.DEBUG) ({ diagnostics = true }) else null)
                 }
             }
         }
@@ -84,7 +94,7 @@ private fun ProbeScreen() {
     var loopWhileRinging by remember { mutableStateOf(store.loopWhileRinging) }
     var logRefresh by remember { mutableStateOf(0) }
 
-    // Task 3. Decoding runs off the main thread â€” a three-minute track takes
+    // Task 3. Decoding runs off the main thread — a three-minute track takes
     // long enough that doing it here would freeze the screen and, on a slow
     // file, trip Android's "app isn't responding" dialog.
     val scope = rememberCoroutineScope()
@@ -100,7 +110,7 @@ private fun ProbeScreen() {
 
     // Task 5: the audio and the vibration at once, because the only way to judge
     // whether a rhythm matches a track is to feel it against the track. Held
-    // across recompositions and released with the screen â€” a leaked MediaPlayer
+    // across recompositions and released with the screen — a leaked MediaPlayer
     // keeps playing after the app is gone.
     val player = remember { mutableStateOf<android.media.MediaPlayer?>(null) }
     DisposableEffect(Unit) {
@@ -133,11 +143,11 @@ private fun ProbeScreen() {
                 }
                 // Fitted immediately, not at playback. A score that cannot be
                 // played is not a score, and the place to find that out is here,
-                // where the step count is still on screen â€” not silently at the
+                // where the step count is still on screen — not silently at the
                 // moment a call comes in. R8.
                 // Keep the analysed levels, not just the score. Changing the
                 // strength then costs nothing, where re-decoding costs seven
-                // seconds â€” and tuning by feel is many small adjustments.
+                // seconds — and tuning by feel is many small adjustments.
                 levels = if (result is Decoded.Ok) builder?.levels() else null
                 levelStepMs = builder?.stepMsUsed ?: Demo.STEP_MS
                 val trackName = AudioDecoder.displayName(ctx, uri)
@@ -148,7 +158,7 @@ private fun ProbeScreen() {
                 decoded = result
                 // Dump the whole score where adb can reach it. The event log
                 // carries a summary, and a summary cannot tell "a few long
-                // smears" apart from "sparse hits" â€” the two need opposite
+                // smears" apart from "sparse hits" — the two need opposite
                 // fixes. Tuning by asking Mutalib to re-feel a track after every
                 // guess would take all day; this way the guessing happens on the
                 // PC against the real numbers. Debug aid, not product.
@@ -216,8 +226,8 @@ private fun ProbeScreen() {
                 "The motor has one strength, so it can only buzz. Nothing Thrum " +
                     "does would be felt on this phone."
             },
-            detail = "vibrator ${capability.hasVibrator} Â· " +
-                "strength control ${capability.amplitudeControl} Â· " +
+            detail = "vibrator ${capability.hasVibrator} · " +
+                "strength control ${capability.amplitudeControl} · " +
                 "sharp effects ${capability.richPrimitives}",
         )
 
@@ -271,7 +281,7 @@ private fun ProbeScreen() {
                 onClick = { Haptics.play(ctx, score) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("${score.sourceName}  Â·  ${score.durationMs / 1000}s")
+                Text("${score.sourceName}  ·  ${score.durationMs / 1000}s")
             }
         }
         OutlinedButton(
@@ -284,7 +294,7 @@ private fun ProbeScreen() {
         HorizontalDivider()
         Text("Read an audio file", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Task 3. Turns a file into plain numbers â€” the step before it can " +
+            "Task 3. Turns a file into plain numbers — the step before it can " +
                 "become a rhythm. Nothing is played and nothing is saved.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -294,7 +304,7 @@ private fun ProbeScreen() {
             enabled = !decoding,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (decoding) "Readingâ€¦" else "Pick an audio file")
+            Text(if (decoding) "Reading”¦" else "Pick an audio file")
         }
         when (val result = decoded) {
             null -> Unit
@@ -306,10 +316,10 @@ private fun ProbeScreen() {
             is Decoded.Ok -> StatusCard(
                 good = result.durationAgrees && !result.isSilent,
                 title = result.name,
-                body = "${result.sampleRate} Hz Â· ${channelWord(result.channels)} Â· " +
+                body = "${result.sampleRate} Hz · ${channelWord(result.channels)} · " +
                     clock(result.decodedMs) +
                     if (result.isSilent) "\nThis file is completely silent." else "",
-                detail = "${result.mime} Â· ${result.frames} frames Â· peak ${result.peakPercent}% Â· " +
+                detail = "${result.mime} · ${result.frames} frames · peak ${result.peakPercent}% · " +
                     "read in ${result.elapsedMs} ms\n" +
                     if (result.containerMs <= 0) {
                         "the file doesn't state its own length, so there's nothing to check against"
@@ -317,7 +327,7 @@ private fun ProbeScreen() {
                         "matches the length the file claims (${clock(result.containerMs)})"
                     } else {
                         "DISAGREES with the length the file claims (${clock(result.containerMs)}) " +
-                            "â€” the decode stopped early"
+                            "— the decode stopped early"
                     },
             )
         }
@@ -330,7 +340,7 @@ private fun ProbeScreen() {
             )
             Text(
                 "Higher hits harder but flattens loud and quiet beats together. " +
-                    "Rebuilds instantly â€” no need to pick the file again.",
+                    "Rebuilds instantly — no need to pick the file again.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -352,9 +362,9 @@ private fun ProbeScreen() {
                 good = !built.isSilent(),
                 title = "Rhythm: ${built.pulseCount()} hits",
                 body = if (built.isSilent()) {
-                    "This file produced no rhythm at all â€” nothing loud enough to feel."
+                    "This file produced no rhythm at all — nothing loud enough to feel."
                 } else {
-                    "${built.amplitudes.size} steps of ${built.stepMs}ms Â· " +
+                    "${built.amplitudes.size} steps of ${built.stepMs}ms · " +
                         "strongest ${built.amplitudes.max()}/255"
                 },
                 detail = "R8: playing this asks the vibrator for ${built.amplitudes.size} steps " +
@@ -373,7 +383,7 @@ private fun ProbeScreen() {
                                 kind = if (failure == null) Event.Kind.FIRED else Event.Kind.SKIPPED,
                                 ringer = Haptics.ringerMode(ctx),
                                 latencyMs = 0,
-                                note = failure ?: "played score Â· ${summarise(built)}",
+                                note = failure ?: "played score · ${summarise(built)}",
                             ),
                         )
                         logRefresh++
@@ -407,7 +417,7 @@ private fun ProbeScreen() {
                                 // Start the vibration when sound actually leaves
                                 // the speaker, not when start() returns. Asking a
                                 // player to play and assuming it has is the same
-                                // mistake as assuming a vibration happened â€”
+                                // mistake as assuming a vibration happened —
                                 // getCurrentPosition only advances once audio is
                                 // genuinely running.
                                 var position = 0
@@ -425,7 +435,7 @@ private fun ProbeScreen() {
                                         ringer = Haptics.ringerMode(ctx),
                                         latencyMs = position.toLong(),
                                         note = failure
-                                            ?: "with audio Â· skipped ${position}ms to match the speaker Â· " +
+                                            ?: "with audio · skipped ${position}ms to match the speaker · " +
                                             "${aligned.amplitudes.size} steps",
                                     ),
                                 )
@@ -453,7 +463,7 @@ private fun ProbeScreen() {
                     enabled = pickedUri != null,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(if (playingTogether) "Playingâ€¦" else "Play with song")
+                    Text(if (playingTogether) "Playing”¦" else "Play with song")
                 }
                 OutlinedButton(
                     onClick = {
@@ -474,7 +484,7 @@ private fun ProbeScreen() {
         Text("R8: how many steps fit?", style = MaterialTheme.typography.titleMedium)
         Text(
             "Sends progressively longer vibrations. The app cannot tell which " +
-                "ones arrive â€” a too-long one fails silently between processes â€” " +
+                "ones arrive — a too-long one fails silently between processes — " +
                 "so the answer is read afterwards from the system's own record.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -509,7 +519,7 @@ private fun ProbeScreen() {
             enabled = !probing,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (probing) "Probingâ€¦" else "Run the step-limit probe (~15s)")
+            Text(if (probing) "Probing”¦" else "Run the step-limit probe (~15s)")
         }
 
         HorizontalDivider()
@@ -546,19 +556,19 @@ private fun ProbeScreen() {
  */
 private fun summarise(result: Decoded): String = when (result) {
     is Decoded.Failed ->
-        "FAILED" + (if (result.mime.isEmpty()) "" else " (${result.mime})") + " â€” ${result.message}"
+        "FAILED" + (if (result.mime.isEmpty()) "" else " (${result.mime})") + " — ${result.message}"
     is Decoded.Ok -> buildString {
-        append(result.name).append(" Â· ").append(result.mime)
-        append(" Â· ").append(result.sampleRate).append("Hz")
-        append(" Â· ").append(channelWord(result.channels))
-        append(" Â· ").append(clock(result.decodedMs))
-        append(" Â· ").append(result.frames).append(" frames")
-        append(" Â· peak ").append(result.peakPercent).append("%")
+        append(result.name).append(" · ").append(result.mime)
+        append(" · ").append(result.sampleRate).append("Hz")
+        append(" · ").append(channelWord(result.channels))
+        append(" · ").append(clock(result.decodedMs))
+        append(" · ").append(result.frames).append(" frames")
+        append(" · peak ").append(result.peakPercent).append("%")
         append(
             when {
-                result.containerMs <= 0 -> " Â· no length claimed"
-                result.durationAgrees -> " Â· matches ${clock(result.containerMs)}"
-                else -> " Â· DISAGREES, file claims ${clock(result.containerMs)}"
+                result.containerMs <= 0 -> " · no length claimed"
+                result.durationAgrees -> " · matches ${clock(result.containerMs)}"
+                else -> " · DISAGREES, file claims ${clock(result.containerMs)}"
             },
         )
     }
@@ -573,8 +583,8 @@ private val R8_LADDER = listOf(8000, 9000, 9500, 10000, 10500, 11000, 11500, 120
 
 /** One line describing a built score, for the event log. */
 private fun summarise(score: Score): String =
-    "${score.pulseCount()} hits Â· ${score.amplitudes.size} steps Ã— ${score.stepMs}ms Â· " +
-        "${clock(score.durationMs)} Â· strongest ${score.amplitudes.maxOrNull() ?: 0}/255"
+    "${score.pulseCount()} hits · ${score.amplitudes.size} steps Ã— ${score.stepMs}ms · " +
+        "${clock(score.durationMs)} · strongest ${score.amplitudes.maxOrNull() ?: 0}/255"
 
 /** `3:01`, so the length can be compared against a music player at a glance. */
 private fun clock(ms: Long): String {
@@ -649,8 +659,8 @@ private fun EventRow(event: Event) {
     }
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            "$time  ${event.kind.name.lowercase()}  Â·  ringer ${event.ringer}" +
-                if (event.kind == Event.Kind.FIRED) "  Â·  ${event.latencyMs}ms late" else "",
+            "$time  ${event.kind.name.lowercase()}  ·  ringer ${event.ringer}" +
+                if (event.kind == Event.Kind.FIRED) "  ·  ${event.latencyMs}ms late" else "",
             style = MaterialTheme.typography.bodyMedium,
             color = colour,
         )

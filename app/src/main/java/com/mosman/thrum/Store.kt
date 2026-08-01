@@ -30,6 +30,20 @@ class Store(ctx: Context) {
         get() = prefs.getBoolean(KEY_LOOP, true)
         set(v) = prefs.edit().putBoolean(KEY_LOOP, v).apply()
 
+    /**
+     * The armed score — what a real call plays.
+     *
+     * Null means nothing is armed, and [NotifService] falls back to the demo
+     * pattern rather than staying silent. A corrupt or unreadable value also
+     * reads as null: a score that cannot be decoded is not an error worth
+     * crashing a notification listener for.
+     */
+    var armedScore: Score?
+        get() = prefs.getString(KEY_SCORE, null)?.let { Score.decode(it) }
+        set(value) = prefs.edit().apply {
+            if (value == null) remove(KEY_SCORE) else putString(KEY_SCORE, value.encode())
+        }.apply()
+
     fun events(): List<Event> = Event.decodeAll(prefs.getString(KEY_EVENTS, "") ?: "")
 
     fun addEvent(event: Event) {
@@ -43,5 +57,6 @@ class Store(ctx: Context) {
         const val KEY_RING_MODE = "fire_in_ring_mode"
         const val KEY_LOOP = "loop_while_ringing"
         const val KEY_EVENTS = "events"
+        const val KEY_SCORE = "armed_score"
     }
 }
