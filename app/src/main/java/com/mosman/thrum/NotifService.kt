@@ -62,6 +62,22 @@ class NotifService : NotificationListenerService() {
         val ringer = Haptics.ringerMode(this)
         val latency = (System.currentTimeMillis() - sbn.postTime).coerceAtLeast(0)
 
+        // A dialer updates its call notification moments after posting it —
+        // caller ID resolves, a photo loads, an action changes. Every update
+        // arrives here as another "incoming", and playing again restarts the
+        // waveform a fraction of a second into the rhythm. Task 2 caught this on
+        // 5 of 13 real calls, the two fires 21–678 ms apart.
+        //
+        // Same key is the same call. The time window is for a dialer that posts
+        // a second, differently-keyed notification for one ring: swallowing a
+        // genuine second caller is harmless, since the phone is already playing.
+        if (activeKey != null &&
+            (sbn.key == activeKey || SystemClock.uptimeMillis() - lastFireAt < DEDUPE_WINDOW_MS)
+        ) {
+            record(Event.Kind.SKIPPED, ringer, latency, "duplicate notification, already playing")
+            return
+        }
+
         if (ringer == "ring" && !store.fireInRingMode) {
             record(
                 Event.Kind.SKIPPED,
@@ -78,20 +94,24 @@ class NotifService : NotificationListenerService() {
 
         val loop = store.loopWhileRinging
         activeKey = sbn.key
+        lastFireAt = SystemClock.uptimeMillis()
         Haptics.play(this, Demo.rhythm(), loop = loop)
         record(Event.Kind.FIRED, ringer, latency, if (loop) "looping" else "once")
 
         // Safety cap. A looping waveform runs until something cancels it, and if
         // the removal callback never arrives — killed listener, missed update —
         // this phone would buzz until it was rebooted. Belt and braces.
+        //
+        // Armed for a single-shot score too, even though that one stops itself.
+        // The cap is what clears [activeKey], and a stuck key would now make the
+        // duplicate guard above swallow every later call in silence — a worse
+        // failure than the one it prevents, because nothing would look wrong.
         handler.removeCallbacksAndMessages(SAFETY_TOKEN)
-        if (loop) {
-            handler.postAtTime(
-                { if (activeKey != null) stopVibrationAs(Event.Kind.CAPPED, "safety cap hit") },
-                SAFETY_TOKEN,
-                SystemClock.uptimeMillis() + SAFETY_CAP_MS,
-            )
-        }
+        handler.postAtTime(
+            { if (activeKey != null) stopVibrationAs(Event.Kind.CAPPED, "safety cap hit") },
+            SAFETY_TOKEN,
+            SystemClock.uptimeMillis() + SAFETY_CAP_MS,
+        )
     }
 
     private fun stopVibration(why: String) = stopVibrationAs(Event.Kind.STOPPED, why)
@@ -136,6 +156,17 @@ class NotifService : NotificationListenerService() {
         /** Longer than any phone rings, short enough that a stuck loop is a nuisance not a disaster. */
         const val SAFETY_CAP_MS = 60_000L
         val SAFETY_TOKEN = Any()
+
+        /**
+         * How long after firing a second "incoming" is treated as the same call.
+         * The updates seen in Task 2 arrived within 678 ms; 2 s covers that with
+         * room to spare and is far shorter than any real gap between two calls.
+         */
+        const val DEDUPE_WINDOW_MS = 2_000L
+
+        /** Uptime, not wall clock — the phone's clock jumps, and Task 2 caught it doing so. */
+        @Volatile
+        var lastFireAt = 0L
 
         /**
          * Which notification we started for. Static because Android may recreate

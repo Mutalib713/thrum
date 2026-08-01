@@ -44,20 +44,44 @@ Also lands in this task: `check.ps1`, a `QaSuiteTest.kt` with one trivial passin
 
 </details>
 
-### [ ] Task 2 — ⚠⚠ The wall: does it fire on a real incoming call?
+### [x] Task 2 — ⚠⚠ The wall: does it fire on a real incoming call? — **PASSED 2026-08-01**
+
+**The wall is cleared. Milestone 1 is unblocked.**
+
+**13 real incoming calls** over 2026-07-30 → 2026-08-01, on the Pixel 6 Pro (Android 17), read from the app's own event log rather than logcat — the listener records every decision it makes, which survives the log buffer rolling.
+
+| Phone state | Calls | Ours fires? | Latency (median) | Mutalib's verdict |
+|---|---|---|---|---|
+| Vibrate mode, default settings | 9 | yes, 9/9 | **273 ms** (216–336 steady, 588–713 cold start) | *"a clear rhythm"* |
+| Vibrate mode, "vibrate first then ring gradually" OFF | 0 | not tested | — | setting was already off (`apply_ramping_ringer` null) |
+| Vibrate mode, adaptive alert vibration OFF | 0 | not tested | — | not varied |
+| Vibrate mode, ring-vibration slider reset | 0 | not tested | — | not varied; stayed at 3/3 |
+| **Silent mode** | 2 | yes, 2/2 | **240 ms** | works — the fallback is real |
+| Ring mode | 5 | correctly skipped, 5/5 | — | `fireInRingMode` left off, as designed |
+
+Rows 2–4 stayed blank on purpose. They existed to answer R2, and R2 was answered by hand in row 1: `vibrate_when_ringing` was **on** for every one of those nine calls, so the system's flat buzz should have been competing, and what Mutalib felt was a clean rhythm. Leaving them blank is honest; marking them tested would not be.
+
+**R1 — passed.** Fired on 13 of 13 calls. Never once missed.
+
+**R2 — passed, with a caveat worth carrying.** Our waveform wins the vibrator over the system's ring vibration, with that setting left on. What is proven is the *outcome* on this phone; the *mechanism* is not. Whether it holds across OEM dialers and ringtones is unknown, and Task 10's soak is the next place to watch it. Silent mode works too, so the fallback in `PROFILE.md` §9 stays available rather than becoming necessary.
+
+**R6 — passed.** Median 273 ms in vibrate mode, settling to 216–336 ms once Android keeps the listener warm. The first calls after install ran 588–713 ms — cold start, not the steady state. Nothing near the one-second threshold that would make it feel broken.
+
+**Stop path — clean.** 13 stops for 13 calls: 7 answered, 6 declined. Zero `CAPPED` events, so the safety cap was never needed. The phone was never left buzzing.
+
+**Two defects found, which is what this task was for:**
+
+1. **Double-fire — fixed in this task.** On 5 of 13 calls the listener fired twice for one call, 21–678 ms apart: the dialer updates its own call notification (caller ID resolving, a photo loading) and every update arrived as a fresh "incoming", restarting the waveform a fraction of a second into the rhythm. Not felt at Demo-rhythm length, but it would be on a real track. Guarded now by key and by a 2 s window, and the safety cap is armed unconditionally so a stuck `activeKey` can never make that guard swallow real calls.
+
+2. **One 5.3-second delivery — open, not blocking.** A ring-mode notification reached the listener 5,324 ms after `postTime` (and a second at 4,355 ms). Harmless there because ring mode is skipped, but the same delay in vibrate mode would start the rhythm five seconds into the call and look broken. Seen once, cause unknown — carried into **Task 10**, whose soak is where a doze/background-scheduling cause would show up.
+
+**Also observed:** two `LISTENER connected` events carry timestamps from 2026-06-15, before the app existed on this phone — `System.currentTimeMillis()` read before the clock synced after a boot. Cosmetic in a probe, but any product code that orders by wall clock would misorder. `lastFireAt` uses uptime for exactly this reason.
+
+<details><summary>original task description</summary>
 
 Add a `NotificationListenerService` that spots the incoming-call notification from the Phone app and plays the same hardcoded vibration from Task 1.
 
-Then test a **real incoming call** in every relevant state and record what actually happens:
-
-| Phone state | System's own vibration | Ours fires? | Feels like? |
-|---|---|---|---|
-| Vibrate mode, default settings | | | |
-| Vibrate mode, "vibrate first then ring gradually" OFF | | | |
-| Vibrate mode, adaptive alert vibration OFF | | | |
-| Vibrate mode, ring-vibration slider reset | | | |
-| **Silent mode** | | | |
-| Ring mode | | | |
+Then test a **real incoming call** in every relevant state and record what actually happens.
 
 **⚠⚠ Why this is the most dangerous task in the project:** it decides whether Thrum exists. It has to answer three open questions from `PROFILE.md` at once:
 - **R1** — can our vibration fire at all during a real call?
@@ -70,6 +94,8 @@ Then test a **real incoming call** in every relevant state and record what actua
 - Mutalib's verdict, in his own words, on whether it felt right or felt like mush.
 
 **If this fails:** stop. Do not start Milestone 1. Bring the findings back and we redesign or kill it.
+
+</details>
 
 ---
 
@@ -132,6 +158,8 @@ A short screen telling the user exactly which system settings to change, based o
 Reliability soak. Arm it, leave the phone alone for 24 hours, call it. Reboot the phone, call it again. Turn on battery saver, call it again.
 
 **⚠ Why risky:** R5. Android kills background services, and a notification listener that isn't bound at call time means the vibration silently doesn't happen. An app that works on Tuesday and not Thursday is worse than one that never worked.
+
+**Also watch here:** the 5.3-second notification delivery seen once in Task 2. Record the latency of every soak call, not just whether it fired — a delayed rhythm is a failure even though the log says `FIRED`.
 
 **Proof:** three successful calls — after 24h idle, after reboot, and under battery saver. If any fail, fix before Milestone 3.
 
