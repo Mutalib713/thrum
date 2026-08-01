@@ -56,6 +56,19 @@ class Store(ctx: Context) {
      * this tuning is taste, not correctness — and taste belongs to the person
      * holding the phone, not to whoever last edited the analyser.
      */
+    /**
+     * The file the armed score came from, so it can be analysed again.
+     *
+     * Without this, a restart left the score loaded but its levels gone, and the
+     * tuning dials silently did nothing until the user picked a file again —
+     * indistinguishable from dials that do not work.
+     */
+    var sourceUri: String?
+        get() = prefs.getString(KEY_URI, null)
+        set(value) = prefs.edit().apply {
+            if (value == null) remove(KEY_URI) else putString(KEY_URI, value)
+        }.apply()
+
     var punch: Int
         get() = prefs.getInt(KEY_PUNCH, ScoreBuilder.MIN_FELT)
         set(v) = prefs.edit().putInt(KEY_PUNCH, v).apply()
@@ -79,6 +92,7 @@ class Store(ctx: Context) {
         const val KEY_LOOP = "loop_while_ringing"
         const val KEY_EVENTS = "events"
         const val KEY_SCORE = "armed_score"
+        const val KEY_URI = "source_uri"
         const val KEY_PUNCH = "punch"
         const val KEY_TEXTURE = "texture"
     }

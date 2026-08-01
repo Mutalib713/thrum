@@ -258,13 +258,30 @@ class ScoreBuilder(
             // at maximum a real track still measured 75.2 % silent. Mutalib
             // reached the same verdict by hand — the setting he preferred was
             // zero.
-            val detail = levels.detail.map { level ->
-                if (level < DETAIL_GATE) {
-                    0
-                } else {
-                    val above = ((level - DETAIL_GATE) / (1f - DETAIL_GATE)).coerceIn(0f, 1f)
-                    (above.toDouble().pow(DETAIL_CURVE) * bodyCeiling).roundToInt()
-                        .coerceIn(0, Score.MAX_AMPLITUDE)
+            // Mapped into DETAIL_MIN..ceiling, never 0..ceiling.
+            //
+            // The bug this fixes, which is the same bug the kick layer already
+            // had: mapping from zero puts most hits at amplitudes of 1, 3, 7, 20
+            // — below the point where the motor moves at all. The whole layer
+            // was inaudible, and scaling inaudible numbers by a ceiling produces
+            // different inaudible numbers, which is precisely why Mutalib
+            // reported that every setting felt the same.
+            //
+            // A detail hit is either worth feeling or it is zero. There is
+            // nothing in between on this hardware.
+            val ceiling = bodyCeiling.coerceAtMost(Score.MAX_AMPLITUDE)
+            val detail = if (ceiling <= DETAIL_MIN) {
+                List(levels.detail.size) { 0 }
+            } else {
+                levels.detail.map { level ->
+                    if (level < DETAIL_GATE) {
+                        0
+                    } else {
+                        val above = ((level - DETAIL_GATE) / (1f - DETAIL_GATE)).coerceIn(0f, 1f)
+                        val curved = above.toDouble().pow(DETAIL_CURVE)
+                        (DETAIL_MIN + curved * (ceiling - DETAIL_MIN)).roundToInt()
+                            .coerceIn(0, Score.MAX_AMPLITUDE)
+                    }
                 }
             }
 
@@ -340,6 +357,15 @@ class ScoreBuilder(
 
         /** High enough that only a real transient counts, not the wash of a held note. */
         const val DETAIL_GATE = 0.16f
+
+        /**
+         * The weakest a detail hit may be. Same law as [MIN_FELT], applied to
+         * the second layer after it was forgotten there: under roughly this the
+         * motor hums without moving, so a hit mapped below it is a hit the user
+         * never receives. Lower than [MIN_FELT] because a hat should be lighter
+         * than a kick — but not lower than the hardware's floor.
+         */
+        const val DETAIL_MIN = 130
 
         /** Same shape as the kick's curve, so the two bands feel like one kit. */
         const val DETAIL_CURVE = 0.6

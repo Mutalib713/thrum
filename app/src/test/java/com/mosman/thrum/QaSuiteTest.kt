@@ -370,6 +370,39 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `nothing in a score is too weak to be felt`() {
+        // Restored after being deleted. The original version of this guard
+        // covered the kick layer, and adding a second layer replaced it with a
+        // narrower check — so the detail layer shipped mapping from zero, put
+        // most of its hits at amplitudes of 1, 3, 7, 20, and was entirely
+        // inaudible. Mutalib found it by reporting that every setting felt the
+        // same, which is exactly what scaling imperceptible numbers feels like.
+        //
+        // Every layer, present and future, obeys the same law: an amplitude is
+        // either worth feeling or it is zero.
+        for (detail in listOf(0, 60, 150, 200, 255)) {
+            val score = analyse(detailCeiling = detail) { fourOnTheFloor(bars = 2, bpm = 120) }
+            val tooWeak = score.amplitudes.filter { it in 1 until ScoreBuilder.DETAIL_MIN }
+            assertTrue("detail=$detail produced unfeelable steps $tooWeak", tooWeak.isEmpty())
+        }
+    }
+
+    @Test
+    fun `moving the detail dial actually changes the score`() {
+        // The regression that started this: the dial moved and nothing changed.
+        val quiet = analyse(detailCeiling = 0) { fourOnTheFloor(bars = 2, bpm = 120, hats = 7000) }
+        val loud = analyse(detailCeiling = 220) { fourOnTheFloor(bars = 2, bpm = 120, hats = 7000) }
+        assertTrue(
+            "detail 0 and detail 220 produced the same score",
+            quiet.amplitudes != loud.amplitudes,
+        )
+        assertTrue(
+            "turning detail up did not add anything",
+            loud.amplitudes.count { it > 0 } > quiet.amplitudes.count { it > 0 },
+        )
+    }
+
+    @Test
     fun `there is nothing in the dead zone between texture and a hit`() {
         // A phone on a table did not move at all when hits landed at 45-150:
         // the bottom of the range is not quiet, it is nothing. That produced a
@@ -544,10 +577,15 @@ class QaSuiteTest {
         }
     }
 
-    private fun analyse(sampleRate: Int = 44_100, build: Fixture.() -> Unit): Score {
+    private fun analyse(
+        sampleRate: Int = 44_100,
+        detailCeiling: Int = ScoreBuilder.BODY_CEILING,
+        build: Fixture.() -> Unit,
+    ): Score {
         val fixture = Fixture(sampleRate).apply(build)
         val samples = fixture.samples()
-        return ScoreBuilder(sampleRate).apply { feed(samples, samples.size) }.build()
+        val builder = ScoreBuilder(sampleRate).apply { feed(samples, samples.size) }
+        return ScoreBuilder.toScore(builder.levels(), builder.stepMsUsed, bodyCeiling = detailCeiling)
     }
 
     /** Builds synthetic mono audio, so the analyser can be tested without a phone or a file. */

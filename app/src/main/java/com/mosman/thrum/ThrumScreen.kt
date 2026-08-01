@@ -99,7 +99,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var ringMode by remember { mutableStateOf(store.fireInRingMode) }
     var levels by remember { mutableStateOf<Levels?>(null) }
     var levelStepMs by remember { mutableStateOf(Demo.STEP_MS) }
-    var trackName by remember { mutableStateOf("") }
+    var trackName by remember { mutableStateOf(store.armedScore?.sourceName ?: "") }
     var punch by remember { mutableStateOf(store.punch) }
     var texture by remember { mutableStateOf(store.texture) }
 
@@ -141,7 +141,17 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         stopEverything()
+        // Hold the permission past this session, so the file can be analysed
+        // again after a restart. Without it the URI survives and the access
+        // does not, which is worse than not storing it.
+        runCatching {
+            ctx.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
         pickedUri = uri
+        store.sourceUri = uri.toString()
         failure = null
         val name = AudioDecoder.displayName(ctx, uri)
         reading = name
@@ -201,7 +211,35 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
      * of lie this project keeps having to fix.
      */
     fun rescore() {
-        val source = levels ?: return
+        val source = levels ?: run {
+            // Levels are gone — this is a restart, with the score restored from
+            // storage but nothing to rebuild it from. Analyse the saved file
+            // again in the background and try once more. A dial that quietly
+            // does nothing is worse than one that takes a moment.
+            val saved = store.sourceUri ?: return
+            if (reading != null) return
+            reading = trackName.ifEmpty { score?.sourceName.orEmpty() }
+            scope.launch {
+                var builder: ScoreBuilder? = null
+                val uri = Uri.parse(saved)
+                val result = withContext(Dispatchers.IO) {
+                    AudioDecoder.decode(
+                        ctx,
+                        uri,
+                        onFormat = { rate, _ -> builder = ScoreBuilder(rate, name = trackName) },
+                        onMono = { samples, count -> builder?.feed(samples, count) },
+                    )
+                }
+                reading = null
+                if (result is Decoded.Ok) {
+                    pickedUri = uri
+                    levels = builder?.levels()
+                    levelStepMs = builder?.stepMsUsed ?: Demo.STEP_MS
+                    rescore()
+                }
+            }
+            return
+        }
         val rebuilt = ScoreBuilder.toScore(
             source, levelStepMs, trackName,
             minFelt = punch, bodyCeiling = texture,
