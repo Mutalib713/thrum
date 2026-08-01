@@ -55,10 +55,10 @@
     <string name="tune_punch">Punch %1$d</string>
     <string name="tune_punch_help">How hard a beat lands. It also sets how far Detail can go, so
         raise this first if Detail runs out of room.</string>
-    <string name="tune_texture">Detail %1$d</string>
-    <string name="tune_texture_help">How much of the rest of the kit you feel. Low is the kick
-        drum on its own. High brings in the snare and hats, so you feel the pattern rather than
-        the pulse.</string>
+    <string name="tune_texture">Distance from the music %1$d</string>
+    <string name="tune_texture_help">0 is as close as it gets: the snare and hats come through
+        alongside the kick, so you feel the whole pattern. Turn it up and the detail drops away
+        until only the bare beat is left.</string>
     <string name="tune_note">Changes apply straight away. Play it to feel them.</string>
     <string name="ring_mode_label">Also when the ringer is on</string>
     <string name="ring_mode_help">Your phone plays its own ringtone and Thrum vibrates your track

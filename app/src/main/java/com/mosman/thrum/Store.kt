@@ -73,10 +73,22 @@ class Store(ctx: Context) {
         get() = prefs.getInt(KEY_PUNCH, ScoreBuilder.MIN_FELT)
         set(v) = prefs.edit().putInt(KEY_PUNCH, v).apply()
 
-    /** How present the music is between the beats. Kept below [punch] by the UI. */
-    var texture: Int
-        get() = prefs.getInt(KEY_TEXTURE, ScoreBuilder.BODY_CEILING)
-        set(v) = prefs.edit().putInt(KEY_TEXTURE, v).apply()
+    /**
+     * How far the vibration sits from the music, 0–100. **0 is closest.**
+     *
+     * A distance rather than an amount, and counted downward, because Mutalib
+     * asked for it that way: *"0 when its close to the music and 255 when its
+     * not"*. It replaces a dial that showed raw motor amplitudes — internal
+     * numbers that meant nothing to anyone holding the phone, and whose ceiling
+     * moved when the other dial moved, which is why "the max is 161" kept
+     * needing explaining.
+     *
+     * At 0 the whole kit comes through. Turn it up and the detail falls away
+     * until only the bare beat is left.
+     */
+    var distance: Int
+        get() = prefs.getInt(KEY_DISTANCE, 0)
+        set(v) = prefs.edit().putInt(KEY_DISTANCE, v.coerceIn(0, 100)).apply()
 
     fun events(): List<Event> = Event.decodeAll(prefs.getString(KEY_EVENTS, "") ?: "")
 
@@ -94,6 +106,6 @@ class Store(ctx: Context) {
         const val KEY_SCORE = "armed_score"
         const val KEY_URI = "source_uri"
         const val KEY_PUNCH = "punch"
-        const val KEY_TEXTURE = "texture"
+        const val KEY_DISTANCE = "distance"
     }
 }

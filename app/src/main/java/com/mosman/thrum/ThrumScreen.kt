@@ -101,7 +101,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var levelStepMs by remember { mutableStateOf(Demo.STEP_MS) }
     var trackName by remember { mutableStateOf(store.armedScore?.sourceName ?: "") }
     var punch by remember { mutableStateOf(store.punch) }
-    var texture by remember { mutableStateOf(store.texture) }
+    var distance by remember { mutableStateOf(store.distance) }
 
     // Polled rather than observed: the user leaves for system settings and
     // comes back, and a screen still showing "grant permission" after they
@@ -188,7 +188,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     val built = levels?.let {
                         ScoreBuilder.toScore(
                             it, levelStepMs, name,
-                            minFelt = punch, bodyCeiling = texture,
+                            minFelt = punch, bodyCeiling = ceilingFor(punch, distance),
                         ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
                     }
                     if (built == null || built.isSilent()) {
@@ -242,7 +242,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         }
         val rebuilt = ScoreBuilder.toScore(
             source, levelStepMs, trackName,
-            minFelt = punch, bodyCeiling = texture,
+            minFelt = punch, bodyCeiling = ceilingFor(punch, distance),
         ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
         score = rebuilt
         if (armed) store.armedScore = rebuilt
@@ -333,9 +333,9 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     ringMode = ringMode,
                     onRingMode = { on -> ringMode = on; store.fireInRingMode = on },
                     punch = punch,
-                    texture = texture,
+                    texture = distance,
                     onPunch = { v -> punch = v; store.punch = v; rescore() },
-                    onTexture = { v -> texture = v; store.texture = v; rescore() },
+                    onTexture = { v -> distance = v; store.distance = v; rescore() },
                     onArm = {
                         store.armedScore = state.score
                         armed = true
@@ -672,15 +672,14 @@ private fun Ready(
             label = stringResource(R.string.tune_texture, texture),
             help = stringResource(R.string.tune_texture_help),
             value = texture.toFloat(),
-            // Capped at Punch, not below it.
+            // A plain 0–100, where 0 is closest to the music.
             //
-            // It was Punch − 30, on the reasoning that the kick must always
-            // lead. Mutalib turned Detail to its maximum, said that was better,
-            // and noticed the ceiling. He is right: kick hits run from Punch all
-            // the way to 255, so detail level with Punch still sits below most
-            // of them — and a real kit does let a hard snare rival a soft kick.
-            // Raising Punch now raises this ceiling with it.
-            range = 0f..punch.toFloat(),
+            // This dial used to show raw motor amplitudes, whose maximum moved
+            // whenever Punch moved — which is why "the max is 161" kept needing
+            // explaining, and why the scale meant nothing to anyone holding the
+            // phone. The amplitude arithmetic belongs in [ceilingFor]; the
+            // number on screen belongs to the person tuning it.
+            range = 0f..100f,
             onChange = onTexture,
         )
         Text(
@@ -759,3 +758,17 @@ private const val START_WAIT_MS = 2000L
  * the 40 ms a whole song would be coarsened to.
  */
 private const val RINGTONE_SECONDS = 45
+
+/**
+ * Turn "distance from the music", 0–100, into the amplitude ceiling the detail
+ * layer may reach.
+ *
+ * Counted downward on purpose — 0 is closest, where the detail layer is allowed
+ * all the way up to the kick's own floor and the whole kit comes through. At 100
+ * the ceiling is nothing and only the bare beat is left. The layer switches off
+ * on its own once the ceiling falls below what the motor can actually produce.
+ */
+private fun ceilingFor(punch: Int, distance: Int): Int {
+    val room = punch.coerceIn(0, Score.MAX_AMPLITUDE)
+    return (room * (100 - distance.coerceIn(0, 100)) / 100)
+}
