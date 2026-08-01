@@ -60,6 +60,13 @@
         alongside the kick, so you feel the whole pattern. Turn it up and the detail drops away
         until only the bare beat is left.</string>
     <string name="tune_note">Changes apply straight away. Play it to feel them.</string>
+    <string name="rate_title">How fast can this phone tap?</string>
+    <string name="rate_help">Plays the same tap at six speeds, slowest first, with a pause
+        between each. Hold the phone and notice where the taps stop feeling separate and turn into
+        one long buzz. That speed is this phone\'s limit, and there is no point asking it for
+        anything faster.</string>
+    <string name="rate_run">Run the tap test</string>
+    <string name="rate_playing">%1$d taps a second</string>
     <string name="ring_mode_label">Also when the ringer is on</string>
     <string name="ring_mode_help">Your phone plays its own ringtone and Thrum vibrates your track
         over it. Unless they are the same file, you hear one song and feel another.</string>

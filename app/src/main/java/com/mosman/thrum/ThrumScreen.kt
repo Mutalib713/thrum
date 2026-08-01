@@ -102,6 +102,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var trackName by remember { mutableStateOf(store.armedScore?.sourceName ?: "") }
     var punch by remember { mutableStateOf(store.punch) }
     var distance by remember { mutableStateOf(store.distance) }
+    var ratePlaying by remember { mutableStateOf(0) }
 
     // Polled rather than observed: the user leaves for system settings and
     // comes back, and a screen still showing "grant permission" after they
@@ -248,6 +249,27 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         if (armed) store.armedScore = rebuilt
     }
 
+    /**
+     * Play the same tap at rising speeds and let a hand find where they merge.
+     *
+     * The rates are announced on screen as they play, so the answer is a number
+     * Mutalib can read off rather than a feeling he has to describe.
+     */
+    fun runRateTest() {
+        stopEverything()
+        sweepJob.value = scope.launch {
+            for (rate in RATE_LADDER) {
+                ratePlaying = rate
+                val train = Demo.pulseTrain(rate)
+                Haptics.play(ctx, train)
+                delay(train.durationMs + RATE_GAP_MS)
+                Haptics.stop(ctx)
+                delay(RATE_GAP_MS)
+            }
+            ratePlaying = 0
+        }
+    }
+
     fun playAlone(built: Score) {
         stopEverything()
         val failed = Haptics.play(ctx, built)
@@ -334,6 +356,8 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     onRingMode = { on -> ringMode = on; store.fireInRingMode = on },
                     punch = punch,
                     texture = distance,
+                    ratePlaying = ratePlaying,
+                    onRateTest = { runRateTest() },
                     onPunch = { v -> punch = v; store.punch = v; rescore() },
                     onTexture = { v -> distance = v; store.distance = v; rescore() },
                     onArm = {
@@ -545,6 +569,8 @@ private fun Ready(
     onRingMode: (Boolean) -> Unit,
     punch: Int,
     texture: Int,
+    ratePlaying: Int,
+    onRateTest: () -> Unit,
     onPunch: (Int) -> Unit,
     onTexture: (Int) -> Unit,
     onArm: () -> Unit,
@@ -689,6 +715,29 @@ private fun Ready(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        // Measuring the instrument rather than tuning blind against it. If the
+        // motor cannot separate taps at the rate a score asks for, no amount of
+        // analyser work will be felt, and several rounds of tuning have now
+        // produced real changes in the data and almost none in the hand.
+        Text(
+            stringResource(R.string.rate_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            stringResource(R.string.rate_help),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (ratePlaying > 0) {
+            Text(
+                stringResource(R.string.rate_playing, ratePlaying),
+                style = MaterialTheme.typography.displayMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Secondary(stringResource(R.string.rate_run), Modifier.fillMaxWidth(), onRateTest)
     }
 }
 
@@ -760,6 +809,10 @@ private const val START_WAIT_MS = 2000L
  * the 40 ms a whole song would be coarsened to.
  */
 private const val RINGTONE_SECONDS = 45
+
+/** Taps per second, slowest first. Thrum's own scores currently sit near 3. */
+private val RATE_LADDER = listOf(2, 3, 4, 6, 8, 12)
+private const val RATE_GAP_MS = 900L
 
 /**
  * Turn "distance from the music", 0–100, into the amplitude ceiling the detail

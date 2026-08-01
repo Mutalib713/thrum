@@ -46,6 +46,38 @@ object Demo {
 
     fun all(): List<Score> = listOf(rhythm(), swell(), systemBuzz())
 
+    /**
+     * Identical taps, repeated [perSecond] times a second, for [seconds].
+     *
+     * The instrument test. A motor has mass: it takes time to start moving and
+     * time to stop. Ask for taps faster than it can finish one and they run into
+     * each other, and what reaches the hand is one continuous buzz rather than a
+     * rhythm — no matter what the score says.
+     *
+     * Thrum's scores currently run at about 3 taps a second, and Mutalib keeps
+     * reporting that real changes in the data make almost no difference in his
+     * hand. This is how we find out whether that is the analyser's fault or the
+     * motor's: the tap is the *same length* at every rate, so the only thing
+     * changing is the gap between them.
+     *
+     * Uses a 10 ms step so the fast rates are not rounded into each other.
+     */
+    fun pulseTrain(perSecond: Int, seconds: Double = 2.5, pulseMs: Int = 60): Score {
+        require(perSecond > 0) { "perSecond must be positive, was $perSecond" }
+        val step = 10
+        val pulseSteps = (pulseMs / step).coerceAtLeast(1)
+        val periodSteps = (1000 / perSecond / step).coerceAtLeast(pulseSteps + 1)
+        val gapSteps = periodSteps - pulseSteps
+        val repeats = ((seconds * 1000) / (periodSteps * step)).toInt().coerceAtLeast(1)
+
+        val amps = ArrayList<Int>(repeats * periodSteps)
+        repeat(repeats) {
+            repeat(pulseSteps) { amps.add(Score.MAX_AMPLITUDE) }
+            repeat(gapSteps) { amps.add(0) }
+        }
+        return Score(step, amps, "$perSecond a second")
+    }
+
     private fun score(name: String, build: Builder.() -> Unit): Score {
         val b = Builder()
         b.build()
