@@ -51,6 +51,13 @@
     <!-- The technical row, for the kind of person who wants the numbers -->
     <string name="tech_row">%1$d steps · %2$d ms each · still %3$d%% of the time</string>
     <string name="armed_indicator">Armed</string>
+    <string name="tune_title">Tune the feel</string>
+    <string name="tune_punch">Punch %1$d</string>
+    <string name="tune_punch_help">How hard a beat lands.</string>
+    <string name="tune_texture">Texture %1$d</string>
+    <string name="tune_texture_help">How much of the music you feel between the beats. Turn it
+        down for separate taps, up for something closer to the track playing through your hand.</string>
+    <string name="tune_note">Changes apply straight away. Play it to feel them.</string>
     <string name="ring_mode_label">Also when the ringer is on</string>
     <string name="ring_mode_help">Your phone plays its own ringtone and Thrum vibrates your track
         over it. Unless they are the same file, you hear one song and feel another.</string>

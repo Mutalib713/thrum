@@ -33,6 +33,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -96,6 +97,11 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var pickedUri by remember { mutableStateOf<Uri?>(null) }
     var progress by remember { mutableStateOf(-1f) }
     var ringMode by remember { mutableStateOf(store.fireInRingMode) }
+    var levels by remember { mutableStateOf<Levels?>(null) }
+    var levelStepMs by remember { mutableStateOf(Demo.STEP_MS) }
+    var trackName by remember { mutableStateOf("") }
+    var punch by remember { mutableStateOf(store.punch) }
+    var texture by remember { mutableStateOf(store.texture) }
 
     // Polled rather than observed: the user leaves for system settings and
     // comes back, and a screen still showing "grant permission" after they
@@ -157,13 +163,24 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                 }
 
                 is Decoded.Ok -> {
+                    // Keep the analysed levels, not just the finished score:
+                    // moving a slider then costs nothing, where re-decoding
+                    // costs seven seconds. Tuning by feel is many small
+                    // adjustments, and a wait between each is how tuning stops
+                    // happening.
+                    levels = builder?.levels()
+                    levelStepMs = builder?.stepMsUsed ?: Demo.STEP_MS
+                    trackName = name
                     // Trim before fitting. Trimming keeps 20 ms steps; fitting
                     // would have halved them to 40 ms across the whole track,
                     // which is the chunkiness Mutalib felt. fitWithin stays as
                     // the backstop for anything the trim does not catch.
-                    val built = builder?.build()
-                        ?.firstSeconds(RINGTONE_SECONDS)
-                        ?.fitWithin(Haptics.MAX_STEPS)
+                    val built = levels?.let {
+                        ScoreBuilder.toScore(
+                            it, levelStepMs, name,
+                            minFelt = punch, bodyCeiling = texture,
+                        ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
+                    }
                     if (built == null || built.isSilent()) {
                         failure = ctx.getString(R.string.error_silent)
                         score = null
@@ -174,6 +191,23 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                 }
             }
         }
+    }
+
+    /**
+     * Rebuild from the kept levels after a slider moves.
+     *
+     * If the score is already armed, the armed copy is replaced too. A screen
+     * showing one rhythm while the phone would play another is exactly the class
+     * of lie this project keeps having to fix.
+     */
+    fun rescore() {
+        val source = levels ?: return
+        val rebuilt = ScoreBuilder.toScore(
+            source, levelStepMs, trackName,
+            minFelt = punch, bodyCeiling = texture,
+        ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
+        score = rebuilt
+        if (armed) store.armedScore = rebuilt
     }
 
     fun playAlone(built: Score) {
@@ -260,6 +294,10 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     progress = progress,
                     ringMode = ringMode,
                     onRingMode = { on -> ringMode = on; store.fireInRingMode = on },
+                    punch = punch,
+                    texture = texture,
+                    onPunch = { v -> punch = v; store.punch = v; rescore() },
+                    onTexture = { v -> texture = v; store.texture = v; rescore() },
                     onArm = {
                         store.armedScore = state.score
                         armed = true
@@ -467,6 +505,10 @@ private fun Ready(
     progress: Float,
     ringMode: Boolean,
     onRingMode: (Boolean) -> Unit,
+    punch: Int,
+    texture: Int,
+    onPunch: (Int) -> Unit,
+    onTexture: (Int) -> Unit,
     onArm: () -> Unit,
     onPreview: () -> Unit,
     onFeel: () -> Unit,
@@ -571,6 +613,63 @@ private fun Ready(
             stringResource(R.string.tech_row, score.amplitudes.size, score.stepMs, still),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // The tuning, on the product screen rather than hidden in diagnostics.
+        // The plan called this taste from the start, and taste belongs to the
+        // person holding the phone.
+        Text(
+            stringResource(R.string.tune_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+        Dial(
+            label = stringResource(R.string.tune_punch, punch),
+            help = stringResource(R.string.tune_punch_help),
+            value = punch.toFloat(),
+            range = 120f..255f,
+            onChange = onPunch,
+        )
+        Dial(
+            label = stringResource(R.string.tune_texture, texture),
+            help = stringResource(R.string.tune_texture_help),
+            value = texture.toFloat(),
+            // Capped below punch so the texture can never be mistaken for a
+            // beat. Letting them meet is how the two layers collapse back into
+            // the single continuous buzz this design started as.
+            range = 0f..(punch - 30).coerceAtLeast(10).toFloat(),
+            onChange = onTexture,
+        )
+        Text(
+            stringResource(R.string.tune_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun Dial(
+    label: String,
+    help: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onChange: (Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.S1)) {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            help,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+            value = value.coerceIn(range),
+            onValueChange = { onChange(it.toInt()) },
+            valueRange = range,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = Touch.min),
         )
     }
 }

@@ -245,7 +245,7 @@ class ScoreBuilder(
             // Hold the hits first, then lay them over the body — holding a
             // combined track would stretch quiet texture into fake beats.
             val held = Score(stepMs, hits, name)
-                .holdPulsesAtLeast((minPulseMs / stepMs).coerceAtLeast(1))
+                .holdPulsesAtLeast((minPulseMs / stepMs).coerceAtLeast(1), HIT_DECAY)
             val combined = held.amplitudes.mapIndexed { i, hit ->
                 maxOf(hit, body.getOrElse(i) { 0 })
             }
@@ -315,6 +315,14 @@ class ScoreBuilder(
 
         /** Flatter than [CURVE], so the body reads as a steady presence rather than more accents. */
         const val BODY_CURVE = 0.9
+
+        /**
+         * How far a hit fades across the steps it is held for. A drum decays; a
+         * square pulse is what made the rhythm read as mechanical rather than
+         * musical. Not all the way to nothing, or the hold stops adding the
+         * energy it exists to add.
+         */
+        const val HIT_DECAY = 0.55f
     }
 }
 

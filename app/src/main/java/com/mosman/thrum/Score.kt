@@ -116,8 +116,9 @@ data class Score(
      * keeps the hit's leading edge exactly where the beat is; moving that would
      * put the rhythm ahead of the music.
      */
-    fun holdPulsesAtLeast(minSteps: Int): Score {
+    fun holdPulsesAtLeast(minSteps: Int, decayTo: Float = 1f): Score {
         require(minSteps > 0) { "minSteps must be positive, was $minSteps" }
+        require(decayTo in 0f..1f) { "decayTo must be 0..1, was $decayTo" }
         if (minSteps == 1 || amplitudes.isEmpty()) return this
 
         val out = amplitudes.toMutableList()
@@ -135,12 +136,18 @@ data class Score(
             }
             // Hold the peak forward into the silence that follows, never over a
             // later hit: a run that already reaches the next one is long enough.
-            var held = end - i
+            val toAdd = minSteps - (end - i)
+            var added = 0
             var at = end
-            while (held < minSteps && at < out.size && out[at] == 0) {
-                out[at] = peak
+            while (added < toAdd && at < out.size && out[at] == 0) {
+                // Fade across the held steps rather than repeating the peak.
+                // A flat plateau is a square pulse, and a square pulse is what
+                // made the rhythm read as mechanical — a real drum decays.
+                val through = (added + 1).toFloat() / (toAdd + 1)
+                val scale = 1f - (1f - decayTo) * through
+                out[at] = (peak * scale).toInt().coerceIn(0, MAX_AMPLITUDE)
                 at++
-                held++
+                added++
             }
             i = at
         }

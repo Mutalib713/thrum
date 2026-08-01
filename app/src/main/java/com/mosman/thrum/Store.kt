@@ -49,6 +49,22 @@ class Store(ctx: Context) {
             if (value == null) remove(KEY_SCORE) else putString(KEY_SCORE, value.encode())
         }.apply()
 
+    /**
+     * How hard a beat hits, 0–255. The floor every hit is mapped up to.
+     *
+     * A setting rather than a constant because the plan said from the start that
+     * this tuning is taste, not correctness — and taste belongs to the person
+     * holding the phone, not to whoever last edited the analyser.
+     */
+    var punch: Int
+        get() = prefs.getInt(KEY_PUNCH, ScoreBuilder.MIN_FELT)
+        set(v) = prefs.edit().putInt(KEY_PUNCH, v).apply()
+
+    /** How present the music is between the beats. Kept below [punch] by the UI. */
+    var texture: Int
+        get() = prefs.getInt(KEY_TEXTURE, ScoreBuilder.BODY_CEILING)
+        set(v) = prefs.edit().putInt(KEY_TEXTURE, v).apply()
+
     fun events(): List<Event> = Event.decodeAll(prefs.getString(KEY_EVENTS, "") ?: "")
 
     fun addEvent(event: Event) {
@@ -63,5 +79,7 @@ class Store(ctx: Context) {
         const val KEY_LOOP = "loop_while_ringing"
         const val KEY_EVENTS = "events"
         const val KEY_SCORE = "armed_score"
+        const val KEY_PUNCH = "punch"
+        const val KEY_TEXTURE = "texture"
     }
 }
