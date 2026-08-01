@@ -297,13 +297,23 @@ class ScoreBuilder(
                 }
             }
 
-            // Hold the kicks first, then lay the detail over them. Holding a
-            // combined track would stretch a hat into something the length of a
-            // kick, which is exactly the difference between the two.
+            // Hold each layer for its own length, then lay detail over kick.
+            //
+            // Detail used to get no hold at all, and measured 20–40 ms per hit
+            // against the kick's 160 ms. A motor has mass: 20 ms ends while it
+            // is still spinning up, so those hits never arrived, and Mutalib
+            // reported every setting feeling almost the same. The same law as
+            // the felt floor, on the other axis — a hit must be **loud enough
+            // and long enough**, or it is not a hit.
+            //
+            // Shorter than a kick's hold on purpose. A hat that lasts as long as
+            // a kick stops being a hat.
             val held = Score(stepMs, hits, name)
                 .holdPulsesAtLeast((minPulseMs / stepMs).coerceAtLeast(1), HIT_DECAY)
+            val heldDetail = Score(stepMs, detail, name)
+                .holdPulsesAtLeast((DETAIL_PULSE_MS / stepMs).coerceAtLeast(1), HIT_DECAY)
             val combined = held.amplitudes.mapIndexed { i, hit ->
-                maxOf(hit, detail.getOrElse(i) { 0 })
+                maxOf(hit, heldDetail.amplitudes.getOrElse(i) { 0 })
             }
             return Score(stepMs, combined, name)
         }
@@ -367,8 +377,20 @@ class ScoreBuilder(
          */
         const val BODY_CEILING = 150
 
-        /** High enough that only a real transient counts, not the wash of a held note. */
-        const val DETAIL_GATE = 0.16f
+        /**
+         * How much of the upper band counts as a hit.
+         *
+         * Was 0.16, which let only the sharpest transients through — twelve
+         * detail hits in forty-five seconds of a track full of hats. Enough of
+         * the kit has to arrive for the layer to be worth having.
+         */
+        const val DETAIL_GATE = 0.08f
+
+        /**
+         * The shortest a detail hit may last. Long enough for the motor to move,
+         * short enough that a hat is still lighter than a kick's 120 ms.
+         */
+        const val DETAIL_PULSE_MS = 60
 
         /**
          * The weakest a detail hit may be. Same law as [MIN_FELT], applied to

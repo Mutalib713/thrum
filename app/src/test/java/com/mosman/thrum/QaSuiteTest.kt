@@ -406,6 +406,33 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `nothing in a score is too brief to be felt`() {
+        // The companion to the felt-floor rule, and the one that was missing.
+        // Detail hits shipped with no hold at all: 20-40ms each against a kick's
+        // 160ms. A motor has mass, so 20ms ends while it is still spinning up
+        // and the hit never arrives. Measuring the score on the phone showed
+        // twelve such hits in forty-five seconds, all of them inaudible.
+        //
+        // Loud enough AND long enough, or it is not a hit.
+        for (distanceCeiling in listOf(60, 130, 190)) {
+            val score = analyse(detailCeiling = distanceCeiling) {
+                fourOnTheFloor(bars = 3, bpm = 120, hats = 9000)
+            }
+            var run = 0
+            val runs = mutableListOf<Int>()
+            for (a in score.amplitudes) {
+                if (a > 0) run++ else if (run > 0) { runs.add(run); run = 0 }
+            }
+            if (run > 0) runs.add(run)
+            val shortest = (runs.minOrNull() ?: 0) * score.stepMs
+            assertTrue(
+                "ceiling=$distanceCeiling produced a ${shortest}ms hit",
+                shortest >= ScoreBuilder.DETAIL_PULSE_MS,
+            )
+        }
+    }
+
+    @Test
     fun `moving the detail dial actually changes the score`() {
         // The regression that started this: the dial moved and nothing changed.
         val quiet = analyse(detailCeiling = 0) { fourOnTheFloor(bars = 2, bpm = 120, hats = 7000) }
