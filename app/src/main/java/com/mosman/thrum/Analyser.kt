@@ -120,50 +120,36 @@ class ScoreBuilder(
      * whose strength depends on how the track was mastered rather than on how
      * it sounds.
      */
-    fun build(): Score {
+    fun build(): Score = toScore(levels(), stepMs, name)
+
+    /**
+     * The analysed track as one number per step, 0..1, before any decision about
+     * how hard the motor should work.
+     *
+     * Separated from [build] so the strength settings can be changed and a new
+     * score produced instantly, without decoding the file again. Tuning by feel
+     * means many small adjustments, and seven seconds of decoding between each
+     * one is how tuning stops happening.
+     */
+    fun levels(): List<Float> {
         // The last partial step still covers real audio. Dropping it would make
-        // every score up to one step shorter than its track.
+        // every score up to one step shorter than its track. Guarded so calling
+        // this twice cannot append it twice.
         if (samplesInStep > 0) {
             steps.add(stepPeak)
             stepPeak = 0f
             samplesInStep = 0
         }
-
         val loudest = steps.maxOrNull() ?: 0f
-        if (loudest <= 0f) {
-            // Silence in, silence out. Not an error: a silent file is a real
-            // thing a user can pick, and it must not produce a buzz.
-            return Score(stepMs, List(steps.size) { 0 }, name)
-        }
-
-        val amplitudes = steps.map { step ->
-            val level = step / loudest
-            if (level < GATE) {
-                // Below the gate is room tone, tape hiss, the space between
-                // hits. Left as a buzz it would smear the rhythm into one
-                // continuous vibration.
-                0
-            } else {
-                // Map what survives onto MIN_FELT..255 rather than 0..255.
-                //
-                // The bottom of the motor's range is not quiet, it is nothing:
-                // amplitudes under about 140 barely move the mass. Spending half
-                // the scale there produced a score Mutalib could feel in his
-                // hand but which could not move the phone on a table, while
-                // Android's own buzz shakes it. Quiet hits must still be hits.
-                val above = ((level - GATE) / (1f - GATE)).coerceIn(0f, 1f)
-                val curved = above.toDouble().pow(CURVE)
-                val range = Score.MAX_AMPLITUDE - MIN_FELT
-                (MIN_FELT + curved * range).roundToInt().coerceIn(0, Score.MAX_AMPLITUDE)
-            }
-        }
-        // Then give each hit long enough to actually move the motor.
-        val minSteps = (MIN_PULSE_MS / stepMs).coerceAtLeast(1)
-        return Score(stepMs, amplitudes, name).holdPulsesAtLeast(minSteps)
+        if (loudest <= 0f) return List(steps.size) { 0f }
+        return steps.map { it / loudest }
     }
 
     /** Number of steps produced so far. The count [Score.MAX_AMPLITUDE] cares about is in R8. */
     val stepCount: Int get() = steps.size
+
+    /** The step length this builder was constructed with, for re-scoring its [levels]. */
+    val stepMsUsed: Int get() = stepMs
 
     /**
      * Exponential smoothing coefficient for a given time constant, at this
@@ -179,6 +165,56 @@ class ScoreBuilder(
     }
 
     companion object {
+
+        /**
+         * Turn analysed levels into a score the motor can play.
+         *
+         * Separate from the builder so the strength can be changed and a new
+         * score produced instantly, without decoding the file again.
+         *
+         * @param minFelt the weakest amplitude worth asking for — see [MIN_FELT].
+         * @param minPulseMs the shortest a hit may last — see [MIN_PULSE_MS].
+         */
+        fun toScore(
+            levels: List<Float>,
+            stepMs: Int,
+            name: String = "",
+            minFelt: Int = MIN_FELT,
+            curve: Double = CURVE,
+            gate: Float = GATE,
+            minPulseMs: Int = MIN_PULSE_MS,
+        ): Score {
+            if (levels.none { it > 0f }) {
+                // Silence in, silence out. Not an error: a silent file is a real
+                // thing a user can pick, and it must not produce a buzz.
+                return Score(stepMs, List(levels.size) { 0 }, name)
+            }
+
+            val amplitudes = levels.map { level ->
+                if (level < gate) {
+                    // Below the gate is room tone, tape hiss, the space between
+                    // hits. Left as a buzz it would smear the rhythm into one
+                    // continuous vibration.
+                    0
+                } else {
+                    // Map what survives onto minFelt..255 rather than 0..255.
+                    //
+                    // The bottom of a motor's range is not quiet, it is nothing:
+                    // under about 140 the mass barely moves. Spending half the
+                    // scale there produced a score Mutalib could feel in his hand
+                    // but which could not move the phone on a table, while
+                    // Android's own buzz shakes it. Quiet hits must still be hits.
+                    val above = ((level - gate) / (1f - gate)).coerceIn(0f, 1f)
+                    val curved = above.toDouble().pow(curve)
+                    val range = Score.MAX_AMPLITUDE - minFelt
+                    (minFelt + curved * range).roundToInt().coerceIn(0, Score.MAX_AMPLITUDE)
+                }
+            }
+            // Then give each hit long enough to actually move the motor.
+            val minSteps = (minPulseMs / stepMs).coerceAtLeast(1)
+            return Score(stepMs, amplitudes, name).holdPulsesAtLeast(minSteps)
+        }
+
         /**
          * Kick drums live around 50–100 Hz and bass guitar just above. 200 Hz
          * keeps both and drops most of the vocal, which carries the melody but
@@ -214,7 +250,7 @@ class ScoreBuilder(
          * every small tick into something felt, which is how the whole track
          * turned into one continuous vibration.
          */
-        const val CURVE = 0.75
+        const val CURVE = 0.55
 
         /**
          * The weakest amplitude worth asking for. Below roughly this the motor
@@ -222,13 +258,13 @@ class ScoreBuilder(
          * does not get. Everything above the gate is spread across
          * MIN_FELT..255 instead of 0..255.
          */
-        const val MIN_FELT = 150
+        const val MIN_FELT = 185
 
         /**
          * The shortest a hit may last. A motor has mass and needs time to spin
          * up; a single 40 ms step ends before it has moved. 90 ms is still well
          * inside the gap between beats at any tempo a person dances to.
          */
-        const val MIN_PULSE_MS = 90
+        const val MIN_PULSE_MS = 120
     }
 }
