@@ -56,14 +56,33 @@ Also lands in this task: `check.ps1`, a `QaSuiteTest.kt` with one trivial passin
 | Vibrate mode, "vibrate first then ring gradually" OFF | 0 | not tested | — | setting was already off (`apply_ramping_ringer` null) |
 | Vibrate mode, adaptive alert vibration OFF | 0 | not tested | — | not varied |
 | Vibrate mode, ring-vibration slider reset | 0 | not tested | — | not varied; stayed at 3/3 |
-| **Silent mode** | 2 | yes, 2/2 | **240 ms** | works — the fallback is real |
+| **Silent mode** | 2 | **no — Android discards it** | n/a | *"the silent mode is just silent, nothing else"* |
 | Ring mode | 5 | correctly skipped, 5/5 | — | `fireInRingMode` left off, as designed |
 
 Rows 2–4 stayed blank on purpose. They existed to answer R2, and R2 was answered by hand in row 1: `vibrate_when_ringing` was **on** for every one of those nine calls, so the system's flat buzz should have been competing, and what Mutalib felt was a clean rhythm. Leaving them blank is honest; marking them tested would not be.
 
 **R1 — passed.** Fired on 13 of 13 calls. Never once missed.
 
-**R2 — passed, with a caveat worth carrying.** Our waveform wins the vibrator over the system's ring vibration, with that setting left on. What is proven is the *outcome* on this phone; the *mechanism* is not. Whether it holds across OEM dialers and ringtones is unknown, and Task 10's soak is the next place to watch it. Silent mode works too, so the fallback in `PROFILE.md` §9 stays available rather than becoming necessary.
+**R2 — passed in vibrate mode, and the mechanism is now known. The silent-mode fallback is dead.**
+
+`adb shell dumpsys vibrator_manager` keeps the system's own record of every vibration and what it did with it. That is ground truth, and it is the tool to reach for whenever a haptics question comes up — the app's `FIRED` event only records that we *asked* the motor, never that the motor moved:
+
+```
+06:00:07.686  com.android.server.telecom   cancelled_superseded     527ms
+06:00:08.213  com.mosman.thrum             cancelled_by_user       3267ms
+```
+
+Telecom starts the system's flat buzz; our waveform arrives ~0.4–0.5 s later and **supersedes** it. Android hands the motor to the most recent `RINGTONE` vibration, so we win by arriving second, not by luck. Same shape on all four post-fix calls. **Consequence to design around: every call opens with ~half a second of the system's flat buzz before the rhythm starts.** Not objectionable at Demo length, and it shrinks with our latency, but it is real and it is not suppressible from an app.
+
+**Silent mode does not work, and `PROFILE.md` §9's fallback must be rewritten.** The plan assumed silent mode was a blank canvas to retreat to if the system's buzz interfered. It is a wall:
+
+```
+01:26:33.954  com.mosman.thrum   ignored_for_ringer_mode   0ms
+```
+
+Android discarded the vibration before the motor moved — duration zero. This was originally recorded here as *"silent mode works, 240 ms"*, read off the app's own `FIRED` line. **Mutalib caught it by hand — *"the silent mode is just silent, nothing else"* — and he was right.** Sacred Rule 2 in practice: the log said we fired, the phone said nothing happened, and the phone was correct. We do not need the fallback because vibrate mode works, but there is no longer a second option if some other phone suppresses us there.
+
+The caveat that stands: this is one phone. Whether the supersede behaviour holds across OEM dialers is unknown, and Task 10's soak is the next place to watch it.
 
 **R6 — passed.** Median 273 ms in vibrate mode, settling to 216–336 ms once Android keeps the listener warm. The first calls after install ran 588–713 ms — cold start, not the steady state. Nothing near the one-second threshold that would make it feel broken.
 
@@ -74,6 +93,15 @@ Rows 2–4 stayed blank on purpose. They existed to answer R2, and R2 was answer
 1. **Double-fire — fixed, and the fix verified on hardware.** On 5 of 13 calls the listener fired twice for one call, 21–678 ms apart: the dialer updates its own call notification (caller ID resolving, a photo loading) and every update arrived as a fresh "incoming", restarting the waveform a fraction of a second into the rhythm. Not felt at Demo-rhythm length, but it would be on a real track. Guarded now by key and by a 2 s window, and the safety cap is armed unconditionally so a stuck `activeKey` can never make that guard swallow real calls.
 
    Verified over **4 more real calls** on the fixed build, 2026-08-01 06:00–06:05: one `FIRED` each, and **2 of the 4 logged `SKIPPED · duplicate notification, already playing`**. The duplicates still arrive — the dialer's behaviour is unchanged — so the guard is catching them rather than the bug having quietly gone away. That distinction is the whole point of the check: the first two calls were clean but proved nothing, since two clean calls happen ~38 % of the time at the old rate.
+
+   Confirmed independently in the system's own vibration record, which is the stronger evidence. Before the fix, our second call to the vibrator killed our first after 25 ms:
+
+   ```
+   01:24:21.647  com.mosman.thrum  cancelled_superseded     25ms
+   01:24:21.672  com.mosman.thrum  cancelled_by_user      8994ms
+   ```
+
+   After the fix, every call shows exactly **one** `com.mosman.thrum` entry.
 
    Latency on those four: 226, 247, 243, 244 ms. Tighter than the original run, with the cold-start outliers gone now the listener stays warm.
 

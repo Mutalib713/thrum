@@ -191,12 +191,26 @@ if (!isHapticOnly) {
 
 *Resolved by:* Task 1. A rough test build that proves our own vibration score can play on a real incoming call in vibrate mode. **If Task 1 fails, stop and rethink — do not build UI around a hole.**
 
-**R2 — Can the system's own buzz be suppressed?** ⚠ Open, and Task 1 must answer it.
+**R2 — Can the system's own buzz be suppressed?** ✅ **Resolved by Task 2, 2026-08-01.** It does not need to be suppressed: **the last vibration wins.**
 
-In vibrate mode the system plays its flat pattern. If ours plays on top, it will feel like mush. Candidate answers, in order of preference, to be tested empirically:
-- (a) Some combination of "Vibrate first then ring gradually" off / ring-vibration slider / adaptive alert vibration off silences the system's pattern. Untested.
-- (b) Instruct the user to use **silent mode** instead of vibrate mode. Silent = no sound and no system vibration, a blank canvas the app fills. Costs the user notification vibration, which must be disclosed honestly.
-- (c) `Settings.System.VIBRATE_WHEN_RINGING` — likely irrelevant in vibrate mode, since vibrate mode vibrates by definition. Verify, don't assume.
+Telecom starts its flat pattern when the call arrives; our waveform reaches the vibrator ~0.4–0.5 s later and supersedes it. Android hands the motor to the most recent `RINGTONE` vibration, so the system's buzz is cut off mid-pattern. Verified on every one of 13 real calls, in the system's own record:
+
+```
+06:00:07.686  com.android.server.telecom   cancelled_superseded     527ms
+06:00:08.213  com.mosman.thrum             cancelled_by_user       3267ms
+```
+
+Mutalib's verdict on the same calls: *"a clear rhythm."* No mush.
+
+- **(a) was never needed.** `vibrate_when_ringing` stayed **on** and `ring_vibration_intensity` at 3/3 throughout, and it made no difference — supersede beats them all. Users change nothing. Task 9's setup screen shrinks accordingly.
+- **(b) is dead. Silent mode is not a blank canvas — it is a wall.** Android discards a `RINGTONE` vibration outright in silent mode: `ignored_for_ringer_mode`, duration `0ms`. Mutalib felt nothing, and was the one who caught it — *"the silent mode is just silent, nothing else."* **Never tell a user to switch to silent mode; it disables the app.**
+- **(c) verified irrelevant**, as suspected. Left on for all 13 calls with no effect on our waveform.
+
+**Two consequences to design around:**
+1. **Every call opens with ~0.4–0.5 s of the system's flat buzz** before the rhythm takes over. Not suppressible from an app — the only lever is our own latency, so anything that delays the listener lengthens the flat prefix.
+2. **There is no fallback left.** If a phone ever suppresses us in vibrate mode too, the app has nothing to retreat to. Task 6's honest-hardware-check screen is the whole answer on such a device.
+
+**Method note:** `adb shell dumpsys vibrator_manager` is the ground truth for any haptics question — it records every vibration, who requested it, and what the system did with it. The app's own `FIRED` event only proves we *asked* the motor. Task 2 recorded "silent mode works, 240 ms" off that event for a full day before a hand on the phone disproved it.
 
 **R3 — Google ships this themselves.** The `enableRingtoneHapticsCustomization` flag is already present in Android on Mutalib's phone, and the Pixel Sounds app has an unreleased "Synchronized" ringtone vibration pattern. Google is clearly building this. If it ships, Pixel users get something similar for free.
 *Mitigation:* not controllable. Samsung and other capable non-Pixel phones remain, and Google's version uses presets rather than the user's own audio. Do not build a twelve-month roadmap on the Pixel audience alone.

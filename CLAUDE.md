@@ -66,6 +66,21 @@ One file is machine-specific and deliberately gitignored, so a fresh clone will 
 - **R8 renames enum constants.** If anything persists an enum by name via JSON + `valueOf()`, add `-keepclassmembers enum com.mosman.thrum.** { *; }` or saved data silently wipes on upgrade. This exact bug bit `pixel-routines`.
 - Screenshots are flaky on this machine. Prefer logs, measurements, and Mutalib's hand on the phone.
 
+## Ground truth for anything haptic
+
+```powershell
+adb shell dumpsys vibrator_manager
+```
+
+The system's own record of every vibration: who asked, what usage, how long it actually ran, and
+what the system did with it — `finished`, `cancelled_by_user`, `cancelled_superseded`,
+`ignored_for_ringer_mode`. **Use it before believing any claim about vibration.**
+
+The app's `FIRED` event only records that we *called* the vibrator. It cannot tell the difference
+between a motor that ran and a request Android threw away. Task 2 sat on "silent mode works,
+240 ms" for a day on the strength of that event; `dumpsys` showed `ignored_for_ringer_mode`,
+`duration: 0ms`, and Mutalib's hand had already said so.
+
 ## Testing reality
 
 - **Vibration cannot be tested without the physical phone.** Emulators don't do haptics, so an emulator being available on this laptop changes nothing here.
