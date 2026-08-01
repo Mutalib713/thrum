@@ -32,6 +32,15 @@ import kotlin.math.roundToInt
  * **The tuning here is taste, not correctness** (PLAN.md Task 4). The constants
  * are chosen to be defensible, not final; expect to move them once a hand has
  * felt a real track in Task 5.
+ *
+ * **The motor's measured ceiling: 8 taps a second, blurring at 12.** Mutalib ran
+ * `Demo.pulseTrain` up a ladder of rates on the Pixel 6 Pro, 2026-08-01, and
+ * that is where separate taps stopped feeling separate. It matters because the
+ * scores before that test ran at **3.1 taps a second** — the analyser was being
+ * throttled by a hardware limit that does not exist, and several rounds of
+ * tuning changed the numbers while barely changing what reached his hand. Every
+ * density and duration constant below is now set against a measured ceiling
+ * rather than a guessed one.
  */
 class ScoreBuilder(
     private val sampleRate: Int,
@@ -66,6 +75,7 @@ class ScoreBuilder(
     private var highEnv = 0f
     private var highSustained = 0f
     private var samplesInStep = 0
+    private var primed = false
 
     /** One entry per completed step. Kept as floats until [build] knows the loudest. */
     private val steps = ArrayList<Float>()
@@ -81,6 +91,24 @@ class ScoreBuilder(
         val end = count.coerceAtMost(samples.size)
         for (i in 0 until end) {
             val x = samples[i].toFloat()
+
+            // Start the followers where the music is, not at zero.
+            //
+            // Both "recent average" followers begin empty, so for their first
+            // half-second everything towers over them and every track opens with
+            // a burst of hits that are not in the music. On the cymbal-wash test
+            // that burst welded the first two beats into one, turning eight
+            // pulses into seven. Priming on the first sample costs nothing and
+            // removes an artifact from the opening of every score.
+            if (!primed) {
+                lp1 = x
+                lp2 = x
+                envelope = abs(x)
+                sustained = envelope
+                highEnv = 0f
+                highSustained = 0f
+                primed = true
+            }
 
             lp1 += lowPassCoef * (x - lp1)
             lp2 += lowPassCoef * (lp1 - lp2)
@@ -368,7 +396,7 @@ class ScoreBuilder(
          * up; a single 40 ms step ends before it has moved. 90 ms is still well
          * inside the gap between beats at any tempo a person dances to.
          */
-        const val MIN_PULSE_MS = 120
+        const val MIN_PULSE_MS = 100
 
         /**
          * The loudest a detail hit may get. Below [MIN_FELT] on purpose: the
@@ -390,7 +418,7 @@ class ScoreBuilder(
          * The shortest a detail hit may last. Long enough for the motor to move,
          * short enough that a hat is still lighter than a kick's 120 ms.
          */
-        const val DETAIL_PULSE_MS = 60
+        const val DETAIL_PULSE_MS = 45
 
         /**
          * The weakest a detail hit may be. Same law as [MIN_FELT], applied to
@@ -415,6 +443,16 @@ class ScoreBuilder(
         /** A hat is over almost before it starts, so this band follows much faster. */
         const val HIGH_ATTACK_SECONDS = 0.002
         const val HIGH_RELEASE_SECONDS = 0.040
+        /**
+         * A quarter of a second, and it has to stay there.
+         *
+         * This is the "what has the upper band been doing lately" average that
+         * onsets are measured against. Lengthening it to 0.35 s and 0.5 s was
+         * tried, to let a steady hat pattern register more strongly — and both
+         * broke the cymbal-wash check, because a slower average lets a *constant*
+         * wash keep reading as fresh onsets, which bridged two beats into one.
+         * Bisected, not guessed: 0.25 passes, 0.35 and 0.5 both fail.
+         */
         const val HIGH_SUSTAINED_SECONDS = 0.250
 
         /**
