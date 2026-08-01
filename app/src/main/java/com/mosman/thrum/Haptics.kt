@@ -64,24 +64,41 @@ object Haptics {
      * also arm a safety cap: this runs on Mutalib's daily phone, and a loop that
      * outlives its call would leave the phone buzzing indefinitely.
      */
-    fun play(ctx: Context, score: Score, loop: Boolean = false) {
-        if (score.amplitudes.isEmpty()) return
-        val effect = VibrationEffect.createWaveform(
-            score.timings(),
-            score.amplitudes.toIntArray(),
-            if (loop) REPEAT_FROM_START else NO_REPEAT,
-        )
-        val v = vibrator(ctx)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_RINGTONE))
-        } else {
-            v.vibrate(
-                effect,
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build(),
+    /**
+     * @return null when the vibration was accepted, or a plain-language reason
+     *   when it was not.
+     *
+     * Returning the failure rather than throwing exists for two reasons. It is
+     * how **R8** gets answered — a four-minute track is about 12,000 steps, and
+     * whether `createWaveform` accepts that is a question only a device can
+     * settle. And [NotifService] plays scores from a notification callback,
+     * where an uncaught throw would take down the listener and quietly end the
+     * app's whole reason for existing.
+     */
+    fun play(ctx: Context, score: Score, loop: Boolean = false): String? {
+        if (score.amplitudes.isEmpty()) return "That score has no steps in it."
+        return try {
+            val effect = VibrationEffect.createWaveform(
+                score.timings(),
+                score.amplitudes.toIntArray(),
+                if (loop) REPEAT_FROM_START else NO_REPEAT,
             )
+            val v = vibrator(ctx)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_RINGTONE))
+            } else {
+                v.vibrate(
+                    effect,
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+            }
+            null
+        } catch (e: Exception) {
+            "The vibrator refused ${score.amplitudes.size} steps: " +
+                "${e.javaClass.simpleName}${e.message?.let { " — $it" } ?: ""}"
         }
     }
 

@@ -88,15 +88,28 @@ private fun ProbeScreen() {
     val scope = rememberCoroutineScope()
     var decoding by remember { mutableStateOf(false) }
     var decoded by remember { mutableStateOf<Decoded?>(null) }
+    var score by remember { mutableStateOf<Score?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             decoded = null
+            score = null
             decoding = true
             scope.launch {
-                // Samples are counted and dropped. Holding them would be tens of
-                // megabytes for a normal track, and Task 3 only needs the shape
-                // of the file, not its contents. Task 4 is what consumes them.
-                val result = withContext(Dispatchers.IO) { AudioDecoder.decode(ctx, uri) }
+                // Task 4. The analyser consumes the decoder's chunks as they
+                // arrive and keeps one number per 20 ms, so a four-minute track
+                // costs about 12,000 integers instead of the 24 MB it came from.
+                var builder: ScoreBuilder? = null
+                val result = withContext(Dispatchers.IO) {
+                    AudioDecoder.decode(
+                        ctx,
+                        uri,
+                        onFormat = { rate, _ ->
+                            builder = ScoreBuilder(rate, name = AudioDecoder.displayName(ctx, uri))
+                        },
+                        onMono = { samples, count -> builder?.feed(samples, count) },
+                    )
+                }
+                score = if (result is Decoded.Ok) builder?.build() else null
                 decoded = result
                 store.addEvent(
                     Event(
@@ -104,7 +117,7 @@ private fun ProbeScreen() {
                         kind = Event.Kind.DECODED,
                         ringer = Haptics.ringerMode(ctx),
                         latencyMs = if (result is Decoded.Ok) result.elapsedMs else 0,
-                        note = summarise(result),
+                        note = summarise(result) + (score?.let { "  ||  " + summarise(it) } ?: ""),
                     ),
                 )
                 logRefresh++
@@ -265,6 +278,50 @@ private fun ProbeScreen() {
             )
         }
 
+        score?.let { built ->
+            StatusCard(
+                good = !built.isSilent(),
+                title = "Rhythm: ${built.pulseCount()} hits",
+                body = if (built.isSilent()) {
+                    "This file produced no rhythm at all — nothing loud enough to feel."
+                } else {
+                    "${built.amplitudes.size} steps of ${built.stepMs}ms · " +
+                        "strongest ${built.amplitudes.max()}/255"
+                },
+                detail = "R8: playing this asks the vibrator for ${built.amplitudes.size} steps " +
+                    "in one effect. If it refuses, the reason lands in the log below.",
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = {
+                        val failure = Haptics.play(ctx, built)
+                        store.addEvent(
+                            Event(
+                                at = System.currentTimeMillis(),
+                                kind = if (failure == null) Event.Kind.FIRED else Event.Kind.SKIPPED,
+                                ringer = Haptics.ringerMode(ctx),
+                                latencyMs = 0,
+                                note = failure ?: "played score · ${summarise(built)}",
+                            ),
+                        )
+                        logRefresh++
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Feel this rhythm")
+                }
+                OutlinedButton(
+                    onClick = { Haptics.stop(ctx) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Stop")
+                }
+            }
+        }
+
         HorizontalDivider()
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -316,6 +373,11 @@ private fun summarise(result: Decoded): String = when (result) {
         )
     }
 }
+
+/** One line describing a built score, for the event log. */
+private fun summarise(score: Score): String =
+    "${score.pulseCount()} hits · ${score.amplitudes.size} steps × ${score.stepMs}ms · " +
+        "${clock(score.durationMs)} · strongest ${score.amplitudes.maxOrNull() ?: 0}/255"
 
 /** `3:01`, so the length can be compared against a music player at a glance. */
 private fun clock(ms: Long): String {

@@ -32,6 +32,27 @@ data class Score(
 
     fun isSilent(): Boolean = amplitudes.all { it == 0 }
 
+    /**
+     * The same score at a coarser resolution: [factor] steps merged into one,
+     * keeping the loudest of each group.
+     *
+     * This is the R8 lever (PROFILE.md §11). `VibrationEffect.createWaveform`
+     * may cap how many steps one effect can hold, and a four-minute track at
+     * 20 ms is about 12,000 of them. If a device refuses that, halving the count
+     * costs timing precision — 40 ms instead of 20 — which is far cheaper than
+     * a score that is silently truncated partway through.
+     *
+     * Taking the loudest rather than the average is deliberate: averaging a hit
+     * with the silence beside it flattens exactly the transients that make a
+     * rhythm feel like one.
+     */
+    fun coarsen(factor: Int): Score {
+        require(factor > 0) { "factor must be positive, was $factor" }
+        if (factor == 1) return this
+        val merged = amplitudes.chunked(factor) { group -> group.max() }
+        return Score(stepMs * factor, merged, sourceName)
+    }
+
     /** Number of separate pulses — a run of non-zero steps counts once. */
     fun pulseCount(): Int {
         var count = 0

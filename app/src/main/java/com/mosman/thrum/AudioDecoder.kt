@@ -38,6 +38,7 @@ object AudioDecoder {
     fun decode(
         ctx: Context,
         uri: Uri,
+        onFormat: (sampleRate: Int, channels: Int) -> Unit = { _, _ -> },
         onMono: (samples: ShortArray, count: Int) -> Unit = { _, _ -> },
     ): Decoded {
         val startedAt = SystemClock.elapsedRealtime()
@@ -87,10 +88,21 @@ object AudioDecoder {
             // WAV arrives already decoded. Handing raw PCM to a decoder is not
             // guaranteed to work — several devices ship no "audio/raw" decoder
             // at all — and there is nothing for one to do anyway.
+            // Announced lazily, immediately before the first chunk, so callers
+            // always receive the values the decoder settled on rather than the
+            // ones the container advertised — a decoder may resample or downmix.
+            var announced = false
+            val announce: (Int, Int) -> Unit = { rate, channels ->
+                if (!announced) {
+                    announced = true
+                    onFormat(rate, channels)
+                }
+            }
+
             val run = if (mime == MIME_RAW) {
-                readRaw(extractor, format, onMono)
+                readRaw(extractor, format, announce, onMono)
             } else {
-                runCodec(extractor, format, mime, onMono)
+                runCodec(extractor, format, mime, announce, onMono)
             }
 
             return when (run) {
@@ -123,6 +135,7 @@ object AudioDecoder {
         extractor: MediaExtractor,
         format: MediaFormat,
         mime: String,
+        announce: (Int, Int) -> Unit,
         onMono: (ShortArray, Int) -> Unit,
     ): Run {
         val codec = try {
@@ -201,6 +214,7 @@ object AudioDecoder {
                                     Pcm.downmixToMono(interleaved, count, channels, mono)
                                     frames += monoFrames
                                     peak = maxOf(peak, Pcm.peak(mono, monoFrames))
+                                    announce(sampleRate, channels)
                                     onMono(mono, monoFrames)
                                 }
                             }
@@ -245,6 +259,7 @@ object AudioDecoder {
     private fun readRaw(
         extractor: MediaExtractor,
         format: MediaFormat,
+        announce: (Int, Int) -> Unit,
         onMono: (ShortArray, Int) -> Unit,
     ): Run {
         val sampleRate = format.optInt(MediaFormat.KEY_SAMPLE_RATE, 0)
@@ -273,6 +288,7 @@ object AudioDecoder {
             Pcm.downmixToMono(interleaved, count, channels, mono)
             frames += monoFrames
             peak = maxOf(peak, Pcm.peak(mono, monoFrames))
+            announce(sampleRate, channels)
             onMono(mono, monoFrames)
             extractor.advance()
 
