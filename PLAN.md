@@ -71,7 +71,11 @@ Rows 2–4 stayed blank on purpose. They existed to answer R2, and R2 was answer
 
 **Two defects found, which is what this task was for:**
 
-1. **Double-fire — fixed in this task.** On 5 of 13 calls the listener fired twice for one call, 21–678 ms apart: the dialer updates its own call notification (caller ID resolving, a photo loading) and every update arrived as a fresh "incoming", restarting the waveform a fraction of a second into the rhythm. Not felt at Demo-rhythm length, but it would be on a real track. Guarded now by key and by a 2 s window, and the safety cap is armed unconditionally so a stuck `activeKey` can never make that guard swallow real calls.
+1. **Double-fire — fixed, and the fix verified on hardware.** On 5 of 13 calls the listener fired twice for one call, 21–678 ms apart: the dialer updates its own call notification (caller ID resolving, a photo loading) and every update arrived as a fresh "incoming", restarting the waveform a fraction of a second into the rhythm. Not felt at Demo-rhythm length, but it would be on a real track. Guarded now by key and by a 2 s window, and the safety cap is armed unconditionally so a stuck `activeKey` can never make that guard swallow real calls.
+
+   Verified over **4 more real calls** on the fixed build, 2026-08-01 06:00–06:05: one `FIRED` each, and **2 of the 4 logged `SKIPPED · duplicate notification, already playing`**. The duplicates still arrive — the dialer's behaviour is unchanged — so the guard is catching them rather than the bug having quietly gone away. That distinction is the whole point of the check: the first two calls were clean but proved nothing, since two clean calls happen ~38 % of the time at the old rate.
+
+   Latency on those four: 226, 247, 243, 244 ms. Tighter than the original run, with the cold-start outliers gone now the listener stays warm.
 
 2. **One 5.3-second delivery — open, not blocking.** A ring-mode notification reached the listener 5,324 ms after `postTime` (and a second at 4,355 ms). Harmless there because ring mode is skipped, but the same delay in vibrate mode would start the rhythm five seconds into the call and look broken. Seen once, cause unknown — carried into **Task 10**, whose soak is where a doze/background-scheduling cause would show up.
 
