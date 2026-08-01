@@ -144,14 +144,22 @@ class ScoreBuilder(
                 // continuous vibration.
                 0
             } else {
-                // Hearing is roughly logarithmic and so is touch, so a linear
-                // map wastes most of the motor on the loudest few percent. The
-                // curve lifts ordinary hits into the range a hand notices.
-                val curved = level.toDouble().pow(CURVE)
-                (curved * Score.MAX_AMPLITUDE).roundToInt().coerceIn(0, Score.MAX_AMPLITUDE)
+                // Map what survives onto MIN_FELT..255 rather than 0..255.
+                //
+                // The bottom of the motor's range is not quiet, it is nothing:
+                // amplitudes under about 140 barely move the mass. Spending half
+                // the scale there produced a score Mutalib could feel in his
+                // hand but which could not move the phone on a table, while
+                // Android's own buzz shakes it. Quiet hits must still be hits.
+                val above = ((level - GATE) / (1f - GATE)).coerceIn(0f, 1f)
+                val curved = above.toDouble().pow(CURVE)
+                val range = Score.MAX_AMPLITUDE - MIN_FELT
+                (MIN_FELT + curved * range).roundToInt().coerceIn(0, Score.MAX_AMPLITUDE)
             }
         }
-        return Score(stepMs, amplitudes, name)
+        // Then give each hit long enough to actually move the motor.
+        val minSteps = (MIN_PULSE_MS / stepMs).coerceAtLeast(1)
+        return Score(stepMs, amplitudes, name).holdPulsesAtLeast(minSteps)
     }
 
     /** Number of steps produced so far. The count [Score.MAX_AMPLITUDE] cares about is in R8. */
@@ -170,7 +178,7 @@ class ScoreBuilder(
         return (1.0 - exp(-1.0 / samples)).toFloat()
     }
 
-    private companion object {
+    companion object {
         /**
          * Kick drums live around 50–100 Hz and bass guitar just above. 200 Hz
          * keeps both and drops most of the vocal, which carries the melody but
@@ -207,5 +215,20 @@ class ScoreBuilder(
          * turned into one continuous vibration.
          */
         const val CURVE = 0.75
+
+        /**
+         * The weakest amplitude worth asking for. Below roughly this the motor
+         * hums without moving anything, so a hit mapped there is a hit the user
+         * does not get. Everything above the gate is spread across
+         * MIN_FELT..255 instead of 0..255.
+         */
+        const val MIN_FELT = 150
+
+        /**
+         * The shortest a hit may last. A motor has mass and needs time to spin
+         * up; a single 40 ms step ends before it has moved. 90 ms is still well
+         * inside the gap between beats at any tempo a person dances to.
+         */
+        const val MIN_PULSE_MS = 90
     }
 }

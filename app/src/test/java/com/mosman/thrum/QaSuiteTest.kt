@@ -356,6 +356,45 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `every hit is strong enough to move the motor`() {
+        // A phone on a table did not move at all when hits landed at 45-150.
+        // The bottom of the range is not quiet, it is nothing.
+        val score = analyse { fourOnTheFloor(bars = 2, bpm = 120) }
+        val weak = score.amplitudes.filter { it in 1 until ScoreBuilder.MIN_FELT }
+        assertTrue("$weak fell below the felt threshold", weak.isEmpty())
+    }
+
+    @Test
+    fun `every hit lasts long enough to move the motor`() {
+        val score = analyse { fourOnTheFloor(bars = 2, bpm = 120) }
+        var run = 0
+        val runs = mutableListOf<Int>()
+        for (a in score.amplitudes) {
+            if (a > 0) run++ else if (run > 0) { runs.add(run); run = 0 }
+        }
+        if (run > 0) runs.add(run)
+        val shortest = (runs.minOrNull() ?: 0) * score.stepMs
+        assertTrue("shortest hit was ${shortest}ms", shortest >= ScoreBuilder.MIN_PULSE_MS)
+    }
+
+    @Test
+    fun `holding a pulse keeps its leading edge where the beat is`() {
+        // Widening around the peak instead of forward would move the hit earlier
+        // and put the whole rhythm ahead of the music.
+        val score = Score(20, listOf(0, 0, 200, 0, 0, 0, 0, 0))
+        val held = score.holdPulsesAtLeast(3)
+        assertEquals(listOf(0, 0, 200, 200, 200, 0, 0, 0), held.amplitudes)
+    }
+
+    @Test
+    fun `holding never runs a pulse over the next one`() {
+        val score = Score(20, listOf(100, 0, 255, 0, 0, 0))
+        val held = score.holdPulsesAtLeast(4)
+        // The first hit may only take the one silent step before the next hit.
+        assertEquals(listOf(100, 100, 255, 255, 255, 255), held.amplitudes)
+    }
+
+    @Test
     fun `a quiet recording is not left quiet`() {
         // Normalising by the loudest step is what stops a score's strength
         // depending on how the track was mastered.

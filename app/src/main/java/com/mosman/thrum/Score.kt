@@ -84,6 +84,50 @@ data class Score(
         return Score(stepMs, amplitudes.drop(skip), sourceName)
     }
 
+    /**
+     * Every pulse held for at least [minSteps], keeping its strongest value.
+     *
+     * A vibration motor has mass. Asking for full strength for 40 ms produces
+     * almost no movement, because the motor is still spinning up when the step
+     * ends — Mutalib's test: on a table, the phone did not move at all, while
+     * Android's own buzz (255 held for a full second) shakes the table.
+     *
+     * Rhythm cannot use second-long pulses, but it can stop asking for
+     * forty-millisecond ones. Widening runs forward rather than around the peak
+     * keeps the hit's leading edge exactly where the beat is; moving that would
+     * put the rhythm ahead of the music.
+     */
+    fun holdPulsesAtLeast(minSteps: Int): Score {
+        require(minSteps > 0) { "minSteps must be positive, was $minSteps" }
+        if (minSteps == 1 || amplitudes.isEmpty()) return this
+
+        val out = amplitudes.toMutableList()
+        var i = 0
+        while (i < out.size) {
+            if (out[i] == 0) {
+                i++
+                continue
+            }
+            var end = i
+            var peak = 0
+            while (end < out.size && out[end] > 0) {
+                peak = maxOf(peak, out[end])
+                end++
+            }
+            // Hold the peak forward into the silence that follows, never over a
+            // later hit: a run that already reaches the next one is long enough.
+            var held = end - i
+            var at = end
+            while (held < minSteps && at < out.size && out[at] == 0) {
+                out[at] = peak
+                at++
+                held++
+            }
+            i = at
+        }
+        return Score(stepMs, out, sourceName)
+    }
+
     /** Number of separate pulses — a run of non-zero steps counts once. */
     fun pulseCount(): Int {
         var count = 0
