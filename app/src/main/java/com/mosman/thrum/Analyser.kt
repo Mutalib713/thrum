@@ -51,10 +51,12 @@ class ScoreBuilder(
     private val lowPassCoef = coefFor(1.0 / (2 * Math.PI * CUTOFF_HZ))
     private val attackCoef = coefFor(ATTACK_SECONDS)
     private val releaseCoef = coefFor(RELEASE_SECONDS)
+    private val sustainedCoef = coefFor(SUSTAINED_SECONDS)
 
     private var lp1 = 0f
     private var lp2 = 0f
     private var envelope = 0f
+    private var sustained = 0f
 
     private var stepPeak = 0f
     private var samplesInStep = 0
@@ -85,7 +87,23 @@ class ScoreBuilder(
                 releaseCoef * (level - envelope)
             }
 
-            if (envelope > stepPeak) stepPeak = envelope
+            // Then take only what *rises above* the recent average, rather than
+            // the level itself.
+            //
+            // Following the level directly was the first attempt and it failed
+            // on real music. Mastered tracks are loud almost all the time, so a
+            // sustained bassline never falls back to the gate: Masha Allah came
+            // out 96.7 % non-zero, with one unbroken 2m23s vibration at a mean
+            // of 124/255. Felt like a massage, not a rhythm.
+            //
+            // [sustained] is the same envelope followed slowly, so it settles at
+            // whatever the track has been doing lately. A held note pulls it up
+            // until the difference is nothing; a drum arrives faster than it can
+            // follow and stands clear of it. That difference is the beat.
+            sustained += sustainedCoef * (envelope - sustained)
+            val onset = envelope - sustained
+
+            if (onset > stepPeak) stepPeak = onset
             if (++samplesInStep >= samplesPerStep) {
                 steps.add(stepPeak)
                 stepPeak = 0f
@@ -160,16 +178,34 @@ class ScoreBuilder(
          */
         const val CUTOFF_HZ = 200.0
 
-        /** 5 ms: fast enough that a kick reaches the motor as a hit, not a swell. */
-        const val ATTACK_SECONDS = 0.005
+        /** 3 ms: fast enough that a kick reaches the motor as a hit, not a swell. */
+        const val ATTACK_SECONDS = 0.003
 
-        /** 120 ms: a hit decays and is gone before the next beat at any normal tempo. */
-        const val RELEASE_SECONDS = 0.120
+        /**
+         * 60 ms: a hit is over well before the next one. At 160 bpm beats are
+         * 375 ms apart, so even fast music gets stillness between them.
+         */
+        const val RELEASE_SECONDS = 0.060
 
-        /** Below 8 % of the loudest step, output nothing rather than a faint hum. */
-        const val GATE = 0.08f
+        /**
+         * 350 ms for the "what has this track been doing lately" average.
+         *
+         * Long enough to sit still through a single beat — otherwise it would
+         * chase each drum and cancel it — and short enough to follow a song from
+         * a quiet verse into a loud chorus without the whole verse reading as
+         * silence.
+         */
+        const val SUSTAINED_SECONDS = 0.350
 
-        /** Below 1.0 lifts quiet detail; 0.6 is a conventional loudness-ish curve. */
-        const val CURVE = 0.6
+        /** Below 10 % of the strongest onset, output nothing rather than a faint hum. */
+        const val GATE = 0.10f
+
+        /**
+         * Below 1.0 lifts quieter hits toward the range a hand notices. Gentler
+         * than the 0.6 first tried: with onsets rather than levels, 0.6 lifted
+         * every small tick into something felt, which is how the whole track
+         * turned into one continuous vibration.
+         */
+        const val CURVE = 0.75
     }
 }

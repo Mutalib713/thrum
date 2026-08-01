@@ -120,6 +120,15 @@ private fun ProbeScreen() {
                     null
                 }
                 decoded = result
+                // Dump the whole score where adb can reach it. The event log
+                // carries a summary, and a summary cannot tell "a few long
+                // smears" apart from "sparse hits" — the two need opposite
+                // fixes. Tuning by asking Mutalib to re-feel a track after every
+                // guess would take all day; this way the guessing happens on the
+                // PC against the real numbers. Debug aid, not product.
+                score?.let { built ->
+                    runCatching { ctx.filesDir.resolve("last-score.txt").writeText(built.encode()) }
+                }
                 store.addEvent(
                     Event(
                         at = System.currentTimeMillis(),

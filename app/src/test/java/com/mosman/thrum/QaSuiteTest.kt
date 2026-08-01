@@ -314,6 +314,48 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `a sustained bass note is not a rhythm`() {
+        // The bug this test exists for: following loudness rather than onsets.
+        // A held note is loud for its whole length, so a level-following
+        // analyser vibrates continuously through it. Masha Allah came out 96.7 %
+        // non-zero with a single unbroken 2m23s vibration before this was fixed.
+        val score = analyse { tone(hz = 60.0, seconds = 4.0, amplitude = 18000) }
+        val moving = score.amplitudes.count { it > 0 }
+        assertTrue(
+            "a 4s held note produced $moving moving steps of ${score.amplitudes.size}",
+            moving < score.amplitudes.size / 4,
+        )
+    }
+
+    @Test
+    fun `most of a bar is stillness`() {
+        // Rhythm is as much the gaps as the hits. Without this, "4 pulses per
+        // bar" can still pass while the motor never actually stops.
+        val score = analyse { fourOnTheFloor(bars = 4, bpm = 120) }
+        val still = score.amplitudes.count { it == 0 }
+        assertTrue(
+            "only ${100 * still / score.amplitudes.size}% of the bar was still",
+            still > score.amplitudes.size / 2,
+        )
+    }
+
+    @Test
+    fun `a hit is over before the next one arrives`() {
+        val score = analyse { fourOnTheFloor(bars = 4, bpm = 120) }
+        val longestRun = score.amplitudes
+            .fold(0 to 0) { (longest, current), a ->
+                val run = if (a > 0) current + 1 else 0
+                maxOf(longest, run) to run
+            }.first
+        // A beat at 120 bpm is 500 ms. A hit that outlasts that has merged with
+        // the following one, and the rhythm is gone.
+        assertTrue(
+            "longest hit ran ${longestRun * Demo.STEP_MS}ms",
+            longestRun * Demo.STEP_MS < 500,
+        )
+    }
+
+    @Test
     fun `a quiet recording is not left quiet`() {
         // Normalising by the loudest step is what stops a score's strength
         // depending on how the track was mastered.
