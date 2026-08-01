@@ -32,6 +32,13 @@ data class Event(
 
         /** Android bound or unbound the listener. Evidence for R5. */
         LISTENER,
+
+        /**
+         * A file was read by [AudioDecoder]. Task 3's proof, recorded rather
+         * than read off the screen — screenshots are unreliable on this machine,
+         * and a result dictated aloud is recollection, not evidence.
+         */
+        DECODED,
     }
 
     fun encode(): String = listOf(

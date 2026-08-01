@@ -4,7 +4,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,7 +40,10 @@ import androidx.core.app.NotificationManagerCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Task 2's interface. Still a probe, not the product.
@@ -75,6 +81,37 @@ private fun ProbeScreen() {
     var fireInRingMode by remember { mutableStateOf(store.fireInRingMode) }
     var loopWhileRinging by remember { mutableStateOf(store.loopWhileRinging) }
     var logRefresh by remember { mutableStateOf(0) }
+
+    // Task 3. Decoding runs off the main thread — a three-minute track takes
+    // long enough that doing it here would freeze the screen and, on a slow
+    // file, trip Android's "app isn't responding" dialog.
+    val scope = rememberCoroutineScope()
+    var decoding by remember { mutableStateOf(false) }
+    var decoded by remember { mutableStateOf<Decoded?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            decoded = null
+            decoding = true
+            scope.launch {
+                // Samples are counted and dropped. Holding them would be tens of
+                // megabytes for a normal track, and Task 3 only needs the shape
+                // of the file, not its contents. Task 4 is what consumes them.
+                val result = withContext(Dispatchers.IO) { AudioDecoder.decode(ctx, uri) }
+                decoded = result
+                store.addEvent(
+                    Event(
+                        at = System.currentTimeMillis(),
+                        kind = Event.Kind.DECODED,
+                        ringer = Haptics.ringerMode(ctx),
+                        latencyMs = if (result is Decoded.Ok) result.elapsedMs else 0,
+                        note = summarise(result),
+                    ),
+                )
+                logRefresh++
+                decoding = false
+            }
+        }
+    }
 
     // Polled rather than observed. The ringer mode gets changed with the hardware
     // keys mid-test and the listener writes events from another callback, so a
@@ -188,6 +225,47 @@ private fun ProbeScreen() {
         }
 
         HorizontalDivider()
+        Text("Read an audio file", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Task 3. Turns a file into plain numbers — the step before it can " +
+                "become a rhythm. Nothing is played and nothing is saved.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = { picker.launch(arrayOf("audio/*")) },
+            enabled = !decoding,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (decoding) "Reading…" else "Pick an audio file")
+        }
+        when (val result = decoded) {
+            null -> Unit
+            is Decoded.Failed -> StatusCard(
+                good = false,
+                title = "Couldn't read that file",
+                body = result.message,
+            )
+            is Decoded.Ok -> StatusCard(
+                good = result.durationAgrees && !result.isSilent,
+                title = result.name,
+                body = "${result.sampleRate} Hz · ${channelWord(result.channels)} · " +
+                    clock(result.decodedMs) +
+                    if (result.isSilent) "\nThis file is completely silent." else "",
+                detail = "${result.mime} · ${result.frames} frames · peak ${result.peakPercent}% · " +
+                    "read in ${result.elapsedMs} ms\n" +
+                    if (result.containerMs <= 0) {
+                        "the file doesn't state its own length, so there's nothing to check against"
+                    } else if (result.durationAgrees) {
+                        "matches the length the file claims (${clock(result.containerMs)})"
+                    } else {
+                        "DISAGREES with the length the file claims (${clock(result.containerMs)}) " +
+                            "— the decode stopped early"
+                    },
+            )
+        }
+
+        HorizontalDivider()
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -213,6 +291,42 @@ private fun ProbeScreen() {
             events.forEach { EventRow(it) }
         }
     }
+}
+
+/**
+ * One line per decode for the event log, so Task 3's results table can be
+ * pulled off the phone instead of read aloud from the screen.
+ */
+private fun summarise(result: Decoded): String = when (result) {
+    is Decoded.Failed ->
+        "FAILED" + (if (result.mime.isEmpty()) "" else " (${result.mime})") + " — ${result.message}"
+    is Decoded.Ok -> buildString {
+        append(result.name).append(" · ").append(result.mime)
+        append(" · ").append(result.sampleRate).append("Hz")
+        append(" · ").append(channelWord(result.channels))
+        append(" · ").append(clock(result.decodedMs))
+        append(" · ").append(result.frames).append(" frames")
+        append(" · peak ").append(result.peakPercent).append("%")
+        append(
+            when {
+                result.containerMs <= 0 -> " · no length claimed"
+                result.durationAgrees -> " · matches ${clock(result.containerMs)}"
+                else -> " · DISAGREES, file claims ${clock(result.containerMs)}"
+            },
+        )
+    }
+}
+
+/** `3:01`, so the length can be compared against a music player at a glance. */
+private fun clock(ms: Long): String {
+    val total = ms / 1000
+    return "%d:%02d".format(total / 60, total % 60)
+}
+
+private fun channelWord(channels: Int): String = when (channels) {
+    1 -> "mono"
+    2 -> "stereo"
+    else -> "$channels channels"
 }
 
 @Composable

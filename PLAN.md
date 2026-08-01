@@ -135,11 +135,40 @@ Then test a **real incoming call** in every relevant state and record what actua
 
 Only starts once Task 2 passes.
 
-### [ ] Task 3 — Decode any audio file to raw samples
+### [x] Task 3 — Decode any audio file to raw samples — **DONE 2026-08-01**
+
+All four required formats decode on the Pixel 6 Pro, verified against Android's own `MediaStore` durations rather than against a music player — the OS is the better witness, and it costs nothing:
+
+| File | Reported by Thrum | MediaStore says | |
+|---|---|---|---|
+| `thrum-test-tone.wav` | audio/raw · 44100 Hz · stereo · 0:03 · 132,300 frames · peak 32 % | 3,000 ms | ✅ exact |
+| `thrum-test-ringtone.ogg` | audio/vorbis · 48000 Hz · stereo · 0:12 · 612,000 frames · peak 75 % | 12,750 ms | ✅ exact |
+| Keche — No Dulling `.mp3` | audio/mpeg · 44100 Hz · stereo · 3:58 · 10,514,721 frames · peak 100 % | 238,000 ms | ✅ |
+| Harris J — Eid Mubarak `.m4a` | audio/mp4a-latm · 44100 Hz · stereo · 4:32 · 12,034,048 frames · peak 100 % | 272,881 ms | ✅ |
+
+The generated WAV was written on the PC with known properties (44,100 × 3 s = 132,300 frames), so its row is a check against arithmetic rather than against another guess.
+
+**Memory holds on real files.** The M4A streamed 12 million frames — about 24 MB of audio — through a reused buffer. Nothing in the app ever holds a whole track; [Pcm] downmixes each chunk and it is dropped. 7.4 s to read a 3:58 MP3, 10.1 s for a 4:32 M4A.
+
+**Two defects found by testing, both fixed:**
+
+1. **A long file was refused the slow way.** The 30-minute cap only fired once decoding had *passed* 30 minutes, so Mutalib's two 1h49m recordings each ground for most of a minute to reach a conclusion sitting in the header. Now the container's declared duration is checked before any decoding, and the refusal names the length: *"That file is 1:49:42 long."* The in-loop check stays as a backstop for files that declare no duration.
+
+2. **Failure messages were useless for diagnosis.** `Over_the_Horizon.m4a` failed with a bare `IllegalStateException`. The cause was only found in **another app's** logcat crash: the file is **Dolby Atmos (E-AC3 JOC, 6 channels, 768 kbps)** in an `.m4a` container, and `c2.dolby.eac3.decoder` errors on it — Mutalib's own music player fails on the same file. Failures now name the format and say the phone lacks a working decoder for it. **The file is genuinely undecodable on this device; that row is not a Thrum bug.**
+
+**Known gaps, stated rather than papered over:**
+- **Mono is unit-tested but not device-tested.** Every real file to hand is stereo. `thrum-test-mono.wav` (22050 Hz, mono, 0:02, 44,100 frames) is staged on the phone for whenever it is convenient.
+- The two fixes above are verified by code and unit tests, **not yet re-run on the phone** — the slow-refusal fix and the new Atmos message have not been seen in the log.
+
+**13 new QA-suite tests** cover the arithmetic that has no phone in it: frame-to-millisecond rounding, the stereo downmix, overflow at full scale (two channels at `-32768` sum to `-65536`, which wraps positive in `Short` arithmetic and would read as a bright transient at the loudest moment of a track), trailing partial frames, and peak magnitude at `Short.MIN_VALUE`. Suite is 29 tests, all green.
+
+<details><summary>original task description</summary>
 
 `MediaExtractor` + `MediaCodec` to turn a user-picked file into plain numbers. Handle MP3, M4A, OGG, WAV. Handle mono and stereo. Handle a long file without running out of memory.
 
 **Proof:** decode three files of different formats on the phone. Log sample rate, channel count, and computed duration for each, and confirm the duration matches what the music player shows. A file that fails to decode must produce a clear message, not a crash.
+
+</details>
 
 ### [ ] Task 4 — Turn samples into a vibration score
 
