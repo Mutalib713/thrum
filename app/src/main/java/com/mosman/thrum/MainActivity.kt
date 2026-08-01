@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -90,10 +91,26 @@ private fun ProbeScreen() {
     var decoded by remember { mutableStateOf<Decoded?>(null) }
     var score by remember { mutableStateOf<Score?>(null) }
     var probing by remember { mutableStateOf(false) }
+    var pickedUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var playingTogether by remember { mutableStateOf(false) }
+
+    // Task 5: the audio and the vibration at once, because the only way to judge
+    // whether a rhythm matches a track is to feel it against the track. Held
+    // across recompositions and released with the screen — a leaked MediaPlayer
+    // keeps playing after the app is gone.
+    val player = remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    DisposableEffect(Unit) {
+        onDispose {
+            player.value?.runCatching { release() }
+            player.value = null
+            Haptics.stop(ctx)
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             decoded = null
             score = null
+            pickedUri = uri
             decoding = true
             scope.launch {
                 // Task 4. The analyser consumes the decoder's chunks as they
@@ -331,8 +348,87 @@ private fun ProbeScreen() {
                 ) {
                     Text("Feel this rhythm")
                 }
+                Button(
+                    onClick = {
+                        val uri = pickedUri ?: return@Button
+                        player.value?.runCatching { release() }
+                        Haptics.stop(ctx)
+                        playingTogether = true
+
+                        val mp = android.media.MediaPlayer()
+                        player.value = mp
+                        mp.setAudioAttributes(
+                            android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .build(),
+                        )
+                        mp.setOnCompletionListener {
+                            Haptics.stop(ctx)
+                            playingTogether = false
+                        }
+                        mp.setOnPreparedListener { ready ->
+                            ready.start()
+                            scope.launch {
+                                // Start the vibration when sound actually leaves
+                                // the speaker, not when start() returns. Asking a
+                                // player to play and assuming it has is the same
+                                // mistake as assuming a vibration happened —
+                                // getCurrentPosition only advances once audio is
+                                // genuinely running.
+                                var position = 0
+                                val gaveUpAt = System.currentTimeMillis() + 2000
+                                while (position == 0 && System.currentTimeMillis() < gaveUpAt) {
+                                    position = runCatching { ready.currentPosition }.getOrDefault(0)
+                                    delay(2)
+                                }
+                                val aligned = built.from(position.toLong())
+                                val failure = Haptics.play(ctx, aligned)
+                                store.addEvent(
+                                    Event(
+                                        at = System.currentTimeMillis(),
+                                        kind = if (failure == null) Event.Kind.FIRED else Event.Kind.SKIPPED,
+                                        ringer = Haptics.ringerMode(ctx),
+                                        latencyMs = position.toLong(),
+                                        note = failure
+                                            ?: "with audio · skipped ${position}ms to match the speaker · " +
+                                            "${aligned.amplitudes.size} steps",
+                                    ),
+                                )
+                                logRefresh++
+                            }
+                        }
+                        val failed = runCatching {
+                            mp.setDataSource(ctx, uri)
+                            mp.prepareAsync()
+                        }.exceptionOrNull()
+                        if (failed != null) {
+                            playingTogether = false
+                            store.addEvent(
+                                Event(
+                                    at = System.currentTimeMillis(),
+                                    kind = Event.Kind.SKIPPED,
+                                    ringer = Haptics.ringerMode(ctx),
+                                    latencyMs = 0,
+                                    note = "couldn't play the audio: ${failed.javaClass.simpleName}",
+                                ),
+                            )
+                            logRefresh++
+                        }
+                    },
+                    enabled = pickedUri != null,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (playingTogether) "Playing…" else "Play with song")
+                }
                 OutlinedButton(
-                    onClick = { Haptics.stop(ctx) },
+                    onClick = {
+                        Haptics.stop(ctx)
+                        player.value?.runCatching { if (isPlaying) stop() }
+                        player.value?.runCatching { release() }
+                        player.value = null
+                        playingTogether = false
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("Stop")

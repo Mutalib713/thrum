@@ -442,6 +442,23 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `starting partway through drops exactly the steps already played`() {
+        // Task 5: audio does not start the instant it is asked to, so the
+        // vibration has to begin from wherever the speaker actually is.
+        val score = Score(20, List(100) { it % Score.MAX_AMPLITUDE })
+        assertEquals(95, score.from(100).amplitudes.size)
+        assertEquals(score.amplitudes[5], score.from(100).amplitudes[0])
+        assertEquals(score, score.from(0))
+        assertEquals(score, score.from(-50))
+    }
+
+    @Test
+    fun `starting past the end gives an empty score rather than throwing`() {
+        val score = Score(20, List(10) { 100 })
+        assertTrue(score.from(10_000).amplitudes.isEmpty())
+    }
+
+    @Test
     fun `a score that already fits is left alone`() {
         val short = Score(20, List(1500) { 100 })
         assertEquals(short, short.fitWithin(Haptics.MAX_STEPS))

@@ -69,6 +69,21 @@ data class Score(
         return coarsen(factor)
     }
 
+    /**
+     * The score from [fromMs] onward, for starting partway through a track.
+     *
+     * Task 5 needs this because audio does not begin the instant it is asked to:
+     * a player buffers, the audio path wakes up, and by the time sound actually
+     * leaves the speaker some milliseconds have passed. Starting the vibration
+     * at step zero anyway would run it ahead of the music for the whole track.
+     */
+    fun from(fromMs: Long): Score {
+        if (fromMs <= 0) return this
+        val skip = (fromMs / stepMs).toInt()
+        if (skip >= amplitudes.size) return Score(stepMs, emptyList(), sourceName)
+        return Score(stepMs, amplitudes.drop(skip), sourceName)
+    }
+
     /** Number of separate pulses — a run of non-zero steps counts once. */
     fun pulseCount(): Int {
         var count = 0
