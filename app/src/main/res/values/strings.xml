@@ -53,7 +53,8 @@
     <string name="armed_indicator">Armed</string>
     <string name="tune_title">Tune the feel</string>
     <string name="tune_punch">Punch %1$d</string>
-    <string name="tune_punch_help">How hard a beat lands.</string>
+    <string name="tune_punch_help">How hard a beat lands. It also sets how far Detail can go, so
+        raise this first if Detail runs out of room.</string>
     <string name="tune_texture">Detail %1$d</string>
     <string name="tune_texture_help">How much of the rest of the kit you feel. Low is the kick
         drum on its own. High brings in the snare and hats, so you feel the pattern rather than

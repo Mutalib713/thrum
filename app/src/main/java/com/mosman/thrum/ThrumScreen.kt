@@ -634,10 +634,15 @@ private fun Ready(
             label = stringResource(R.string.tune_texture, texture),
             help = stringResource(R.string.tune_texture_help),
             value = texture.toFloat(),
-            // Capped below punch so the texture can never be mistaken for a
-            // beat. Letting them meet is how the two layers collapse back into
-            // the single continuous buzz this design started as.
-            range = 0f..(punch - 30).coerceAtLeast(10).toFloat(),
+            // Capped at Punch, not below it.
+            //
+            // It was Punch − 30, on the reasoning that the kick must always
+            // lead. Mutalib turned Detail to its maximum, said that was better,
+            // and noticed the ceiling. He is right: kick hits run from Punch all
+            // the way to 255, so detail level with Punch still sits below most
+            // of them — and a real kit does let a hard snare rival a soft kick.
+            // Raising Punch now raises this ceiling with it.
+            range = 0f..punch.toFloat(),
             onChange = onTexture,
         )
         Text(
