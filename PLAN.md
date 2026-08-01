@@ -216,17 +216,48 @@ Brought forward by Mutalib mid-Task-4, and he was right to: *"because im playing
 
 ## Milestone 2 — The product
 
-### [ ] Task 6 — The honest hardware check
+### [~] Task 6 — The honest hardware check — **BUILT 2026-08-01, half-proven**
 
-On first launch, detect whether this phone's motor can vary its strength. If it can't, a plain screen explains why the app cannot help, in ordinary words, with no false hope and no "try anyway" button. Sacred Rule 2.
+The detection has worked since Task 1 (`Haptics.capability`). What this task added is the **screen**, designed alongside Task 7 rather than twice: it names what is wrong, says no setting or future version will fix it, and **carries no action at all**. A "try anyway" button would be a lie with a tap target.
 
-**Proof:** verdict correct on the Pixel. **And correct on a borrowed budget phone** — this is the only way to test the failure path, and shipping without testing it means shipping the one-star-review bug.
+**Proof — one half done, one half honestly not.** The verdict is correct on the Pixel 6 Pro: it reports capable, and the app proceeds. **The failure path has never run**, because it needs a phone whose motor cannot vary strength and there isn't one to hand. That is the case the screen exists for, so this task stays open rather than ticked.
 
-### [ ] Task 7 — The one screen
+Do not close this by reasoning about it. Borrow a budget phone (Tecno, Infinix, itel — `PROFILE.md` §4 says most of them physically cannot do this) and look at the screen it actually draws.
 
-Material You, dynamic colour, follows system light and dark. Pick a file, see the score, preview it, arm it. Empty state and error state written as real screens, not afterthoughts.
+### [x] Task 7 — The one screen — **DONE 2026-08-01**
 
-**Proof:** screen works end to end on the phone. Layout confirmed by measurement rather than screenshots, which are unreliable on this machine.
+Built through the design-studio Studio pipeline. Full record in `design-brief.md`.
+
+**Direction: instrument, not app.** Space Grotesk over IBM Plex Sans, both bundled (no `INTERNET` permission means downloadable fonts are unavailable, and the system face as the only face is how an Android app announces that nobody chose anything). Colour world **sulphur-concrete** — wet board-marked concrete with a sulphur-yellow safety line — because the language of *machinery that moves* is exactly what this product is.
+
+Every colour pair computed rather than eyeballed. The one that mattered: **the yellow is 1.53:1 on the light field and can never be text there**, so light mode uses a darkened equivalent at 5.45:1 and keeps the raw yellow as a fill with dark ink on it (9.68:1). The data layer's own suggestion — indigo-violet with Righteous/Poppins — was rejected as the strongest AI tell on the banned list.
+
+**Signature move: the pulse ribbon.** The score drawn as bars with a playhead sweeping it as the rhythm plays. Every other app asks the user to take vibration on faith; this shows the shape before it is felt, and its empty state is a flat line, which is exactly what the phone gives them today. One `Canvas`, not 6,000 layout nodes.
+
+**Material You is opt-in, not default — a deliberate deviation from this task as written.** Handing the identity to the wallpaper reproduces the baseline-purple look on a purple wallpaper, and would make the *armed* and *blocked* states wallpaper-derived. Those two are what a user most has to read correctly.
+
+**Seven states built, not remembered later:** blocked · permission · empty · reading · failed · ready · armed.
+
+**Proof — measured on the device, not screenshotted.** `uiautomator` view dump on the Pixel 6 Pro:
+
+| | |
+|---|---|
+| Ribbon | 336 px = 96 dp exactly (560 dpi, 3.5×) |
+| Touch targets | 168 px = 48 dp, every one |
+| Ribbon accessible | announces *"The rhythm: 214 hits over 164 seconds"* |
+| Empty state | announces *"No rhythm yet"* |
+| Armed indicator | labelled, not colour alone |
+| Armed score survives restart | force-stop → relaunch → still armed |
+
+Real track end to end: a 2:44 lofi hiphop file → 4,121 steps × 40 ms, 214 hits, **76 % still**, saved and re-read from preferences.
+
+**Gates.** `gate.py` 0 block / 0 warn across 14 files. humanizer 100.0/85 on every user-facing string, 0 findings. **impeccable's detector did not run** — no output on the Kotlin files, on the repo, or on a known-good HTML file, so it is recorded as not run rather than as a pass.
+
+**What the critique and the device found, fixed:**
+1. Four equal-weight buttons, one of which ("Stop") did nothing unless something was playing. A dead control teaches people to distrust the live ones — it now appears only during playback.
+2. The armed indicator was colour and nothing else: invisible to TalkBack, and to anyone who cannot separate the accent from the field.
+3. The technical row printed "strength 255", which is 255 on every score by construction. It now shows what percentage of the track is **still** — the number that separates a rhythm from a buzz, and the one that was wrong for most of Task 4.
+4. **Found only on the device:** pressing Stop silenced the motor but left the playhead sweeping and the Stop button on screen for the rest of the track, because the coroutine driving it was never cancelled. `dumpsys` said `CurrentVibration: null` while the UI still claimed to be playing. **This project's recurring bug in its newest costume — a surface reporting an intention rather than a fact.**
 
 ### [ ] Task 8 — Save it and survive an upgrade
 

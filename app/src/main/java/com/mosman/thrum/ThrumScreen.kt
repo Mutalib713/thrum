@@ -107,7 +107,21 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     }
 
     val player = remember { mutableStateOf<MediaPlayer?>(null) }
+
+    // The coroutine driving the ribbon's playhead, held so it can be cancelled.
+    //
+    // Found on the device: without this, Stop silenced the motor but the sweep
+    // kept running and immediately wrote `progress` back, so the playhead
+    // carried on travelling and the Stop button stayed on screen for the rest of
+    // the track — nearly three minutes on a 2:44 song. The vibrator's own record
+    // said `CurrentVibration: null` while the UI still claimed to be playing,
+    // which is this project's recurring bug in its newest costume: the screen
+    // reporting an intention rather than a fact.
+    val sweepJob = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
     fun stopEverything() {
+        sweepJob.value?.cancel()
+        sweepJob.value = null
         Haptics.stop(ctx)
         player.value?.runCatching { if (isPlaying) stop() }
         player.value?.runCatching { release() }
@@ -161,7 +175,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
             failure = failed
             return
         }
-        scope.launch { sweep(built.durationMs) { progress = it } }
+        sweepJob.value = scope.launch { sweep(built.durationMs) { progress = it } }
     }
 
     fun playWithSong(built: Score) {
@@ -178,7 +192,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         mp.setOnCompletionListener { stopEverything() }
         mp.setOnPreparedListener { ready ->
             ready.start()
-            scope.launch {
+            sweepJob.value = scope.launch {
                 // Start the vibration when sound actually leaves the speaker.
                 // Asking a player to play and assuming it has is the same
                 // mistake as assuming a vibration happened.
