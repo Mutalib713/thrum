@@ -216,6 +216,20 @@ Brought forward by Mutalib mid-Task-4, and he was right to: *"because im playing
 
 ## Milestone 2 — The product
 
+### Tuning notes — what has been tried, and what failed
+
+Kept because two of these were dead ends that look obviously correct on paper, and the next person to think about this will have the same ideas.
+
+**The motor is not the bottleneck. Measured 2026-08-01:** Mutalib ran `Demo.pulseTrain` up a ladder of rates and felt taps as *separate* up to **8 a second**, blurring at 12. Scores at the time ran at **3.1 a second**. Several rounds of tuning had been aimed at a hardware ceiling that does not exist. The probe is on the debug screen — run it before assuming a limit again.
+
+**Failed: a constant "body" layer under the beats.** Taking the envelope's *level* rather than its onsets, capped below the hit floor, to fill the silence between beats. It measured almost nothing — at maximum, a real track was still 75.2 % silent — because it was built on the fast envelope, which collapses between beats. Mutalib reached the same verdict by hand: the setting he preferred was zero. Replaced by the detail layer.
+
+**Failed: a 1.5 kHz band-pass for the detail layer.** The reasoning is sound. "Everything above 200 Hz" carries the vocal and the melody as well as the kit, and those are continuous, so the onset detector rejects them along with the taps hiding underneath; narrowing to where cymbals live should isolate the kit.
+
+It does — and it also **bridges neighbouring beats into one run**, which the cymbal-wash check catches every time: eight beats become seven. Tried with the detail gate at 0.06, 0.08, 0.12 and 0.14; with both layers sharing one normalisation scale instead of one each; and with a warm-up on the followers. All still merged. **Reverted.** Do not retry without a plan for the merge, and do not soften the cymbal-wash check — it was the only thing that caught it.
+
+**Open, found while chasing that:** the analyser has no history at the start of a track, so the opening hit runs long — 280 ms against a typical 180 ms on the score currently armed. A warm-up period fixes it, but an onset detector fundamentally cannot see a beat at time zero, so the test fixtures need a realistic lead-in before that change can land. Small, real, not urgent.
+
 ### [~] Task 6 — The honest hardware check — **BUILT 2026-08-01, half-proven**
 
 The detection has worked since Task 1 (`Haptics.capability`). What this task added is the **screen**, designed alongside Task 7 rather than twice: it names what is wrong, says no setting or future version will fix it, and **carries no action at all**. A "try anyway" button would be a lie with a tap target.
