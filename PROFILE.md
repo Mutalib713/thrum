@@ -229,8 +229,22 @@ Mutalib's verdict on the same calls: *"a clear rhythm."* No mush.
 *Original concern:* the plan uses amplitude steps, not true frequency control, so it might feel like stuttering rather than music.
 *Resolved by:* **moved forward to Task 1.** Pressing a button and feeling a hardcoded rhythm next to an imitation of Android's flat buzz answers this as well as a full preview would, and answers it before the audio engine exists. `Demo.kt` exists for exactly that comparison.
 
-**R8 — Waveform length limits.** ⚠ Open. `VibrationEffect.createWaveform` may cap how many steps a single effect can hold. A 30-second ringtone at 20ms per step is 1,500 steps, which could be refused or silently truncated — and truncation would present as a bug that only shows up on long tracks.
-*Resolved by:* Task 3 or 4. Play a deliberately long score on the phone and find the real limit rather than guessing a safe number. If there is a cap, either widen `stepMs` for long tracks or play the score in chunks.
+**R8 — Waveform length limits. ✅ RESOLVED 2026-08-01, and the failure mode is worse than feared.**
+
+There is a cap, and **it is silent**. `createWaveform` accepts an oversized score without complaint, `vibrate()` throws nothing and returns nothing, and the request then fails crossing into the system process — `FAILED_TRANSACTION` in the binder log, nothing at all in the app. A 3:58 track at 20 ms is 11,922 steps, and it simply never vibrated while the app logged a successful play.
+
+Measured on the Pixel 6 Pro by walking a ladder of step counts and reading `dumpsys vibrator_manager` afterwards, since the app itself cannot tell which ones arrived. Two runs agreed exactly:
+
+| steps | reached the motor |
+|---|---|
+| 500 · 1,000 · 1,500 · 2,000 · 3,000 · 4,000 · 6,000 · 8,000 · 9,000 · 9,500 · 10,000 · 10,500 | ✅ |
+| 11,000 · 11,500 · 12,000 | ❌ |
+
+*Mitigation, all three in place:* `Haptics.MAX_STEPS` is **8,000**, not the measured 10,500 — that binder buffer is shared across the whole process, so a limit measured on an idle phone is an upper bound, not a safe one. `Haptics.play` refuses anything longer and says so, instead of letting the app believe it vibrated. `Score.fitWithin` coarsens until it fits, rounding the factor **up** (rounding down lands one group over the limit and fails invisibly, which is the bug being defended against). Scores are fitted when built, so an unplayable one is caught while its step count is still on screen rather than at the moment a call arrives.
+
+8,000 steps is 2 minutes 40 at 20 ms, and a phone rings for about thirty seconds — roughly 1,500 steps. The margin costs nothing real.
+
+**The probe that found this is kept** on the debug screen, because the limit is per-device and Task 6 will meet other phones.
 
 **Open question — the name.** "Thrum" is provisional. Decide before the Play Store listing exists.
 

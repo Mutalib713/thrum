@@ -170,19 +170,47 @@ The generated WAV was written on the PC with known properties (44,100 × 3 s = 1
 
 </details>
 
-### [ ] Task 4 — Turn samples into a vibration score
+### [x] Task 4 — Turn samples into a vibration score — **DONE 2026-08-01**
 
-Pure Kotlin, no Android imports. Low-pass filter, then an envelope follower, then downsample into `timings` and `amplitudes` arrays. Bass and drums drive it, because that's what a hand can feel.
+`ScoreBuilder` in `Analyser.kt`. Pure Kotlin, streaming and stateful so it consumes the decoder's chunks as they arrive — an analyser that wanted the whole file as an array would undo Task 3's memory work. What it holds is one number per step, about 6,000 for a four-minute track, against the 24 MB they came from.
 
-**⚠ Small risk:** the tuning here is taste, not correctness. Expect to revisit it after Task 5.
+Mutalib's verdict after three rounds: ***"it feels like the beat now."***
 
-**Proof:** the QA suite from `PROFILE.md` §12 passes on the PC in seconds — silent input gives an all-zero score, a four-on-the-floor beat gives exactly four peaks per bar, arrays are always equal length, amplitudes stay inside 0–255, and a score survives a JSON round-trip. This is the one part of the app that can be properly tested without hardware, so it gets real tests.
+**The first design was wrong, and only real music showed it.** The plan says low-pass → envelope follower → downsample, and that is what was built. It passed every test, including "four-on-the-floor gives exactly four pulses". On Masha Allah it produced this:
 
-### [ ] Task 5 — Preview: audio and vibration together
+| | first attempt | after the fix |
+|---|---|---|
+| Steps that are still | **3.3 %** | **69.8 %** |
+| Pulses | 18 | **509** |
+| Longest unbroken vibration | **142.9 s** | **0.48 s** |
+| Mean amplitude | 124 / 255 | 33 / 255 |
 
-Play the chosen track out loud with its vibration score running alongside it, so the feel can be judged directly against the music.
+Following *loudness* fails on real music because mastered tracks are loud almost all the time — a sustained bassline never falls back to the gate. It followed the music honestly and felt like a massage. **No threshold fixes that; the wrong thing was being measured.** The envelope is now also followed slowly, and only what rises above that slow average is kept: a held note pulls the average up until it cancels itself, a drum arrives faster than the average can follow. That difference is the beat.
 
-**Proof:** Mutalib picks his own imported ringtone, hits preview, and says whether the vibration matches the track. This is a taste gate, and only his hand can pass it. Expect to loop back to Task 4 once or twice — that's the process working, not a failure.
+**Then it was too weak to matter.** Mutalib put the phone on a table: nothing moved, while Android's own buzz shakes the table and so does the iPhone feature. Two causes, neither a threshold:
+- **The bottom of a motor's range is not quiet, it is nothing.** Under roughly 140 the mass barely moves, so spreading hits across 0–255 spent half the scale on amplitudes the user never receives. What survives the gate now maps onto **185–255**.
+- **A motor has mass.** A single 40 ms step ends while it is still spinning up. Every pulse is now held for at least **120 ms**, widened *forward* into the following silence — widening around the peak would move the hit's leading edge and put the rhythm ahead of the music.
+
+**A strength slider ships on the probe screen.** The analysed levels are kept separately from the score, so moving it re-scores instantly instead of costing a seven-second decode. Tuning by feel is many small adjustments, and a rebuild between each one is how tuning stops happening.
+
+**Proof — QA suite, 55 tests, all green on the PC in under a second.** The five checks `PROFILE.md` §12 names, plus the ones this task's failures earned:
+- a held bass note must **not** vibrate continuously
+- over half a bar must be stillness
+- no hit may outlast the gap to the next beat
+- no hit may be weaker than the felt threshold, or shorter than the pulse minimum
+- the beat is still found underneath a continuous 8 kHz wash
+- ragged chunk boundaries give a byte-identical score (the decoder's chunk size is whatever the codec felt like emitting; if the analyser depended on it, the same file would score differently on different phones)
+- 44,100 Hz and 48,000 Hz give the same rhythm
+
+**Counting pulses alone could not have caught the smearing** — "four pulses per bar" passes happily while the motor never stops. That is why the stillness and pulse-length checks exist.
+
+### [x] Task 5 — Preview: audio and vibration together — **DONE 2026-08-01**
+
+Brought forward by Mutalib mid-Task-4, and he was right to: *"because im playing the song different i dont get to start at the same time."* Judging whether a rhythm matches a song is impossible when the two are started by hand in different apps.
+
+**The vibration starts when sound actually leaves the speaker, not when `start()` returns.** A player buffers and the audio path takes time to wake; firing at step zero would run the rhythm ahead of the music for the whole track. `getCurrentPosition()` only advances once audio is genuinely running, so that is the signal, and `Score.from()` drops the steps already gone. Assuming a player has played because it was asked is the same mistake as assuming a vibration happened — see R2 and R8.
+
+**Proof:** Mutalib played his own music against it and confirmed the rhythm matches. The loop back to Task 4 the plan predicted happened **three times** — smearing, then weakness, then strength — which is the process working.
 
 ---
 
