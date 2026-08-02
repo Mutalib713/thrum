@@ -16,6 +16,25 @@ android {
         versionName = "0.1"
     }
 
+    buildTypes {
+        release {
+            // R8 on, because a release build is the only place the enum-renaming
+            // bug in PROFILE.md R8 can appear — and a rule that is never
+            // exercised is a rule nobody knows is wrong.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            // Signed with the debug key **for now**, so a release build installs
+            // over a debug one and Task 8 can prove that saved data survives
+            // shrinking. A different key would force an uninstall, which wipes
+            // the very data being tested. The real keystore is Task 12.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

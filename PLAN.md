@@ -273,13 +273,36 @@ Real track end to end: a 2:44 lofi hiphop file → 4,121 steps × 40 ms, 214 hit
 3. The technical row printed "strength 255", which is 255 on every score by construction. It now shows what percentage of the track is **still** — the number that separates a rhythm from a buzz, and the one that was wrong for most of Task 4.
 4. **Found only on the device:** pressing Stop silenced the motor but left the playhead sweeping and the Stop button on screen for the rest of the track, because the coroutine driving it was never cancelled. `dumpsys` said `CurrentVibration: null` while the UI still claimed to be playing. **This project's recurring bug in its newest costume — a surface reporting an intention rather than a fact.**
 
-### [ ] Task 8 — Save it and survive an upgrade
+### [x] Task 8 — Save it and survive an upgrade — **DONE 2026-08-02**
+
+**The upgrade test, run for real.** A debug build with live data, then a release build with R8 on installed straight over the top — no uninstall, because an uninstall would wipe the very data under test. Everything survived:
+
+| | before | after R8 |
+|---|---|---|
+| Armed track | Asake — Active | **same** |
+| Score | 2,250 steps × 20 ms | **same** |
+| Tuning | Punch 193 · Distance 0 | **same** |
+| Event log | 40 entries | **same** |
+
+**The keep rule, proven in the shipped bytes rather than in the config.** All six `Event.Kind` names — `FIRED` `SKIPPED` `STOPPED` `CAPPED` `LISTENER` `DECODED` — were found in `classes.dex` extracted from the release APK. R8 left them alone, which is the whole point: they are written into SharedPreferences as strings and matched back by string, so a rename would turn every saved event into an unreadable line and every armed score into "nothing was ever saved".
+
+**Why the rule list is nine lines and not ninety:** `Score` and `Event` serialise themselves by hand into a pipe-delimited string rather than through a reflection-based JSON library, so the shrinker has almost nothing it *can* break. That was a `PROFILE.md` §8 decision made long before this task, and it paid here.
+
+`NotifService` is also kept: the system constructs it from the manifest name, so no code references it and the shrinker cannot see that it is used. Left to R8 it would be deleted, and the app's entire reason for existing would vanish from release builds only.
+
+**Also verified:** the diagnostics screen is correctly absent from the release build (`BuildConfig.DEBUG`), and the APK shrank from **25.07 MB to 1.98 MB** — 92 % smaller.
+
+**One thing deliberately deferred:** the release build is signed with the **debug key** for now. Android refuses an update signed with a different key, and the only way round it is an uninstall — which would have destroyed the data this task exists to protect. The real keystore is Task 12, and the build file says so at the line where it matters.
+
+<details><summary>original task description</summary>
 
 Persist the score as JSON in SharedPreferences. Add the R8 keep rules for any enum persisted by name.
 
 **⚠ Why flagged:** this exact bug wiped every saved routine in `pixel-routines`. R8 renames enum constants, `valueOf()` then fails, and the catch block silently returns empty. Do not repeat it.
 
 **Proof:** save a score, force-stop the app, reopen — still there. Then install a **release** build over the debug one and confirm the score survives. Verify the keep rules landed by extracting `classes.dex` and grepping the string pool (`dexdump` times out on this machine).
+
+</details>
 
 ### [ ] Task 9 — Setup guidance
 
