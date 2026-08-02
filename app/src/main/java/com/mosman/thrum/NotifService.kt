@@ -116,6 +116,27 @@ class NotifService : NotificationListenerService() {
                 if (loop) " · looping" else " · once",
         )
 
+        // In ring mode, keep asking.
+        //
+        // The ringtone repeats, and every repeat makes Android re-issue its own
+        // vibration. Since the most recent RINGTONE vibration wins, the system
+        // takes the motor back part-way through the ring. Measured on a real
+        // call, 2026-08-02: ours ran 6,721 ms and was then superseded by
+        // `android` for 6,949 ms, then again for 1,570 ms. Mutalib felt exactly
+        // that — his song, then the default buzz for the rest of the ring.
+        //
+        // Re-asserting from the *elapsed position* rather than from the start
+        // keeps the rhythm where the music would be; replaying from zero every
+        // couple of seconds would turn a song into a stutter.
+        //
+        // Only in ring mode. Vibrate mode has no ringtone to loop, nothing
+        // takes the motor back, and a timer that re-parcels a 2,000-step
+        // waveform every two seconds for nothing is not free.
+        if (ringer == "ring") {
+            handler.removeCallbacksAndMessages(REASSERT_TOKEN)
+            scheduleReassert(score, loop, SystemClock.uptimeMillis())
+        }
+
         // Safety cap. A looping waveform runs until something cancels it, and if
         // the removal callback never arrives — killed listener, missed update —
         // this phone would buzz until it was rebooted. Belt and braces.
@@ -129,6 +150,25 @@ class NotifService : NotificationListenerService() {
             { if (activeKey != null) stopVibrationAs(Event.Kind.CAPPED, "safety cap hit") },
             SAFETY_TOKEN,
             SystemClock.uptimeMillis() + SAFETY_CAP_MS,
+        )
+    }
+
+    /**
+     * Replay the score from where it should be by now, over and over, until the
+     * call ends. See [onIncoming] for why ring mode needs this.
+     */
+    private fun scheduleReassert(score: Score, loop: Boolean, startedAt: Long) {
+        handler.postAtTime(
+            {
+                if (activeKey != null) {
+                    val elapsed = SystemClock.uptimeMillis() - startedAt
+                    val into = if (score.durationMs > 0) elapsed % score.durationMs else 0
+                    Haptics.play(this, score.from(into), loop = loop)
+                    scheduleReassert(score, loop, startedAt)
+                }
+            },
+            REASSERT_TOKEN,
+            SystemClock.uptimeMillis() + REASSERT_MS,
         )
     }
 
@@ -174,6 +214,14 @@ class NotifService : NotificationListenerService() {
         /** Longer than any phone rings, short enough that a stuck loop is a nuisance not a disaster. */
         const val SAFETY_CAP_MS = 60_000L
         val SAFETY_TOKEN = Any()
+
+        /**
+         * How often to take the motor back in ring mode. The system reclaimed it
+         * after 6.7 s on the call that exposed this; 2 s is comfortably inside
+         * that and still cheap.
+         */
+        const val REASSERT_MS = 2_000L
+        val REASSERT_TOKEN = Any()
 
         /**
          * How long after firing a second "incoming" is treated as the same call.
