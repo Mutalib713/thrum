@@ -90,6 +90,30 @@ class Store(ctx: Context) {
         get() = prefs.getInt(KEY_DISTANCE, 0)
         set(v) = prefs.edit().putInt(KEY_DISTANCE, v.coerceIn(0, 100)).apply()
 
+    /**
+     * Arm [score] and record everything that belongs with it, in one write.
+     *
+     * **Why this is one method and not four setters called in a row.** Task 8's
+     * whole point is that what survives a restart is what the phone will play.
+     * When the score, the file it came from, and the tuning were written
+     * separately, a restart could land between them and restore a score with a
+     * *different* file's name and URI — the screen claiming one rhythm while the
+     * motor played another. A single `edit()` is atomic: either the whole bundle
+     * is stored or none of it is, so that mismatch cannot exist.
+     *
+     * `uri` null means the score has no rebuildable source, which is the honest
+     * state for a demo pattern — better than a stale URI pointing at some other
+     * track. `putString(key, null)` removes the key.
+     */
+    fun arm(score: Score, uri: String?, punch: Int, distance: Int) {
+        prefs.edit()
+            .putString(KEY_SCORE, score.encode())
+            .putString(KEY_URI, uri)
+            .putInt(KEY_PUNCH, punch)
+            .putInt(KEY_DISTANCE, distance.coerceIn(0, 100))
+            .apply()
+    }
+
     fun events(): List<Event> = Event.decodeAll(prefs.getString(KEY_EVENTS, "") ?: "")
 
     fun addEvent(event: Event) {

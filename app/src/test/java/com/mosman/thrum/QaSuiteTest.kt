@@ -504,6 +504,59 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `a minimum duration rounds up never down`() {
+        // The hold is a promise that a hit lasts at least the named number of
+        // milliseconds. Truncating the division broke it in the worst way:
+        // 45 ms at 20 ms steps gave 2 steps (40 ms), *under* the 45 the constant
+        // promises, and at 40 ms steps it gave 1 step, so the hold did nothing.
+        assertEquals(3, ScoreBuilder.stepsFor(45, 20))
+        assertEquals(2, ScoreBuilder.stepsFor(45, 40))
+        assertEquals(1, ScoreBuilder.stepsFor(20, 20))
+        assertEquals(5, ScoreBuilder.stepsFor(100, 20))
+        assertEquals(3, ScoreBuilder.stepsFor(41, 20))
+        assertEquals(1, ScoreBuilder.stepsFor(1, 20))
+    }
+
+    @Test
+    fun `a held pulse never fades below the floor it must stay above`() {
+        // Mutalib: "it doesnt vibrate to the max i cant feel it sometimes."
+        // A 185-peak kick held for five steps with a 0.55 decay used to walk
+        // down to ~102 — under the ~140 where the motor barely moves — so most
+        // of the hold was time his hand never received. The floor stops it.
+        val score = Score(20, listOf(ScoreBuilder.MIN_FELT, 0, 0, 0, 0, 0))
+        val held = score.holdPulsesAtLeast(6, decayTo = 0.55f, floor = ScoreBuilder.MIN_FELT)
+        val tail = held.amplitudes.drop(1)
+        assertEquals("held steps: $tail", 5, tail.size)
+        assertTrue(
+            "held steps faded below the floor: $tail",
+            tail.all { it >= ScoreBuilder.MIN_FELT },
+        )
+    }
+
+    @Test
+    fun `a pulse weaker than the floor is not inflated to it`() {
+        // The floor is a limit on the decay, not a lift. A genuine quiet detail
+        // hit must be allowed to stay quiet, or the floor becomes a second
+        // Punch dial that flattens everything to one value.
+        val score = Score(20, listOf(90, 0, 0, 0))
+        val held = score.holdPulsesAtLeast(4, decayTo = 0.55f, floor = ScoreBuilder.MIN_FELT)
+        assertTrue("a weak pulse was inflated: ${held.amplitudes}", held.amplitudes.all { it <= 90 })
+    }
+
+    @Test
+    fun `no held step lands in the unfeelable dead zone whatever Punch says`() {
+        // The decay fix, checked end to end through the real analyser at every
+        // Punch setting including the maximum. Nothing may land between 1 and
+        // the motor's floor: an amplitude there is too weak to feel and too
+        // strong to be zero.
+        for (punch in listOf(120, 185, 210, 255)) {
+            val score = analyse(punch = punch) { fourOnTheFloor(bars = 3, bpm = 120, hats = 8000) }
+            val dead = score.amplitudes.filter { it in 1 until ScoreBuilder.DETAIL_MIN }
+            assertTrue("punch=$punch produced unfeelable steps $dead", dead.isEmpty())
+        }
+    }
+
+    @Test
     fun `a quiet recording is not left quiet`() {
         // Normalising by the loudest step is what stops a score's strength
         // depending on how the track was mastered.

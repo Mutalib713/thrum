@@ -336,14 +336,42 @@ class ScoreBuilder(
             //
             // Shorter than a kick's hold on purpose. A hat that lasts as long as
             // a kick stops being a hat.
+            //
+            // Ceiling division, not truncation: 45 ms at 20 ms steps truncated
+            // to 40 ms, which is *below* the minimum the constant names, and at
+            // 40 ms steps it truncated to a single step and the hold did nothing
+            // at all. Rounding up is the difference between a rule and a wish.
+            val minSteps = stepsFor(minPulseMs, stepMs)
+            val detailSteps = stepsFor(DETAIL_PULSE_MS, stepMs)
+            // Each layer decays only as far as its own floor. The kick may fade
+            // toward [floor] (its weakest felt beat) and the detail toward
+            // [DETAIL_MIN], because a hold that fades below those spends most of
+            // its time at strengths the motor cannot produce — which is exactly
+            // the "I can't feel it sometimes" report this fixes.
             val held = Score(stepMs, hits, name)
-                .holdPulsesAtLeast((minPulseMs / stepMs).coerceAtLeast(1), HIT_DECAY)
+                .holdPulsesAtLeast(minSteps.coerceAtLeast(1), HIT_DECAY, floor)
             val heldDetail = Score(stepMs, detail, name)
-                .holdPulsesAtLeast((DETAIL_PULSE_MS / stepMs).coerceAtLeast(1), HIT_DECAY)
+                .holdPulsesAtLeast(detailSteps.coerceAtLeast(1), HIT_DECAY, DETAIL_MIN)
             val combined = held.amplitudes.mapIndexed { i, hit ->
                 maxOf(hit, heldDetail.amplitudes.getOrElse(i) { 0 })
             }
             return Score(stepMs, combined, name)
+        }
+
+        /**
+         * How many [stepMs] steps are needed to cover [ms], rounded **up**.
+         *
+         * A hold is a promise that a hit lasts at least [ms]. Truncating the
+         * division breaks that promise in the quiet, worst way: 45 ms at 20 ms
+         * became 40 ms — under the named minimum — and at 40 ms steps it became
+         * one step, so the hold did nothing at all and a hat vanished. Rounding
+         * up can only ever overshoot by less than one step, which is the safe
+         * direction.
+         */
+        internal fun stepsFor(ms: Int, stepMs: Int): Int {
+            require(stepMs > 0) { "stepMs must be positive, was $stepMs" }
+            if (ms <= 0) return 1
+            return ((ms + stepMs - 1) / stepMs).coerceAtLeast(1)
         }
 
         /**

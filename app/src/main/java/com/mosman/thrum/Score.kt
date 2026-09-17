@@ -115,10 +115,17 @@ data class Score(
      * forty-millisecond ones. Widening runs forward rather than around the peak
      * keeps the hit's leading edge exactly where the beat is; moving that would
      * put the rhythm ahead of the music.
+     *
+     * [floor] stops the decay from dropping below what the motor can physically
+     * produce. The original [decayTo] could fade a 185-peak hit down to 102 over
+     * its held steps — below the ~140 threshold where the motor barely moves,
+     * so most of the hold spent its time at amplitudes the user never received.
+     * The decay now stops at [floor], so every held step is still felt.
      */
-    fun holdPulsesAtLeast(minSteps: Int, decayTo: Float = 1f): Score {
+    fun holdPulsesAtLeast(minSteps: Int, decayTo: Float = 1f, floor: Int = 0): Score {
         require(minSteps > 0) { "minSteps must be positive, was $minSteps" }
         require(decayTo in 0f..1f) { "decayTo must be 0..1, was $decayTo" }
+        require(floor in 0..MAX_AMPLITUDE) { "floor must be 0..$MAX_AMPLITUDE, was $floor" }
         if (minSteps == 1 || amplitudes.isEmpty()) return this
 
         val out = amplitudes.toMutableList()
@@ -145,7 +152,14 @@ data class Score(
                 // made the rhythm read as mechanical — a real drum decays.
                 val through = (added + 1).toFloat() / (toAdd + 1)
                 val scale = 1f - (1f - decayTo) * through
-                out[at] = (peak * scale).toInt().coerceIn(0, MAX_AMPLITUDE)
+                val scaled = (peak * scale).toInt()
+                // Never drop below the floor: under ~140 the motor barely
+                // moves, so a decay that fades below it spends most of
+                // the hold at strengths the user never receives. A pulse
+                // weaker than the floor is left alone — the floor is a
+                // limit on the decay, not a lift.
+                val landed = if (peak >= floor) maxOf(scaled, floor) else scaled
+                out[at] = landed.coerceIn(0, MAX_AMPLITUDE)
                 at++
                 added++
             }

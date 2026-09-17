@@ -94,7 +94,11 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var armed by remember { mutableStateOf(store.armedScore != null) }
     var reading by remember { mutableStateOf<String?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
-    var pickedUri by remember { mutableStateOf<Uri?>(null) }
+    // Seeded from the stored source, not null. On a restart the armed score is
+    // restored but the levels are gone, and Preview used to be a dead button
+    // because `pickedUri` had nothing in it — the file was right there in
+    // storage the whole time. The draft pick lives here until Arm writes it.
+    var pickedUri by remember { mutableStateOf(store.sourceUri?.let { Uri.parse(it) }) }
     var progress by remember { mutableStateOf(-1f) }
     var ringMode by remember { mutableStateOf(store.fireInRingMode) }
     var levels by remember { mutableStateOf<Levels?>(null) }
@@ -151,8 +155,14 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
         }
+        // The draft pick only — not written to storage here.
+        //
+        // It used to be, and that was a Task 8 defect: choosing a file and then
+        // walking away left the *armed* score's stored URI pointing at the file
+        // that was merely being auditioned. After a restart the score was A's but
+        // the file was B's, so the tuning dials rebuilt B's amplitudes under A's
+        // name. The source is written when the user actually arms, by [Store.arm].
         pickedUri = uri
-        store.sourceUri = uri.toString()
         failure = null
         val name = AudioDecoder.displayName(ctx, uri)
         reading = name
@@ -170,7 +180,10 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
             when (result) {
                 is Decoded.Failed -> {
                     failure = result.message
-                    score = null
+                    // A failed draft pick must not blank a rhythm that is still
+                    // armed and still what the phone will play. Storage is
+                    // untouched either way; this keeps the screen honest about it.
+                    if (!armed) score = null
                 }
 
                 is Decoded.Ok -> {
@@ -246,7 +259,10 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
             minFelt = punch, bodyCeiling = ceilingFor(punch, distance),
         ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
         score = rebuilt
-        if (armed) store.armedScore = rebuilt
+        // Rewritten atomically with its source and tuning, so a restart between
+        // a dial move and this line cannot restore a score that disagrees with
+        // the settings beside it.
+        if (armed) store.arm(rebuilt, pickedUri?.toString() ?: store.sourceUri, punch, distance)
     }
 
     /**
@@ -361,7 +377,9 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     onPunch = { v -> punch = v; store.punch = v; rescore() },
                     onTexture = { v -> distance = v; store.distance = v; rescore() },
                     onArm = {
-                        store.armedScore = state.score
+                        // One write, so the score, the file it came from, and the
+                        // tuning can never disagree after a restart. See Store.arm.
+                        store.arm(state.score, pickedUri?.toString(), punch, distance)
                         armed = true
                     },
                     onPreview = { playWithSong(state.score) },
