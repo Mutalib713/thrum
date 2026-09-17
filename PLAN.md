@@ -346,6 +346,17 @@ guard: below `WINDOW_NORM_GUARD` of the track's peak the window is dither rather
 music, and the global peak is used instead, so a near-silent opening cannot turn its
 noise floor into a drum kit.
 
+**Ring mode re-asserted the rhythm wrongly — the bug was in the default-on path.**
+The ringtone repeats, and every repeat makes Android re-issue its own vibration, so the
+rhythm has to be re-asserted every 2 s from wherever it *would* be by now. That used
+`Score.from(into)`, which **truncates**: replayed with looping on it looped only the
+tail, so the opening of the rhythm was never heard again, and replayed with looping off
+it played the remainder once and then went silent for the rest of the ring — `from`
+past the end returns an empty score, which `Haptics.play` refuses, so there was no
+vibration at all. New `Score.rotated(startMs)` wraps instead of truncating: same steps,
+same length, started at the right moment. `from` is untouched and still correct for the
+preview, which is genuinely chasing a file that ends.
+
 **Persistence (Task 8 gaps):**
 
 - `Store.arm()` writes score + source URI + tuning in **one** `edit()`. Written
@@ -359,7 +370,7 @@ noise floor into a drum kit.
   instead of being a dead button — the file was in storage the whole time.
 - A failed draft pick no longer blanks a score that is still armed.
 
-**Proof so far:** QA suite **72 tests, 0 failures** on the PC (was 64; 8 new, 1 rule
+**Proof so far:** QA suite **76 tests, 0 failures** on the PC (was 64; 12 new, 1 rule
 changed). Build green, debug APK 26 MB.
 
 **Still owed, and not optional:** install on the Pixel, arm a track, feel Preview and a

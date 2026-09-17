@@ -104,6 +104,34 @@ data class Score(
     }
 
     /**
+     * The score starting at [startMs] and **wrapping around to the beginning**,
+     * the same total length as the original.
+     *
+     * This is the ring-mode re-assert. The ringtone repeats, and every repeat
+     * makes Android re-issue its own vibration, which takes the motor back — so
+     * the rhythm has to be re-asserted every couple of seconds, from wherever it
+     * *would* be by now, or the user feels the system's flat buzz instead.
+     *
+     * [from] is the wrong tool for that job, and using it was a real defect:
+     * it *truncates*, so replaying it with `loop = true` loops the tail forever
+     * and the opening of the rhythm is never heard again, and replaying it
+     * without looping plays the remainder once and then goes quiet for the rest
+     * of the ring. Either way the rhythm stops being the song. Rotating instead
+     * keeps the whole score — every re-assert starts at the right moment in the
+     * music and still runs for a full duration, so there is no gap to fall into.
+     *
+     * `from` stays exactly as it is for the preview, where the vibration is
+     * chasing a real audio file that genuinely does end.
+     */
+    fun rotated(startMs: Long): Score {
+        if (startMs <= 0 || amplitudes.isEmpty()) return this
+        val size = amplitudes.size
+        val start = ((startMs / stepMs).toInt() % size + size) % size
+        if (start == 0) return this
+        return Score(stepMs, amplitudes.drop(start) + amplitudes.take(start), sourceName)
+    }
+
+    /**
      * Every pulse held for at least [minSteps], keeping its strongest value.
      *
      * A vibration motor has mass. Asking for full strength for 40 ms produces

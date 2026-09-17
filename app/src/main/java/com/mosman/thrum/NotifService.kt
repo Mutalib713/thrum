@@ -163,7 +163,12 @@ class NotifService : NotificationListenerService() {
                 if (activeKey != null) {
                     val elapsed = SystemClock.uptimeMillis() - startedAt
                     val into = if (score.durationMs > 0) elapsed % score.durationMs else 0
-                    Haptics.play(this, score.from(into), loop = loop)
+                    // Rotate, do not truncate. `from(into)` gave a suffix, so with
+                    // looping on it looped the tail and never played the opening
+                    // again, and with looping off it played out and left the rest
+                    // of the ring silent. `rotated` keeps the whole score and
+                    // still starts at the right moment in the music.
+                    Haptics.play(this, score.rotated(into), loop = loop)
                     scheduleReassert(score, loop, startedAt)
                 }
             },

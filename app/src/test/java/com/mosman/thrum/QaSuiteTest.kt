@@ -687,6 +687,52 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `rotating starts where it should and keeps the full length`() {
+        // The ring-mode re-assert. `from` truncated, so looping the result looped
+        // only the tail and the opening of the rhythm was never heard again.
+        val score = Score(20, listOf(10, 20, 30, 40, 50))
+        val rotated = score.rotated(60) // three steps in
+        assertEquals(listOf(40, 50, 10, 20, 30), rotated.amplitudes)
+        assertEquals("rotation must not shorten the score", score.durationMs, rotated.durationMs)
+        assertEquals(score.amplitudes.size, rotated.amplitudes.size)
+    }
+
+    @Test
+    fun `rotating past the end wraps instead of going silent`() {
+        // `from` returned an empty score here, and an empty score is not a quiet
+        // ring — Haptics refuses it, so the rest of the call had no vibration at
+        // all whenever looping was off.
+        val score = Score(20, listOf(10, 20, 30, 40, 50))
+        val wrapped = score.rotated(120) // six steps in, one past the end
+        assertEquals(listOf(20, 30, 40, 50, 10), wrapped.amplitudes)
+        assertTrue("a wrapped rotation must never be empty", wrapped.amplitudes.isNotEmpty())
+    }
+
+    @Test
+    fun `a rotation is the same steps in a different order, nothing lost`() {
+        // The invariant that makes rotation safe where truncation was not: the
+        // score a user hears is always the whole song, whatever the offset.
+        val original = Score(20, List(40) { it * 6 % Score.MAX_AMPLITUDE })
+        for (startMs in listOf(0L, 20L, 300L, 780L, 800L, 1234L)) {
+            val rotated = original.rotated(startMs)
+            assertEquals("$startMs changed the length", original.amplitudes.size, rotated.amplitudes.size)
+            assertEquals(
+                "$startMs changed the content",
+                original.amplitudes.sorted(),
+                rotated.amplitudes.sorted(),
+            )
+        }
+    }
+
+    @Test
+    fun `rotating by nothing at all is a no-op`() {
+        val score = Score(20, listOf(10, 0, 30))
+        assertEquals(score, score.rotated(0))
+        assertEquals(score, score.rotated(-500))
+        assertTrue(Score(20, emptyList()).rotated(100).amplitudes.isEmpty())
+    }
+
+    @Test
     fun `a score that already fits is left alone`() {
         val short = Score(20, List(1500) { 100 })
         assertEquals(short, short.fitWithin(Haptics.MAX_STEPS))
