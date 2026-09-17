@@ -370,13 +370,55 @@ preview, which is genuinely chasing a file that ends.
   instead of being a dead button — the file was in storage the whole time.
 - A failed draft pick no longer blanks a score that is still armed.
 
-**Proof so far:** QA suite **76 tests, 0 failures** on the PC (was 64; 12 new, 1 rule
-changed). Build green, debug APK 26 MB.
+**Proof — measured on the Pixel 6 Pro, 2026-09-17, against Mutalib's own armed track.**
 
-**Still owed, and not optional:** install on the Pixel, arm a track, feel Preview and a
-real call. If a score was already armed on the phone, nudge one dial after installing —
-that rebuilds it through the fixed analyser. `dumpsys vibrator_manager` is the witness,
-not the app's `FIRED` event.
+QA suite **76 tests, 0 failures** on the PC (was 64; 12 new, 1 rule changed). Build
+green, debug APK 26 MB.
+
+Task 8's upgrade test, run for real: the new debug build installed **over** the existing
+one, no uninstall. Everything survived — `punch 208`, `distance 66`, `fire_in_ring_mode
+true`, the armed score, and the event log. The stored `source_uri` still names the same
+file as the armed score's `sourceName`, which is the pairing [Store.arm] exists to
+protect:
+
+```
+armed score says : AIZO__but_it_s_lofi_hiphop____Jujutsu_Kaisen(256k).mp3
+source_uri says  : ...%2FAIZO__but_it_s_lofi_hiphop____Jujutsu_Kaisen(256k).mp3
+                   MATCH
+```
+
+The app then launched with no crash and restored the armed state on screen
+("Ready", 2250 steps, Punch 208).
+
+**The strength fix, measured rather than asserted.** Reading the armed score out of
+`shared_prefs` before and after a rebuild through the fixed analyser, same track, same
+Punch of 208:
+
+| | before (old analyser) | after (fixed) |
+|---|---|---|
+| non-zero steps | 537 (23.9 %) | 1024 (45.5 %) |
+| pulses | 64 | 134 |
+| kick layer | 488 steps, 188..254 | 609 steps, **208..255** |
+| detail layer | 49 steps, 134..183 | 415 steps, 130..151 |
+| **the gap 160–207** | **47 steps** | **0** |
+| below the detail floor | 0 | 0 |
+
+Read that table as the two bugs it is. The **kick floor is now exact**: the weakest kick
+step is 208, the Punch value, instead of decaying to 188. And the **gap went from 47
+steps to none** — 47 steps used to sit between the texture ceiling and a beat, too weak
+to land as a beat and too strong to sit under one, which is precisely the "I can't feel
+it sometimes". The detail layer went from 49 leaky steps to 415 in a tight 130–151 band.
+
+**This also confirmed the dead-dial bug in Mutalib's own settings**, not just in theory:
+at `punch 208` the old `ceilingFor` gave `208 × 34 / 100 = 70`, under the motor's floor,
+so his detail layer was switched off entirely at `distance 66`. He had been feeling
+kick-only and had no way to know, because moving the dial anywhere past 30 changed
+nothing.
+
+**Still owed:** Mutalib's hand. The measurements prove the score is right; only he can
+confirm it *feels* right. Play it with the song, feel it on its own, and take a real
+incoming call in vibrate mode. `dumpsys vibrator_manager` is the witness for whether the
+motor actually ran, not the app's `FIRED` event.
 
 ### [ ] Task 9 — Setup guidance
 
