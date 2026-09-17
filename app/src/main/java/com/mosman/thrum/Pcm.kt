@@ -1,5 +1,7 @@
 package com.mosman.thrum
 
+import kotlin.math.abs
+
 /**
  * The parts of audio handling that do not need a phone.
  *
@@ -38,11 +40,29 @@ object Pcm {
     }
 
     /**
-     * Collapse interleaved multi-channel audio to one channel by averaging.
+     * Collapse interleaved multi-channel audio to one channel by taking the
+     * channel with the greater magnitude, sign preserved.
      *
-     * A vibration motor has no stereo. Averaging rather than taking the left
-     * channel matters for real music: anything panned hard right — often the
-     * hi-hats, sometimes the whole hook — would simply vanish from the rhythm.
+     * A vibration motor has no stereo. The obvious downmix is to average the
+     * channels, and it is wrong twice over:
+     *
+     * 1. **It cancels out-of-phase content.** Where left and right carry the
+     *    same sound in opposite polarity — a wide synth bass, a stereo-widened
+     *    kick, anything the mastering engineer spread — L = +10000 and
+     *    R = −10000 average to exactly **zero**. The bass does not get quieter,
+     *    it disappears, and the score for that part of the track is silence. No
+     *    amount of Punch recovers a hit that was never detected. This is one of
+     *    the causes of "it doesn't vibrate to the max, I can't feel it
+     *    sometimes."
+     * 2. **It halves hard-panned content.** A sound on one side only, averaged
+     *    with the empty channel, arrives at half strength — often the hi-hats,
+     *    sometimes the whole hook.
+     *
+     * Taking the greater magnitude fixes both without rectifying the waveform:
+     * the sign is kept, so the low-pass and envelope follower downstream still
+     * receive a real waveform rather than a full-wave-rectified one. In-phase
+     * stereo (where both channels are equal, which is most centred content)
+     * comes through exactly as the average would have.
      *
      * Averages through `Int`. Two channels at full negative scale sum to -65536,
      * which overflows a `Short` and wraps to a positive number — a silent bug
@@ -66,9 +86,14 @@ object Pcm {
         }
         var read = 0
         for (frame in 0 until frames) {
-            var sum = 0
-            repeat(channels) { sum += interleaved[read++] }
-            out[frame] = (sum / channels).toShort()
+            // Strictly greater keeps the first channel on a tie, so the result
+            // is deterministic rather than dependent on iteration order.
+            var loudest = 0
+            repeat(channels) {
+                val v = interleaved[read++].toInt()
+                if (abs(v) > abs(loudest)) loudest = v
+            }
+            out[frame] = loudest.toShort()
         }
         return frames
     }

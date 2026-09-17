@@ -820,13 +820,11 @@ private const val POLL_MS = 800L
 private const val START_WAIT_MS = 2000L
 
 /**
- * How much of a track becomes the ringtone.
- *
- * A phone rings for roughly thirty seconds, so this is the part anyone will
- * ever feel, plus room. Keeping it short is what allows 20 ms steps instead of
- * the 40 ms a whole song would be coarsened to.
+ * How much of a track becomes the ringtone, and the normalisation window.
+ * Lives in [ScoreBuilder] now — it is analysis, not presentation, and it has to
+ * be reachable from the unit tests.
  */
-private const val RINGTONE_SECONDS = 45
+private const val RINGTONE_SECONDS = ScoreBuilder.RINGTONE_SECONDS
 
 /** Taps per second, slowest first. Thrum's own scores currently sit near 3. */
 private val RATE_LADDER = listOf(2, 3, 4, 6, 8, 12)
@@ -836,12 +834,8 @@ private const val RATE_GAP_MS = 900L
  * Turn "distance from the music", 0–100, into the amplitude ceiling the detail
  * layer may reach.
  *
- * Counted downward on purpose — 0 is closest, where the detail layer is allowed
- * all the way up to the kick's own floor and the whole kit comes through. At 100
- * the ceiling is nothing and only the bare beat is left. The layer switches off
- * on its own once the ceiling falls below what the motor can actually produce.
+ * Moved to [ScoreBuilder.ceilingFor] so it can be unit-tested — it is
+ * arithmetic, not presentation, and the dead-dial bug it now fixes was exactly
+ * the kind that a test on the PC catches and a hand on a phone does not.
  */
-private fun ceilingFor(punch: Int, distance: Int): Int {
-    val room = punch.coerceIn(0, Score.MAX_AMPLITUDE)
-    return (room * (100 - distance.coerceIn(0, 100)) / 100)
-}
+private fun ceilingFor(punch: Int, distance: Int): Int = ScoreBuilder.ceilingFor(punch, distance)

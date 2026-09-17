@@ -304,6 +304,69 @@ Persist the score as JSON in SharedPreferences. Add the R8 keep rules for any en
 
 </details>
 
+### Task 8 follow-up — persistence gaps, and three "I can't feel it" causes — **CODE DONE 2026-09-17, PC-verified only**
+
+Mutalib reported *"it doesnt vibrate to the max i cant feel it sometimes"*, and asked
+for Task 8 finished at the same time. A read of the code found four defects, none of
+which needed the phone to find. **All four are fixed and covered by tests. None is
+device-verified yet — the phone was not connected, so no claim of "fixed" stands until
+a hand confirms it.**
+
+**Strength — three separate causes, all real:**
+
+1. **Held hits decayed below the motor's floor.** `holdPulsesAtLeast` fades each held
+   step so a hit sounds like a drum rather than a square pulse, but nothing stopped the
+   fade. A 185-peak kick walked down to ~102 across its held steps, and under roughly
+   140 the mass barely moves — so most of the hold was time the hand never received.
+   `holdPulsesAtLeast` now takes a `floor`; held steps stop there. A pulse already
+   weaker than the floor is left alone, so the floor limits the decay and never lifts a
+   quiet hit into a loud one.
+2. **Pulse lengths rounded down.** `DETAIL_PULSE_MS / stepMs` truncated: 45 ms at 20 ms
+   became 40 ms — *under* the minimum the constant names — and at 40 ms steps it became
+   one step, so the hold did nothing at all. Now ceiling division, via a named
+   `ScoreBuilder.stepsFor` so the arithmetic is testable on its own.
+3. **The detail dial was dead across most of its travel.** `ceilingFor` was
+   `punch × (100 − distance) / 100`, and the layer switched itself off once the ceiling
+   reached `DETAIL_MIN`. At the default Punch of 185 that was **distance 30**, so
+   seven-tenths of the dial did nothing; at Punch ≤ 130 *no* position did anything. The
+   0–99 range is now spread across the whole usable span with an explicit off at 100.
+   This is the old "every setting felt the same" complaint in a new costume.
+4. **Stereo downmix cancelled out-of-phase content.** Averaging L and R gives
+   `+10000 + −10000 = 0` for anything the mastering spread in opposite polarity — a
+   wide synth bass, a stereo-widened kick. The bass did not get quieter, it vanished,
+   and that part of the track scored as silence. No Punch setting recovers a hit that
+   was never detected. Now the greater magnitude wins with its sign kept, which also
+   stops hard-panned content arriving at half strength.
+
+**Also fixed, found while chasing the above:** normalisation was against the whole
+track, but only the first `RINGTONE_SECONDS` is ever played. A track that opens quietly
+and peaks minutes later had its opening scaled down until every beat fell under `GATE`
+and came out as a literal zero. The scale is now set by the window that plays, with a
+guard: below `WINDOW_NORM_GUARD` of the track's peak the window is dither rather than
+music, and the global peak is used instead, so a near-silent opening cannot turn its
+noise floor into a drum kit.
+
+**Persistence (Task 8 gaps):**
+
+- `Store.arm()` writes score + source URI + tuning in **one** `edit()`. Written
+  separately, a restart could land between them and restore a score carrying a
+  different file's name and URI — the screen claiming one rhythm while the motor played
+  another. One write makes that mismatch impossible rather than unlikely.
+- The picked URI is a **draft** until Arm. It used to be written on pick, so choosing a
+  file and walking away left the *armed* score's stored URI pointing at the file being
+  auditioned; after a restart the dials rebuilt B's amplitudes under A's name.
+- `pickedUri` is seeded from storage at startup, so **Preview works after a restart**
+  instead of being a dead button — the file was in storage the whole time.
+- A failed draft pick no longer blanks a score that is still armed.
+
+**Proof so far:** QA suite **72 tests, 0 failures** on the PC (was 64; 8 new, 1 rule
+changed). Build green, debug APK 26 MB.
+
+**Still owed, and not optional:** install on the Pixel, arm a track, feel Preview and a
+real call. If a score was already armed on the phone, nudge one dial after installing —
+that rebuilds it through the fixed analyser. `dumpsys vibrator_manager` is the witness,
+not the app's `FIRED` event.
+
 ### [ ] Task 9 — Setup guidance
 
 A short screen telling the user exactly which system settings to change, based on whatever Task 2 discovered. Plain language. Deep-links to the settings screen; the app never changes a setting itself (`PROFILE.md` §9).

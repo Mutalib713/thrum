@@ -171,13 +171,40 @@ class QaSuiteTest {
     }
 
     @Test
-    fun `stereo collapses to the average of both channels`() {
-        // Interleaved: L R L R. A hard-panned sound must survive the downmix,
-        // at half strength, rather than vanishing with its channel.
+    fun `stereo keeps the louder channel rather than averaging the two`() {
+        // Interleaved: L R L R. Averaging was the original rule and it is wrong:
+        // it halves anything panned to one side, and — worse — cancels anything
+        // the two channels carry in opposite polarity. The louder channel wins,
+        // sign preserved, so neither can happen.
         val stereo = shortArrayOf(100, 300, -200, 0, 0, 1000)
         val mono = ShortArray(3)
         assertEquals(3, Pcm.downmixToMono(stereo, stereo.size, 2, mono))
-        assertArrayEquals(shortArrayOf(200, -100, 500), mono)
+        assertArrayEquals(shortArrayOf(300, -200, 1000), mono)
+    }
+
+    @Test
+    fun `stereo that is out of phase does not cancel to silence`() {
+        // The bug behind "it doesnt vibrate to the max i cant feel it
+        // sometimes". A stereo-widened bass or kick carries the same sound in
+        // opposite polarity on each channel. Averaging gave L + R = 0 — the bass
+        // did not get quieter, it vanished, and that part of the track scored as
+        // silence. No Punch setting can recover a hit that was never detected.
+        val outOfPhase = shortArrayOf(10_000, -10_000, -8_000, 8_000)
+        val mono = ShortArray(2)
+        assertEquals(2, Pcm.downmixToMono(outOfPhase, outOfPhase.size, 2, mono))
+        assertEquals(10_000, mono[0].toInt())
+        assertEquals(-8_000, mono[1].toInt())
+    }
+
+    @Test
+    fun `an in-phase stereo pair comes through at full strength not half`() {
+        // Both channels equal is the most common case (anything centred). The
+        // average and the louder-channel rule agree here, which is what makes
+        // the change safe for ordinary music.
+        val inPhase = shortArrayOf(12_000, 12_000, -9_000, -9_000)
+        val mono = ShortArray(2)
+        Pcm.downmixToMono(inPhase, inPhase.size, 2, mono)
+        assertArrayEquals(shortArrayOf(12_000, -9_000), mono)
     }
 
     @Test
@@ -206,7 +233,7 @@ class QaSuiteTest {
         val stereo = shortArrayOf(10, 20, 30)
         val mono = ShortArray(2)
         assertEquals(1, Pcm.downmixToMono(stereo, stereo.size, 2, mono))
-        assertEquals(15, mono[0].toInt())
+        assertEquals(20, mono[0].toInt())
     }
 
     @Test
@@ -673,6 +700,109 @@ class QaSuiteTest {
             val fitted = Score(20, List(size) { 50 }).fitWithin(Haptics.MAX_STEPS)
             assertTrue("$size -> ${fitted.amplitudes.size}", fitted.amplitudes.size <= Haptics.MAX_STEPS)
         }
+    }
+
+    // --- The three "I can't feel it" causes found after Task 8: the dead detail
+    // --- dial, the quiet opening gated away, and stereo that cancels itself.
+
+    @Test
+    fun `the detail dial changes something at every position`() {
+        // The old mapping was punch * (100 - distance) / 100, and the layer
+        // switched itself off once the ceiling fell to DETAIL_MIN. At the
+        // default Punch of 185 that happened at distance 30 — so seven-tenths of
+        // the dial did nothing at all, and a dial dead across most of its travel
+        // is indistinguishable from a broken one.
+        val ceilings = (0..99).map { ScoreBuilder.ceilingFor(ScoreBuilder.MIN_FELT, it) }
+        assertTrue(
+            "a dial position is dead: $ceilings",
+            ceilings.all { it > ScoreBuilder.DETAIL_MIN },
+        )
+        assertTrue("the dial does not actually vary: $ceilings", ceilings.distinct().size > 50)
+    }
+
+    @Test
+    fun `only the very top of the detail dial switches the layer off`() {
+        assertEquals(0, ScoreBuilder.ceilingFor(ScoreBuilder.MIN_FELT, 100))
+        assertTrue(
+            "99 should still work",
+            ScoreBuilder.ceilingFor(ScoreBuilder.MIN_FELT, 99) > ScoreBuilder.DETAIL_MIN,
+        )
+    }
+
+    @Test
+    fun `closer to the music is never quieter than further away`() {
+        // Monotonic, so turning the dial up can never add detail — which would
+        // read as the dial fighting the user.
+        val ceilings = (0..100).map { ScoreBuilder.ceilingFor(200, it) }
+        assertTrue("not monotonic: $ceilings", ceilings.zipWithNext().all { (a, b) -> a >= b })
+    }
+
+    @Test
+    fun `the detail dial is alive across the whole Punch range that has room for it`() {
+        // The kick's floor is Punch, and detail is capped below it so the beat
+        // leads. Below DETAIL_MIN + a little there is genuinely no room and the
+        // layer is off — a real constraint, not a bug. Everywhere above it, the
+        // dial must work at every position.
+        for (punch in listOf(150, 185, 210, 255)) {
+            val ceilings = (0..99).map { ScoreBuilder.ceilingFor(punch, it) }
+            assertTrue(
+                "punch=$punch has a dead dial position: $ceilings",
+                ceilings.all { it > ScoreBuilder.DETAIL_MIN },
+            )
+        }
+        // And where there is no room, it says so rather than pretending.
+        assertEquals(0, ScoreBuilder.ceilingFor(ScoreBuilder.DETAIL_MIN, 0))
+    }
+
+    @Test
+    fun `a quiet opening survives a much louder section later in the track`() {
+        // The ringtone window is the first 45 s, but the scale used to be set by
+        // the loudest moment *anywhere*. A track that opens quietly and peaks
+        // minutes later had its opening scaled down until the beats fell under
+        // the gate and came out as literal zeros — and Punch cannot bring back a
+        // step that was gated away.
+        val rate = 44_100
+        val stepMs = Demo.STEP_MS
+        val windowSteps = 100 // one bar at 120 bpm = 2 s = 100 steps at 20 ms
+        val audio = Fixture(rate).apply {
+            fourOnTheFloor(bars = 1, bpm = 120, amplitude = 2_000)   // the quiet opening
+            fourOnTheFloor(bars = 1, bpm = 120, amplitude = 30_000)  // the chorus, 15x louder
+        }.samples()
+
+        fun openingHits(window: Int): Int {
+            val builder = ScoreBuilder(rate, stepMs, windowSteps = window)
+                .apply { feed(audio, audio.size) }
+            val score = ScoreBuilder.toScore(builder.levels(), stepMs)
+            return score.amplitudes.take(windowSteps).count { it >= ScoreBuilder.DETAIL_MIN }
+        }
+
+        val globalNorm = openingHits(Int.MAX_VALUE)
+        val windowNorm = openingHits(windowSteps)
+        assertTrue(
+            "the windowed opening ($windowNorm hits) is no stronger than the " +
+                "whole-track one ($globalNorm)",
+            windowNorm > globalNorm,
+        )
+        assertTrue("the opening is still inaudible: $windowNorm hits", windowNorm >= 3)
+    }
+
+    @Test
+    fun `a near silent window does not amplify its noise floor`() {
+        // The guard on the window. At -44 dB the opening is dither, not music,
+        // and normalising *to* it would turn the noise floor into a drum kit.
+        // Below WINDOW_NORM_GUARD the track's own peak is used instead.
+        val rate = 44_100
+        val audio = Fixture(rate).apply {
+            fourOnTheFloor(bars = 1, bpm = 120, amplitude = 200)
+            fourOnTheFloor(bars = 1, bpm = 120, amplitude = 30_000)
+        }.samples()
+        val builder = ScoreBuilder(rate, Demo.STEP_MS, windowSteps = 100)
+            .apply { feed(audio, audio.size) }
+        val opening = builder.levels().onsets.take(100)
+        assertTrue(
+            "a near-silent window was amplified to ${opening.max()}",
+            opening.max() < 0.5f,
+        )
     }
 
     private fun analyse(

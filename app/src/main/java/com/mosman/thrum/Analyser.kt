@@ -46,6 +46,14 @@ class ScoreBuilder(
     private val sampleRate: Int,
     private val stepMs: Int = Demo.STEP_MS,
     private val name: String = "",
+    /**
+     * How many steps at the front are the part that will actually be played.
+     *
+     * Only this much becomes the ringtone — see [RINGTONE_SECONDS] — so only
+     * this much may set the scale. Defaults to the whole track for the short
+     * fixtures in the test suite, where the window is longer than the audio.
+     */
+    private val windowSteps: Int = RINGTONE_SECONDS * 1000 / stepMs,
 ) {
     init {
         require(sampleRate > 0) { "sampleRate must be positive, was $sampleRate" }
@@ -204,12 +212,43 @@ class ScoreBuilder(
             stepDetail = 0f
             samplesInStep = 0
         }
-        val loudestOnset = steps.maxOrNull() ?: 0f
-        val loudestDetail = details.maxOrNull() ?: 0f
         return Levels(
-            onsets = if (loudestOnset <= 0f) List(steps.size) { 0f } else steps.map { it / loudestOnset },
-            detail = if (loudestDetail <= 0f) List(details.size) { 0f } else details.map { it / loudestDetail },
+            onsets = normalise(steps),
+            detail = normalise(details),
         )
+    }
+
+    /**
+     * Scale one band to 0..1 **against the window that will be played**.
+     *
+     * Normalising against the whole track was a real "I can't feel it"
+     * bug. Only the first [RINGTONE_SECONDS] become the ringtone, but the
+     * loudest moment *anywhere* set the scale — so a track that stays quiet for
+     * its opening and peaks at three minutes had its opening scaled down to a
+     * fraction of the range. Every one of those beats then fell under
+     * [GATE] and came out as a literal zero, and a zero is not a quiet hit: it
+     * is a hit the analyser decided was not there. Punch cannot bring back a
+     * step that was gated away, which is why turning it up did not help.
+     *
+     * **The guard.** If the window is a small fraction of the track's own peak,
+     * it is not a quiet passage, it is silence with dither on it — and scaling
+     * *that* to full range would turn the noise floor into a drum kit. Below
+     * [WINDOW_NORM_GUARD] of the global peak the global peak is used instead,
+     * which is the old behaviour and the right one when there is nothing in the
+     * window worth hearing.
+     */
+    private fun normalise(band: List<Float>): List<Float> {
+        if (band.isEmpty()) return emptyList()
+        val globalMax = band.max()
+        if (globalMax <= 0f) return List(band.size) { 0f }
+        val end = windowSteps.coerceIn(1, band.size)
+        val windowMax = band.subList(0, end).max()
+        val base = if (windowMax >= WINDOW_NORM_GUARD * globalMax) windowMax else globalMax
+        if (base <= 0f) return List(band.size) { 0f }
+        // Clamped at 1: anything past the window is scaled by the window and can
+        // exceed it. It is trimmed off before it plays, and a value above 1
+        // would break the 0..1 contract the rest of this file relies on.
+        return band.map { (it / base).coerceAtMost(1f) }
     }
 
     /** Number of steps produced so far. The count [Score.MAX_AMPLITUDE] cares about is in R8. */
@@ -372,6 +411,64 @@ class ScoreBuilder(
             require(stepMs > 0) { "stepMs must be positive, was $stepMs" }
             if (ms <= 0) return 1
             return ((ms + stepMs - 1) / stepMs).coerceAtLeast(1)
+        }
+
+        /**
+         * How much of a track becomes the ringtone.
+         *
+         * A phone rings for roughly thirty seconds, so this is the part anyone
+         * will ever feel, plus room. Keeping it short is what allows 20 ms steps
+         * instead of the 40 ms a whole song would be coarsened to.
+         *
+         * It is also the normalisation window: the scale is set by the part that
+         * plays, not by the loudest moment anywhere in the file. See
+         * [ScoreBuilder.normalise].
+         */
+        const val RINGTONE_SECONDS = 45
+
+        /**
+         * How loud the ringtone window must be, relative to the track's own peak,
+         * before it is allowed to set the scale on its own.
+         *
+         * Below this the window is not a quiet passage, it is silence with dither
+         * on it, and normalising to it would turn the noise floor into a drum
+         * kit. The global peak is used instead — the old behaviour, which is the
+         * right one when there is nothing in the window worth hearing.
+         */
+        const val WINDOW_NORM_GUARD = 0.05f
+
+        /**
+         * Turn "distance from the music", 0–100, into the amplitude ceiling the
+         * detail layer may reach.
+         *
+         * Counted downward on purpose — 0 is closest, where the detail layer is
+         * allowed all the way up to the kick's own floor and the whole kit comes
+         * through. **100 is the explicit off**, and only 100.
+         *
+         * **Why this was remapped.** The old form was `punch × (100 − distance)
+         * / 100`, so the ceiling fell with Punch and the layer switched itself
+         * off once the ceiling reached [DETAIL_MIN]. At the default Punch of 185
+         * that happened at **distance 30** — so seven-tenths of the dial did
+         * nothing at all, and at Punch 130 or below *no* position on the dial did
+         * anything. A dial that is dead across most of its travel is
+         * indistinguishable from a broken one, which is the same complaint
+         * Mutalib made about the old amplitude dial ("every setting felt the
+         * same") wearing a new hat.
+         *
+         * Now the 0–99 range is spread across the whole usable span,
+         * [DETAIL_MIN] + 1 up to the kick's floor, so every position changes
+         * something, and turning it to the very top is the one way to switch the
+         * layer off.
+         */
+        fun ceilingFor(punch: Int, distance: Int): Int {
+            val floor = punch.coerceIn(0, Score.MAX_AMPLITUDE)
+            val d = distance.coerceIn(0, 100)
+            if (d >= 100) return 0
+            // No room above the detail floor means the layer has nothing to
+            // reach, whatever the dial says.
+            if (floor <= DETAIL_MIN) return 0
+            val span = floor - DETAIL_MIN
+            return DETAIL_MIN + maxOf(1, span * (99 - d) / 99)
         }
 
         /**
