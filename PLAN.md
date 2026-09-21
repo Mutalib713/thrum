@@ -474,6 +474,34 @@ whether primitives hit harder than the amplitude path. Measured: `Primitive=THUD
 runs **323 ms** and is accepted. If a longer Body still is not enough, that is the next lever,
 and it is an architecture decision rather than a tuning one.
 
+**The part that explains the complaint better than the waveform does.** Across three separate
+real calls in the same `dumpsys` dump, the system's own call vibration is recorded as
+**`cancelled_superseded`** about 0.8 s after it starts, and Thrum's begins at that instant —
+every time. So Thrum does not merely fail to be stronger; it **takes the motor away from a
+1000 ms at 255 buzz and substitutes its own**. The comparison Mutalib was making was against
+the stock buzz Thrum had just silenced, which is exactly why *"the ringtone made by Pixel is
+more powerful than ours"* is a correct observation rather than a mistaken one.
+
+**Sustained drive**, as `duty × mean amplitude / 255` — 1.000 meaning 255 held constantly:
+
+| | sustained drive | vs the stock buzz |
+|---|---|---|
+| Android's own call buzz | 0.500 | — |
+| Thrum at the old fixed 100 ms | **0.333** | **0.67× — a downgrade** |
+| Thrum at the new 240 ms default | ~0.60 *(estimated)* | ~1.2× |
+| Thrum at the 400 ms maximum | ~0.73 *(estimated)* | ~1.5× |
+
+The first two rows are computed from real stored data. The last two are **estimates**: the
+duty cycle is measured, but the mean amplitude of a rebuilt score is inferred, because the
+added steps sit at the kick's floor (208/255) which is *above* the old mean of 187/255. Read
+them as ±10 % and re-measure from `shared_prefs` once a rebuilt score exists.
+
+**The honest headline:** before this change Thrum delivered about two-thirds of the buzz it
+silences; at the new default it should be somewhat above it. That is a real improvement but
+not a landslide, so if it still feels weak the answer is not another bug hunt — it is that
+matching a continuous 1000 ms buzz from a *rhythmic* score has a ceiling, and the primitive
+path is the next lever.
+
 **Still owed, and it is the whole remaining question:** Mutalib's hand. Whether 240 ms shakes
 a table decides whether the next step is tuning or the primitive path. His armed score is
 still the 2026-09-17 build, so a dial move is needed after installing to rebuild it through

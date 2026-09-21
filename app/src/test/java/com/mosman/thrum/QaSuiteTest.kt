@@ -580,6 +580,43 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `raising the Body raises the total drive`() {
+        // The point of the whole change. A longer hold adds its steps at the
+        // kick's floor rather than at its peak, so the *mean* amplitude can fall
+        // while the total still rises — and the total is what a table responds
+        // to. This is also the assertion that would have caught the original
+        // bug: at a fixed 100 ms the drive could not be raised at all, which is
+        // why turning Punch up never helped.
+        val short = analyse(bodyMs = ScoreBuilder.BODY_MIN_MS) { fourOnTheFloor(bars = 2, bpm = 120) }
+        val long = analyse(bodyMs = ScoreBuilder.BODY_MAX_MS) { fourOnTheFloor(bars = 2, bpm = 120) }
+        val shortEnergy = short.amplitudes.sum()
+        val longEnergy = long.amplitudes.sum()
+        assertTrue(
+            "total drive did not rise: $shortEnergy -> $longEnergy",
+            longEnergy > shortEnergy,
+        )
+    }
+
+    @Test
+    fun `a long Body joins hits into one run but never erases one`() {
+        // The honest cost of the dial, pinned so it stays a known trade rather
+        // than a surprise. A hold runs forward into the silence and stops at the
+        // next hit, so the two end up sharing one unbroken run and the motor
+        // feels one longer push instead of two separate taps. That is what the
+        // dial's own help text means by "down to keep the beats crisp and
+        // separate".
+        //
+        // What must NOT happen is the later hit being written over. That would
+        // be the dial eating the pattern rather than joining it, and it is the
+        // difference between a stronger alert and a broken one.
+        val score = Score(20, listOf(255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 130))
+        val held = score.holdPulsesAtLeast(12, decayTo = 0.55f, floor = 208)
+        assertEquals("the later hit was written over", 130, held.amplitudes[10])
+        assertEquals("the hold ran past the end of the score", 11, held.amplitudes.size)
+        assertEquals("the two hits should now read as one run", 1, held.pulseCount())
+    }
+
+    @Test
     fun `holding a pulse keeps its leading edge where the beat is`() {
         // Widening around the peak instead of forward would move the hit earlier
         // and put the whole rhythm ahead of the music.
