@@ -451,28 +451,87 @@ Every dial in the app controlled *how hard* a beat lands; none controlled *how l
 driven. That is the axis that decides whether a phone lying on a table moves, and it was the
 one nobody had measured.
 
-**The fix: a Body dial.** `MIN_PULSE_MS` (100) becomes `BODY_MS` (240), with `BODY_MIN_MS`
-100 and `BODY_MAX_MS` 400 as the dial's ends. `Store.arm` writes it with the score and the
-other tuning, so a restart cannot separate them. The dial shows **milliseconds**, not an
-invented 0–100: it is a duration, and a duration is a fact the person tuning it can reason
-about. Detail deliberately does not scale with it — a hat that lasts as long as a kick stops
-being a hat, and the detail layer carries the least energy.
+**The fix: a Body dial.** `MIN_PULSE_MS` (100) becomes `BODY_MS`, with `BODY_MIN_MS` 100 and
+`BODY_MAX_MS` 400 as the dial's ends. `Store.arm` writes it with the score and the other
+tuning, so a restart cannot separate them. The dial shows **milliseconds**, not an invented
+0–100: it is a duration, and a duration is a fact the person tuning it can reason about.
+Detail deliberately does not scale with it — a hat that lasts as long as a kick stops being a
+hat, and the detail layer carries the least energy.
 
-**Measured on the Pixel 6 Pro against a real 45 s track**, stillness falling monotonically as
-the dial rises:
+### The measurement, 2026-09-21 — and the two bugs it found
 
-| Beat length | still |
-|---|---|
-| 100 ms (the old fixed value) | 47 % |
-| 202 ms | 30 % |
-| 250 ms | 23 % |
-| 400 ms (max) | **10 %** |
+The numbers below are **measured**, not estimated. The analyser was reproduced in Python
+(`Analyser.kt` + `Score.kt` transcribed, ffmpeg decoding, `Pcm.downmixToMono`'s
+greater-magnitude rule included) and the reproduction was checked against the score actually
+armed on the phone, out of `shared_prefs`. It reproduces it at **99.82 % of steps identical**,
+so these are the phone's numbers rather than a model of them.
+
+Sustained drive is `duty × mean amplitude / 255` over the 45 s window that plays — 1.000
+meaning 255 held constantly:
+
+| | duty | mean on | sustained drive | longest run ≥ `MIN_FELT` | still |
+|---|---|---|---|---|---|
+| Android's own call buzz | 50.0 % | 255 | **0.500** | 1000 ms | 50.0 % |
+| Thrum, Body 100 ms | 45.6 % | 187 | **0.334** | 400 ms | 54.4 % |
+| Thrum, Body 240 ms | 54.3 % | 196 | **0.417** | 840 ms | 45.7 % |
+| Thrum, Body 400 ms | 67.2 % | 205 | **0.540** | 1460 ms | 32.8 % |
+
+**Two corrections to what this document previously claimed.**
+
+1. **The estimates were far too generous.** The 240 ms default was written up as ~0.60 (1.2×
+   the buzz); it is **0.417, i.e. 0.83× — still a downgrade**. The 400 ms maximum was written
+   up as ~0.73 (1.5×); it is **0.540, i.e. 1.08×**. The inference behind the estimates — that
+   held steps land at the kick's floor and so *raise* the mean — was wrong in the direction
+   that mattered: a hold only runs into the silence *immediately* after a hit and stops at the
+   next one, so it cannot fill a gap longer than itself, and this track is 54 % silent at the
+   old length for reasons no dial touches.
+2. **The stillness table that stood here was wrong**, and wrong in the flattering direction.
+   It claimed 400 ms leaves the motor still 10 % of the time; the score says **32.8 %**. The
+   old figures described what the *hold* was asked for, not what survived the gate and the
+   track's own silence.
+
+**The honest headline, corrected:** at 240 ms Thrum still delivered less than the buzz it
+silences. Only at 400 ms does it reach parity — 0.540 against 0.500 — and it beats it on the
+axis a table actually responds to, a felt run of **1460 ms against the stock buzz's 1000 ms**.
+So **the default moved to 400 ms.** A default weaker than the thing it replaces is not worth
+shipping, and there is no headroom above it worth having: at ~3 taps a second the gap between
+beats is ~333 ms, so a longer Body is capped by the next hit and buys nothing. Going
+materially past 0.540 is a different question — the actuator path — not a larger number here.
 
 **Also added, in the debug probe only:** `Demo.flatMax` (1500 ms flat at 255), `Demo.thrumTap`,
 and `Haptics.playPrimitives` — a THUD/CLICK path the product does **not** use, kept to answer
 whether primitives hit harder than the amplitude path. Measured: `Primitive=THUD(scale=1.00)`
-runs **323 ms** and is accepted. If a longer Body still is not enough, that is the next lever,
-and it is an architecture decision rather than a tuning one.
+runs **323 ms** and is accepted. That remains the next lever, and it is an architecture
+decision rather than a tuning one.
+
+### The bug this measurement found: the phone was armed with a Body it was not showing
+
+`shared_prefs` said `body=400`. The armed score reproduced **exactly at `body=100`** — 99.82 %
+of steps, against 68.53 % at 400. The screen said 400 ms and the motor was playing 100 ms.
+
+The cause was a split between two writers of the same setting. `Store.arm` wrote the score and
+all its tuning in one `edit()` precisely so they could not disagree — but the dial handlers
+*also* wrote their key directly:
+
+```kotlin
+onBody = { v -> body = v; store.body = v; rescore() }   // the pref moves here
+```
+
+and `rescore()` only re-arms when `armed` is true:
+
+```kotlin
+if (armed) { store.arm(rebuilt, …, body) }               // …but not here
+```
+
+Picking a file sets `armed = false` (the draft path). So a dial moved while a draft was being
+auditioned moved the stored value, rebuilt the score on screen, and then **skipped the write
+that would have armed it**. The phone kept the old rhythm; a restart restored dials no score
+had ever been built with. It is the same class of lie `rescore()`'s own comment says the
+project keeps having to fix — a screen showing one rhythm while the phone would play another.
+
+**The fix is structural, not a comment.** `punch`, `distance` and `body` are now `val`s with a
+getter only, so `Store.arm` is the compiler-enforced single writer of the tuning, and the dial
+handlers just call `rescore()`. A setting the phone will not play must not be what survives.
 
 **The part that explains the complaint better than the waveform does.** Across three separate
 real calls in the same `dumpsys` dump, the system's own call vibration is recorded as
@@ -482,30 +541,12 @@ every time. So Thrum does not merely fail to be stronger; it **takes the motor a
 the stock buzz Thrum had just silenced, which is exactly why *"the ringtone made by Pixel is
 more powerful than ours"* is a correct observation rather than a mistaken one.
 
-**Sustained drive**, as `duty × mean amplitude / 255` — 1.000 meaning 255 held constantly:
-
-| | sustained drive | vs the stock buzz |
-|---|---|---|
-| Android's own call buzz | 0.500 | — |
-| Thrum at the old fixed 100 ms | **0.333** | **0.67× — a downgrade** |
-| Thrum at the new 240 ms default | ~0.60 *(estimated)* | ~1.2× |
-| Thrum at the 400 ms maximum | ~0.73 *(estimated)* | ~1.5× |
-
-The first two rows are computed from real stored data. The last two are **estimates**: the
-duty cycle is measured, but the mean amplitude of a rebuilt score is inferred, because the
-added steps sit at the kick's floor (208/255) which is *above* the old mean of 187/255. Read
-them as ±10 % and re-measure from `shared_prefs` once a rebuilt score exists.
-
-**The honest headline:** before this change Thrum delivered about two-thirds of the buzz it
-silences; at the new default it should be somewhat above it. That is a real improvement but
-not a landslide, so if it still feels weak the answer is not another bug hunt — it is that
-matching a continuous 1000 ms buzz from a *rhythmic* score has a ceiling, and the primitive
-path is the next lever.
-
-**Still owed, and it is the whole remaining question:** Mutalib's hand. Whether 240 ms shakes
-a table decides whether the next step is tuning or the primitive path. His armed score is
-still the 2026-09-17 build, so a dial move is needed after installing to rebuild it through
-the new default.
+**Still owed, and it is the whole remaining question:** Mutalib's hand, at 400 ms. The armed
+score on the phone was the 100 ms build, so he has never actually felt the setting the screen
+was showing him — every test call so far was against a rhythm weaker than the one he chose.
+The 400 ms score is now written to the device. If 400 ms still does not shake a table, the
+ceiling on a rhythmic score against a continuous buzz is real and the primitive path is the
+next step.
 
 ### [ ] Task 9 — Setup guidance
 

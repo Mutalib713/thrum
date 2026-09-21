@@ -539,14 +539,39 @@ class ScoreBuilder(
          *   reported `finished`. So the amplitude path can sustain full strength
          *   for as long as asked. The score simply never asked.
          *
-         * 240 ms is roughly three quarters of the gap between beats at the ~3
-         * taps a second Thrum's scores actually run at, so the beat is driven
-         * long enough to move mass while still leaving stillness between hits.
+         * **Why this is the maximum and not a middle setting.** It was 240 ms
+         * until the drive was actually measured rather than estimated, on
+         * 2026-09-21, by reproducing this analyser in Python and checking the
+         * reproduction against the score armed on the phone (99.82 % of steps
+         * identical at 100 ms, so the numbers below are the phone's, not a
+         * model's). Sustained drive is `duty × mean amplitude / 255`, over the
+         * 45 s window that plays:
+         *
+         * | | duty | mean on | drive | longest run ≥ [MIN_FELT] |
+         * |---|---|---|---|---|
+         * | Android's own call buzz | 50.0 % | 255 | **0.500** | 1000 ms |
+         * | Body 100 ms | 45.6 % | 187 | 0.334 | 400 ms |
+         * | Body 240 ms | 54.3 % | 196 | 0.417 | 840 ms |
+         * | Body 400 ms | 67.2 % | 205 | **0.540** | 1460 ms |
+         *
+         * The 240 ms default was a **downgrade** — 0.417 against the 0.500 buzz
+         * Thrum silences. Only the top of the dial reaches parity, and it does
+         * so on both axes: 0.540 of the drive and a felt run half again as long
+         * as the stock buzz's. A default weaker than the thing it replaces is
+         * not a default worth shipping, so the default moved to the ceiling.
+         *
+         * **400 ms is also this track's ceiling, not an arbitrary stop.** At the
+         * ~3 taps a second these scores run at, the gap between beats is about
+         * 333 ms, so a longer Body would be capped by the next hit anyway and
+         * buy nothing. Going materially beyond 0.540 is a different question —
+         * the primitive path (`PRIMITIVE_THUD`, measured 323 ms) — not a larger
+         * number here.
+         *
          * Longer is capped automatically by [Score.holdPulsesAtLeast], which
-         * never runs a hold over the next hit — so a fast track pulls this back
+         * never runs a hold over the next hit, so a fast track pulls this back
          * to its own tempo instead of smearing into one buzz.
          */
-        const val BODY_MS = 240
+        const val BODY_MS = 400
 
         /**
          * The shortest the Body dial goes: the old fixed value.
@@ -559,11 +584,15 @@ class ScoreBuilder(
         const val BODY_MIN_MS = 100
 
         /**
-         * The longest the Body dial goes.
+         * The longest the Body dial goes — currently the same as the default.
          *
-         * At ~3 taps a second the gap between beats is 333 ms, so this fills it
-         * and the rhythm becomes near-continuous — deliberately available as the
-         * maximum-presence end, not as the default.
+         * At ~3 taps a second the gap between beats is about 333 ms, so this
+         * already fills it and the rhythm is near-continuous. **Deliberately not
+         * raised past this.** A longer value would be capped by the next hit on
+         * any track this dense, so it would change nothing that can be felt
+         * while making the dial look like it has more range than it does. If
+         * 400 ms is not enough, the lever is the actuator path, not this number
+         * — see [BODY_MS].
          */
         const val BODY_MAX_MS = 400
 

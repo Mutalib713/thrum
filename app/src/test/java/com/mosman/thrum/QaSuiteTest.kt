@@ -372,11 +372,35 @@ class QaSuiteTest {
     fun `most of a bar is stillness`() {
         // Rhythm is as much the gaps as the hits. Without this, "4 pulses per
         // bar" can still pass while the motor never actually stops.
-        val score = analyse { fourOnTheFloor(bars = 4, bpm = 120) }
-        val still = score.amplitudes.count { it == 0 }
+        //
+        // **The threshold moved when the default did, and the reason is the
+        // measurement rather than the failure.** At the 240 ms default this
+        // asserted "more than half a bar is still", which a 120 bpm fixture
+        // cleared with 52 % to spare. The default is now 400 ms — the only
+        // setting that reaches parity with the buzz it replaces, see
+        // [ScoreBuilder.BODY_MS] — and a 400 ms hold in a 500 ms bar leaves a
+        // 100 ms gap, so the identical assertion reads 16 % and fails.
+        //
+        // Rather than drop the guarantee, it is now asserted at both ends of the
+        // dial: the loud default must still leave a real gap, and the crisp end
+        // must still be mostly still. What is *not* relaxed is the hard
+        // guarantee that a hit never spans a beat — that is
+        // `a hit is over before the next one arrives`, and it is what "the motor
+        // stops" actually rests on. This test is the margin around it.
+        val bar = analyse { fourOnTheFloor(bars = 4, bpm = 120) }
+        val barStill = bar.amplitudes.count { it == 0 }
         assertTrue(
-            "only ${100 * still / score.amplitudes.size}% of the bar was still",
-            still > score.amplitudes.size / 2,
+            "only ${100 * barStill / bar.amplitudes.size}% of the bar was still at the default",
+            barStill > bar.amplitudes.size / 8,
+        )
+
+        val crisp = analyse(bodyMs = ScoreBuilder.BODY_MIN_MS) {
+            fourOnTheFloor(bars = 4, bpm = 120)
+        }
+        val crispStill = crisp.amplitudes.count { it == 0 }
+        assertTrue(
+            "only ${100 * crispStill / crisp.amplitudes.size}% of the bar was still at the crisp end",
+            crispStill > crisp.amplitudes.size / 2,
         )
     }
 
