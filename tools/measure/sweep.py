@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import repro  # noqa: E402
 
-CACHE = os.path.join(HERE, "levels.pkl")
+CACHE = os.path.join(os.environ.get("THRUM_MEASURE_DIR") or HERE, "levels.pkl")
 
 if os.path.exists(CACHE):
     with open(CACHE, "rb") as fh:

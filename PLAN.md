@@ -548,6 +548,53 @@ The 400 ms score is now written to the device. If 400 ms still does not shake a 
 ceiling on a rhythmic score against a continuous buzz is real and the primitive path is the
 next step.
 
+### Known gap: the two guards about the detail layer cannot fail
+
+Found while checking the measured distribution for dead-zone steps, and recorded rather than
+changed, because it is a design question and it does not affect what the phone plays.
+
+`QaSuiteTest.analyse` pins `detailCeiling` to `ScoreBuilder.BODY_CEILING`, which is 150. A
+ceiling of 150 makes 151–184 unreachable **by construction**, so both guards about the detail
+layer are asserted against a condition their own fixture cannot produce:
+
+- `nothing lands in the dead zone` filters `> BODY_CEILING && < MIN_FELT` — always empty.
+- `hits still stand clear of the texture underneath them` takes the minimum of everything
+  `>= MIN_FELT` — and with a ceiling of 150 every such step is a kick, so it is always `> 150`.
+
+The app does not use that ceiling. It passes `ceilingFor(punch, distance)`, which at Punch 208
+runs from **208 at distance 0** down to 131 at distance 99. Measured on the real track, at
+Body 400:
+
+| distance | ceiling | steps in 151–184 | loudest detail step |
+|---|---|---|---|
+| 0 | 208 | 46 (2.0 %) | 182 |
+| 25 | 188 | 20 | 172 |
+| 50 | 168 | 4 | 157 |
+| **61 (the phone's)** | **159** | **1** | **151** |
+| 70 | 152 | 0 | 146 |
+| 99 | 131 | 0 | 131 |
+
+So the dead zone **is** entered at any distance below 70 — the guard would fail if it used the
+real ceiling. Two things worth separating out:
+
+1. **`the beat leads` does hold.** The loudest detail step is 182, under `MIN_FELT` at every
+   setting, because `ceilingFor` never exceeds the kick's floor and the detail curve pulls
+   most hits well below it. The invariant is sound; it is simply not guarded by a test that
+   can fail.
+2. **Whether texture *should* be barred from 151–184 is a real question, not an obvious yes.**
+   The dead-zone rule was derived from the *kick* layer, where a hit mapped under `MIN_FELT` is
+   a hit the user never receives. A detail hit is texture rather than a beat, so a slightly
+   loud hat at 160 is not obviously a defect — and clamping the ceiling to 150 to enforce the
+   rule would put the Distance dial back where it started, dead across three quarters of its
+   travel. That is the trade `ceilingFor` was written to escape, so this needs deciding rather
+   than patching.
+
+**What to do about it:** make `analyse` able to take the app's own ceiling, assert
+`detail max < MIN_FELT` there (which holds and is worth guarding), and restate the dead-zone
+expectation with the bound measured above rather than as an absolute. Not done in the same
+change as the strength work, deliberately — it is test hygiene, not a fix, and mixing it in
+would have made a tuning commit look like a refactor.
+
 ### [ ] Task 9 — Setup guidance
 
 A short screen telling the user exactly which system settings to change, based on whatever Task 2 discovered. Plain language. Deep-links to the settings screen; the app never changes a setting itself (`PROFILE.md` §9).
