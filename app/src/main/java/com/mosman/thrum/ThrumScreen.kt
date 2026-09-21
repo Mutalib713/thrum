@@ -106,6 +106,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var trackName by remember { mutableStateOf(store.armedScore?.sourceName ?: "") }
     var punch by remember { mutableStateOf(store.punch) }
     var distance by remember { mutableStateOf(store.distance) }
+    var body by remember { mutableStateOf(store.body) }
     var ratePlaying by remember { mutableStateOf(0) }
 
     // Polled rather than observed: the user leaves for system settings and
@@ -202,7 +203,8 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     val built = levels?.let {
                         ScoreBuilder.toScore(
                             it, levelStepMs, name,
-                            minFelt = punch, bodyCeiling = ceilingFor(punch, distance),
+                            minFelt = punch, bodyMs = body,
+                            bodyCeiling = ceilingFor(punch, distance),
                         ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
                     }
                     if (built == null || built.isSilent()) {
@@ -256,13 +258,16 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         }
         val rebuilt = ScoreBuilder.toScore(
             source, levelStepMs, trackName,
-            minFelt = punch, bodyCeiling = ceilingFor(punch, distance),
+            minFelt = punch, bodyMs = body,
+            bodyCeiling = ceilingFor(punch, distance),
         ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
         score = rebuilt
         // Rewritten atomically with its source and tuning, so a restart between
         // a dial move and this line cannot restore a score that disagrees with
         // the settings beside it.
-        if (armed) store.arm(rebuilt, pickedUri?.toString() ?: store.sourceUri, punch, distance)
+        if (armed) {
+            store.arm(rebuilt, pickedUri?.toString() ?: store.sourceUri, punch, distance, body)
+        }
     }
 
     /**
@@ -372,14 +377,16 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     onRingMode = { on -> ringMode = on; store.fireInRingMode = on },
                     punch = punch,
                     texture = distance,
+                    body = body,
                     ratePlaying = ratePlaying,
                     onRateTest = { runRateTest() },
                     onPunch = { v -> punch = v; store.punch = v; rescore() },
                     onTexture = { v -> distance = v; store.distance = v; rescore() },
+                    onBody = { v -> body = v; store.body = v; rescore() },
                     onArm = {
                         // One write, so the score, the file it came from, and the
                         // tuning can never disagree after a restart. See Store.arm.
-                        store.arm(state.score, pickedUri?.toString(), punch, distance)
+                        store.arm(state.score, pickedUri?.toString(), punch, distance, body)
                         armed = true
                     },
                     onPreview = { playWithSong(state.score) },
@@ -587,10 +594,12 @@ private fun Ready(
     onRingMode: (Boolean) -> Unit,
     punch: Int,
     texture: Int,
+    body: Int,
     ratePlaying: Int,
     onRateTest: () -> Unit,
     onPunch: (Int) -> Unit,
     onTexture: (Int) -> Unit,
+    onBody: (Int) -> Unit,
     onArm: () -> Unit,
     onPreview: () -> Unit,
     onFeel: () -> Unit,
@@ -713,6 +722,19 @@ private fun Ready(
             // ceiling leaves no room for a track to have loud and quiet beats.
             range = 120f..(Score.MAX_AMPLITUDE - ScoreBuilder.MIN_HEADROOM).toFloat(),
             onChange = onPunch,
+        )
+        Dial(
+            label = stringResource(R.string.tune_body, body),
+            help = stringResource(R.string.tune_body_help),
+            value = body.toFloat(),
+            // Milliseconds, not an invented 0–100. Punch and Distance show
+            // abstract numbers because they map onto internal amplitudes; this
+            // one is a duration, and "240 ms" is a fact the person tuning it can
+            // reason about. The trade is legible in the same units: longer
+            // drives the motor harder against a table, shorter keeps the gaps
+            // between beats that make it read as a rhythm.
+            range = ScoreBuilder.BODY_MIN_MS.toFloat()..ScoreBuilder.BODY_MAX_MS.toFloat(),
+            onChange = onBody,
         )
         Dial(
             label = stringResource(R.string.tune_texture, texture),

@@ -91,9 +91,28 @@ class Store(ctx: Context) {
         set(v) = prefs.edit().putInt(KEY_DISTANCE, v.coerceIn(0, 100)).apply()
 
     /**
+     * How long each beat is driven, in milliseconds — the Body dial.
+     *
+     * **Why this exists as a setting.** Everything else about a score is about
+     * *how hard* the motor is asked to work; this is about *how long*. Those are
+     * not interchangeable, and the measurement says so: Android's own
+     * incoming-call vibration holds 255 for a full second, where Thrum's longest
+     * run at 255 was 100 ms — which is why the Pixel's buzz shakes a table and
+     * Thrum's did not, at the same usage and the same 1.00 scale.
+     *
+     * Stored with Punch and Distance, so the rhythm the phone plays and the
+     * settings beside it on screen always describe the same thing.
+     */
+    var body: Int
+        get() = prefs.getInt(KEY_BODY, ScoreBuilder.BODY_MS)
+        set(v) = prefs.edit()
+            .putInt(KEY_BODY, v.coerceIn(ScoreBuilder.BODY_MIN_MS, ScoreBuilder.BODY_MAX_MS))
+            .apply()
+
+    /**
      * Arm [score] and record everything that belongs with it, in one write.
      *
-     * **Why this is one method and not four setters called in a row.** Task 8's
+     * **Why this is one method and not a row of setters.** Task 8's
      * whole point is that what survives a restart is what the phone will play.
      * When the score, the file it came from, and the tuning were written
      * separately, a restart could land between them and restore a score with a
@@ -105,12 +124,13 @@ class Store(ctx: Context) {
      * state for a demo pattern — better than a stale URI pointing at some other
      * track. `putString(key, null)` removes the key.
      */
-    fun arm(score: Score, uri: String?, punch: Int, distance: Int) {
+    fun arm(score: Score, uri: String?, punch: Int, distance: Int, body: Int) {
         prefs.edit()
             .putString(KEY_SCORE, score.encode())
             .putString(KEY_URI, uri)
             .putInt(KEY_PUNCH, punch)
             .putInt(KEY_DISTANCE, distance.coerceIn(0, 100))
+            .putInt(KEY_BODY, body.coerceIn(ScoreBuilder.BODY_MIN_MS, ScoreBuilder.BODY_MAX_MS))
             .apply()
     }
 
@@ -131,5 +151,6 @@ class Store(ctx: Context) {
         const val KEY_URI = "source_uri"
         const val KEY_PUNCH = "punch"
         const val KEY_DISTANCE = "distance"
+        const val KEY_BODY = "body"
     }
 }

@@ -2,6 +2,7 @@ package com.mosman.thrum
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.VibrationEffect
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -289,6 +290,53 @@ private fun ProbeScreen() {
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Stop")
+        }
+
+        HorizontalDivider()
+        Text("Table test — how hard can it hit?", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Put the phone flat on a hard table, not touching it, then tap each one. " +
+                "Flat max is the strongest steady buzz the amplitude path can make; THUD " +
+                "and CLICK are haptic primitives Thrum does not use today; the Thrum tap " +
+                "is the decaying shape it does use. If Flat max moves the table but the " +
+                "Thrum tap does not, the fix is score shape. If nothing moves the table, " +
+                "matching Pixel's buzz needs primitives.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(
+            onClick = { Haptics.play(ctx, Demo.flatMax()) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Flat max buzz (1.5s)")
+        }
+        OutlinedButton(
+            onClick = {
+                Haptics.playPrimitives(
+                    ctx,
+                    VibrationEffect.Composition.PRIMITIVE_THUD to 1f,
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("THUD punch (primitive)")
+        }
+        OutlinedButton(
+            onClick = {
+                Haptics.playPrimitives(
+                    ctx,
+                    *Array(6) { VibrationEffect.Composition.PRIMITIVE_CLICK to 1f },
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("6× CLICK (primitive)")
+        }
+        OutlinedButton(
+            onClick = { Haptics.play(ctx, Demo.thrumTap()) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Thrum-style tap")
         }
 
         HorizontalDivider()

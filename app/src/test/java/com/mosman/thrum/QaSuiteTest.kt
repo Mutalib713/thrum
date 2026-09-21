@@ -503,14 +503,80 @@ class QaSuiteTest {
     @Test
     fun `every hit lasts long enough to move the motor`() {
         val score = analyse { fourOnTheFloor(bars = 2, bpm = 120) }
-        var run = 0
-        val runs = mutableListOf<Int>()
-        for (a in score.amplitudes) {
-            if (a > 0) run++ else if (run > 0) { runs.add(run); run = 0 }
+        val shortest = runLengthsMs(score).minOrNull() ?: 0
+        // Not merely "long enough to spin up" — the old 100 ms bar was cleared
+        // while the phone still could not move a table. This fixture leaves
+        // 500 ms between beats, so the whole default Body fits and every hit
+        // must actually get it.
+        assertTrue("shortest hit was ${shortest}ms", shortest >= ScoreBuilder.BODY_MS)
+    }
+
+    @Test
+    fun `the default Body drives the motor long enough to be felt on a table`() {
+        // Mutalib, 2026-09-20: "a normal vibration should be higher ... lets say
+        // the phone is on a table it should vibrate the table". Measured from
+        // the system's own record: Android's incoming-call vibration holds 255
+        // for 1000 ms, where Thrum's longest full-strength run was 100 ms.
+        val score = analyse { fourOnTheFloor(bars = 2, bpm = 120) }
+        val held = longestFeltRunMs(score)
+        assertTrue(
+            "longest felt drive was ${held}ms, under the ${ScoreBuilder.BODY_MS}ms default",
+            held >= ScoreBuilder.BODY_MS,
+        )
+    }
+
+    @Test
+    fun `the old fixed pulse length would fail the table test`() {
+        // Guards the diagnosis itself. If the crisp end ever stops being
+        // genuinely shorter than the default, the measurement behind BODY_MS has
+        // gone stale and the default needs re-deriving rather than keeping.
+        //
+        // Not an exact-equality check: the felt run is a step or two longer than
+        // the dial asks for, because the detail layer's own shorter hold lands
+        // against the kick's and [ScoreBuilder.toScore] takes the louder of the
+        // two. That overlap is real, so the assertion is a bound, not a number.
+        val score = analyse(bodyMs = ScoreBuilder.BODY_MIN_MS) { fourOnTheFloor(bars = 2, bpm = 120) }
+        val held = longestFeltRunMs(score)
+        assertTrue("crisp end drove only ${held}ms", held >= ScoreBuilder.BODY_MIN_MS)
+        assertTrue(
+            "the old fixed length drove ${held}ms, no shorter than the " +
+                "${ScoreBuilder.BODY_MS}ms default — the diagnosis has gone stale",
+            held < ScoreBuilder.BODY_MS,
+        )
+    }
+
+    @Test
+    fun `a longer Body drives longer without changing which steps are hits`() {
+        val short = analyse(bodyMs = ScoreBuilder.BODY_MIN_MS) { fourOnTheFloor(bars = 2, bpm = 120) }
+        val long = analyse(bodyMs = ScoreBuilder.BODY_MAX_MS) { fourOnTheFloor(bars = 2, bpm = 120) }
+        // Same number of hits either way: Body changes how long each one is
+        // driven, never how many the analyser found.
+        assertEquals(short.pulseCount(), long.pulseCount())
+        assertTrue(
+            "short=${runLengthsMs(short).max()} long=${runLengthsMs(long).max()}",
+            runLengthsMs(long).max() > runLengthsMs(short).max(),
+        )
+    }
+
+    @Test
+    fun `a long Body still stops at the next beat instead of merging them`() {
+        // The dial's maximum is longer than the gap between beats at a fast
+        // tempo, so the hold has to be capped by the next hit rather than by the
+        // dial — otherwise "more presence" would quietly become "one long buzz"
+        // and the rhythm would be gone at exactly the setting meant to help.
+        val score = analyse(bodyMs = ScoreBuilder.BODY_MAX_MS) {
+            fourOnTheFloor(bars = 4, bpm = 128)
         }
-        if (run > 0) runs.add(run)
-        val shortest = (runs.minOrNull() ?: 0) * score.stepMs
-        assertTrue("shortest hit was ${shortest}ms", shortest >= ScoreBuilder.MIN_PULSE_MS)
+        // 128 bpm is a beat every 469 ms; a 400 ms hold leaves a real gap.
+        val gap = 60_000 / 128 - ScoreBuilder.BODY_MAX_MS
+        assertTrue("fixture assumption broken, gap ${gap}ms", gap > 0)
+        // Four bars of four-on-the-floor is sixteen beats, and every one of them
+        // must still be its own run at the dial's longest setting.
+        assertEquals(
+            "beats were merged into one run",
+            score.pulseCount(),
+            runLengthsMs(score).count { it >= ScoreBuilder.BODY_MAX_MS },
+        )
     }
 
     @Test
@@ -855,6 +921,7 @@ class QaSuiteTest {
         sampleRate: Int = 44_100,
         detailCeiling: Int = ScoreBuilder.BODY_CEILING,
         punch: Int = ScoreBuilder.MIN_FELT,
+        bodyMs: Int = ScoreBuilder.BODY_MS,
         build: Fixture.() -> Unit,
     ): Score {
         val fixture = Fixture(sampleRate).apply(build)
@@ -864,8 +931,39 @@ class QaSuiteTest {
             builder.levels(),
             builder.stepMsUsed,
             minFelt = punch,
+            bodyMs = bodyMs,
             bodyCeiling = detailCeiling,
         )
+    }
+
+    /** Every unbroken non-zero run, in milliseconds. */
+    private fun runLengthsMs(score: Score): List<Int> {
+        val runs = mutableListOf<Int>()
+        var run = 0
+        for (a in score.amplitudes) {
+            if (a > 0) run++ else if (run > 0) { runs.add(run * score.stepMs); run = 0 }
+        }
+        if (run > 0) runs.add(run * score.stepMs)
+        return runs
+    }
+
+    /** The longest unbroken stretch driven hard enough for the motor to act on
+     *  it — the number that decides whether a phone lying on a table moves.
+     *
+     *  Measured at [ScoreBuilder.MIN_FELT] rather than at 255 on purpose. Only
+     *  a hit's leading step carries the full peak; the steps it is held for
+     *  decay toward the floor, which is exactly the behaviour that keeps a hold
+     *  from sounding mechanical. Counting only 255 would therefore measure one
+     *  step per hit and say nothing about how long the beat is driven — the
+     *  thing this dial actually changes. */
+    private fun longestFeltRunMs(score: Score, threshold: Int = ScoreBuilder.MIN_FELT): Int {
+        var best = 0
+        var run = 0
+        for (a in score.amplitudes) {
+            run = if (a >= threshold) run + score.stepMs else 0
+            best = maxOf(best, run)
+        }
+        return best
     }
 
     /** Builds synthetic mono audio, so the analyser can be tested without a phone or a file. */

@@ -279,7 +279,8 @@ class ScoreBuilder(
          * score produced instantly, without decoding the file again.
          *
          * @param minFelt the weakest amplitude worth asking for — see [MIN_FELT].
-         * @param minPulseMs the shortest a hit may last — see [MIN_PULSE_MS].
+         * @param bodyMs how long each beat is driven — see [BODY_MS]. The axis
+         *   that decides whether the phone moves on a table.
          */
         fun toScore(
             levels: Levels,
@@ -288,7 +289,7 @@ class ScoreBuilder(
             minFelt: Int = MIN_FELT,
             curve: Double = CURVE,
             gate: Float = GATE,
-            minPulseMs: Int = MIN_PULSE_MS,
+            bodyMs: Int = BODY_MS,
             bodyCeiling: Int = BODY_CEILING,
         ): Score {
             if (levels.onsets.none { it > 0f }) {
@@ -374,13 +375,16 @@ class ScoreBuilder(
             // and long enough**, or it is not a hit.
             //
             // Shorter than a kick's hold on purpose. A hat that lasts as long as
-            // a kick stops being a hat.
+            // a kick stops being a hat. It does not scale with [bodyMs]: the
+            // detail layer is what makes a pattern read as a kit, and stretching
+            // it to the kick's length would both erase that difference and spend
+            // the gap between beats on the layer that carries the least energy.
             //
             // Ceiling division, not truncation: 45 ms at 20 ms steps truncated
             // to 40 ms, which is *below* the minimum the constant names, and at
             // 40 ms steps it truncated to a single step and the hold did nothing
             // at all. Rounding up is the difference between a rule and a wish.
-            val minSteps = stepsFor(minPulseMs, stepMs)
+            val minSteps = stepsFor(bodyMs, stepMs)
             val detailSteps = stepsFor(DETAIL_PULSE_MS, stepMs)
             // Each layer decays only as far as its own floor. The kick may fade
             // toward [floor] (its weakest felt beat) and the detail toward
@@ -517,11 +521,51 @@ class ScoreBuilder(
         const val MIN_FELT = 185
 
         /**
-         * The shortest a hit may last. A motor has mass and needs time to spin
-         * up; a single 40 ms step ends before it has moved. 90 ms is still well
-         * inside the gap between beats at any tempo a person dances to.
+         * How long each beat is driven, in milliseconds. **The default, and the
+         * dial's starting point.**
+         *
+         * This is the axis that decides whether a phone on a table moves, and it
+         * was the one nobody had measured. Read out of the system's own record
+         * (`dumpsys vibrator_manager`) on the Pixel 6 Pro, 2026-09-20, all three
+         * at usage RINGTONE and scale 1.00 — so nothing here is attenuation:
+         *
+         * - **Android's own incoming-call vibration**: `0ms @ 0.00, 1000ms @
+         *   1.00, 1000ms @ 0.00`, repeating. One *full second* at 255. That is
+         *   the buzz Mutalib means when he says the Pixel's vibration is stronger.
+         * - **Thrum's score**: longest unbroken run at 255 was **100 ms**, and
+         *   the mean while on was **177/255**. A tenth of the drive, at 70 % of
+         *   the strength.
+         * - **A flat 1500 ms at 255** sent through [Haptics.play]: accepted and
+         *   reported `finished`. So the amplitude path can sustain full strength
+         *   for as long as asked. The score simply never asked.
+         *
+         * 240 ms is roughly three quarters of the gap between beats at the ~3
+         * taps a second Thrum's scores actually run at, so the beat is driven
+         * long enough to move mass while still leaving stillness between hits.
+         * Longer is capped automatically by [Score.holdPulsesAtLeast], which
+         * never runs a hold over the next hit — so a fast track pulls this back
+         * to its own tempo instead of smearing into one buzz.
          */
-        const val MIN_PULSE_MS = 100
+        const val BODY_MS = 240
+
+        /**
+         * The shortest the Body dial goes: the old fixed value.
+         *
+         * Kept reachable because it is the crispest end of the trade, and
+         * because the difference between this and [BODY_MS] is the thing worth
+         * feeling. 100 ms is long enough for the motor to spin up, which was
+         * never in doubt — it is just not long enough to shake a table.
+         */
+        const val BODY_MIN_MS = 100
+
+        /**
+         * The longest the Body dial goes.
+         *
+         * At ~3 taps a second the gap between beats is 333 ms, so this fills it
+         * and the rhythm becomes near-continuous — deliberately available as the
+         * maximum-presence end, not as the default.
+         */
+        const val BODY_MAX_MS = 400
 
         /**
          * The loudest a detail hit may get. Below [MIN_FELT] on purpose: the

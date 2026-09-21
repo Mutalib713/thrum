@@ -122,6 +122,51 @@ object Haptics {
 
     fun stop(ctx: Context) = vibrator(ctx).cancel()
 
+    /**
+     * Diagnostics only. Play a composed effect from haptic primitives —
+     * the path v1 deliberately does **not** use for scores (see [play] and the
+     * class docs: Thrum drives amplitudes directly). This exists to answer, on
+     * real hardware and with the phone on a table, one question the amplitude
+     * path cannot: does an overdriven primitive like `THUD` hit harder than a
+     * flat-255 waveform can? If it does, matching the Pixel's own ringtone buzz
+     * is an architecture decision, not a tuning one — and that is Mutalib's call,
+     * not something to slip in quietly.
+     *
+     * Each pair is a primitive id (e.g. [VibrationEffect.Composition.PRIMITIVE_THUD])
+     * and a scale in 0..1. Unsupported primitives are reported rather than thrown.
+     */
+    fun playPrimitives(ctx: Context, vararg idAndScale: Pair<Int, Float>): String? {
+        if (idAndScale.isEmpty()) return "No primitives to play."
+        val v = vibrator(ctx)
+        val ids = idAndScale.map { it.first }.distinct().toIntArray()
+        val supported = runCatching { v.areAllPrimitivesSupported(*ids) }.getOrDefault(false)
+        if (!supported) return "This motor does not support one of those primitives."
+        return try {
+            val composition = VibrationEffect.startComposition()
+            for ((id, scale) in idAndScale) composition.addPrimitive(id, scale.coerceIn(0f, 1f))
+            val effect = composition.compose()
+            // Same usage handling as [play], and for the same reason: it has to
+            // be the ringtone path, or the comparison against the real thing is
+            // measuring a different code path than the product uses. Guarded
+            // because VibrationAttributes is API 33 while minSdk is 31.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_RINGTONE))
+            } else {
+                v.vibrate(
+                    effect,
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+            }
+            null
+        } catch (e: Exception) {
+            "The vibrator refused that primitive: " +
+                "${e.javaClass.simpleName}${e.message?.let { " — $it" } ?: ""}"
+        }
+    }
+
     /** Shown on screen during Milestone 0 testing, so the phone's state is never a guess. */
     fun ringerMode(ctx: Context): String {
         val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager

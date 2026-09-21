@@ -44,6 +44,28 @@ object Demo {
         }
     }
 
+    /**
+     * A single flat buzz at full strength for [ms].
+     *
+     * The strongest steady thing the amplitude path can produce: no decay, no
+     * gaps, held at 255. The table test's control — if this doesn't move a phone
+     * sitting on a table, nothing built from amplitudes will, and the weakness is
+     * the motor's ceiling rather than any score's shape.
+     */
+    fun flatMax(ms: Int = 1500): Score = score("Flat max buzz") {
+        hold(ms, Score.MAX_AMPLITUDE)
+    }
+
+    /**
+     * One decaying tap — the shape every Thrum hit is built from ([Builder.hit]):
+     * a peak that falls to nothing. Fired beside [flatMax] so the difference
+     * between "held flat" and "struck and released" can be felt directly, which
+     * is the whole question behind Thrum feeling weaker than a plain buzz.
+     */
+    fun thrumTap(): Score = score("Thrum-style tap") {
+        hit(208, 130)
+    }
+
     fun all(): List<Score> = listOf(rhythm(), swell(), systemBuzz())
 
     /**

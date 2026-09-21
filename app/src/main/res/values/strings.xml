@@ -55,6 +55,10 @@
     <string name="tune_punch">Punch %1$d</string>
     <string name="tune_punch_help">How hard a beat lands. It also sets how far Detail can go, so
         raise this first if Detail runs out of room.</string>
+    <string name="tune_body">Beat length %1$d ms</string>
+    <string name="tune_body_help">How long each beat is driven for. This is what decides whether a
+        phone lying on a table moves: a longer drive pushes the table, a shorter one you only feel
+        in your hand. Turn it up for a stronger alert, down to keep the beats crisp and separate.</string>
     <string name="tune_texture">Distance from the music %1$d</string>
     <string name="tune_texture_help">0 is as close as it gets: the snare and hats come through
         alongside the kick, so you feel the whole pattern. Turn it up and the detail drops away
