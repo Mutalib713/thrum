@@ -420,6 +420,65 @@ confirm it *feels* right. Play it with the song, feel it on its own, and take a 
 incoming call in vibrate mode. `dumpsys vibrator_manager` is the witness for whether the
 motor actually ran, not the app's `FIRED` event.
 
+### Task 8 follow-up, part two — **why it never shook a table** — CODE DONE 2026-09-21
+
+Mutalib, after the above: *"still not strong enough ... I can only feel it when I'm holding
+or touching the phone but a normal vibration should be higher. Lets say the phone is on a
+table it should vibrate the table or something. And also the ringtone made by Pixel already
+comes with this vibrate feature and it's more powerful than ours."*
+
+Everything before this had treated the complaint as an **analyser** problem. The four bugs
+in the section above were all real and all worth fixing, and none of them was this. This one
+is not about the analyser at all.
+
+**The measurement.** `dumpsys vibrator_manager` keeps the waveform the system actually
+received. Three of them, all at `usage: RINGTONE` and `scale: NONE (1.00)` — so **nothing is
+being attenuated on either side**:
+
+| | longest run at 255 | mean while driving |
+|---|---|---|
+| **Android's own incoming-call vibration** (`com.android.server.telecom`) | **1000 ms** | 250/255 |
+| **Thrum's armed score** | **100 ms** | **177/255** |
+| a flat 1500 ms at 255 through `Haptics.play` (control) | 1500 ms, `finished` | 255/255 |
+
+The system's own call vibration is literally `[0ms @ 0.00, 1000ms @ 1.00, 1000ms @ 0.00]`,
+repeating. **One full second at maximum.** Thrum's longest full-strength stretch was a tenth
+of that, at 70 % of the strength. And the control proves the amplitude path can sustain 255
+for a second and a half and be accepted.
+
+**So the motor was never the limit, and neither was the API. The score simply never asked.**
+Every dial in the app controlled *how hard* a beat lands; none controlled *how long* it is
+driven. That is the axis that decides whether a phone lying on a table moves, and it was the
+one nobody had measured.
+
+**The fix: a Body dial.** `MIN_PULSE_MS` (100) becomes `BODY_MS` (240), with `BODY_MIN_MS`
+100 and `BODY_MAX_MS` 400 as the dial's ends. `Store.arm` writes it with the score and the
+other tuning, so a restart cannot separate them. The dial shows **milliseconds**, not an
+invented 0–100: it is a duration, and a duration is a fact the person tuning it can reason
+about. Detail deliberately does not scale with it — a hat that lasts as long as a kick stops
+being a hat, and the detail layer carries the least energy.
+
+**Measured on the Pixel 6 Pro against a real 45 s track**, stillness falling monotonically as
+the dial rises:
+
+| Beat length | still |
+|---|---|
+| 100 ms (the old fixed value) | 47 % |
+| 202 ms | 30 % |
+| 250 ms | 23 % |
+| 400 ms (max) | **10 %** |
+
+**Also added, in the debug probe only:** `Demo.flatMax` (1500 ms flat at 255), `Demo.thrumTap`,
+and `Haptics.playPrimitives` — a THUD/CLICK path the product does **not** use, kept to answer
+whether primitives hit harder than the amplitude path. Measured: `Primitive=THUD(scale=1.00)`
+runs **323 ms** and is accepted. If a longer Body still is not enough, that is the next lever,
+and it is an architecture decision rather than a tuning one.
+
+**Still owed, and it is the whole remaining question:** Mutalib's hand. Whether 240 ms shakes
+a table decides whether the next step is tuning or the primitive path. His armed score is
+still the 2026-09-17 build, so a dial move is needed after installing to rebuild it through
+the new default.
+
 ### [ ] Task 9 — Setup guidance
 
 A short screen telling the user exactly which system settings to change, based on whatever Task 2 discovered. Plain language. Deep-links to the settings screen; the app never changes a setting itself (`PROFILE.md` §9).
