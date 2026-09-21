@@ -380,9 +380,24 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     body = body,
                     ratePlaying = ratePlaying,
                     onRateTest = { runRateTest() },
-                    onPunch = { v -> punch = v; store.punch = v; rescore() },
-                    onTexture = { v -> distance = v; store.distance = v; rescore() },
-                    onBody = { v -> body = v; store.body = v; rescore() },
+                    // Deliberately no `store.punch = v` (and the same for the
+                    // other two) on these lines. The stored tuning describes the
+                    // **armed** score, and [Store.arm] is its only writer.
+                    //
+                    // Writing a dial straight to the store is how the phone came
+                    // to be armed at a 100 ms Body while the screen said 400 ms:
+                    // picking a file sets `armed = false` (see the draft path
+                    // above), so `rescore()` rebuilt the score on screen and then
+                    // skipped `store.arm` — while the pref had already moved. The
+                    // motor kept playing the old rhythm and a restart restored
+                    // dials that no score had ever been built with. Measured, not
+                    // guessed: `shared_prefs` said `body=400` and the armed score
+                    // reproduced exactly at `body=100`, 99.82 % of steps.
+                    //
+                    // A dial the phone will not play must not be what survives.
+                    onPunch = { v -> punch = v; rescore() },
+                    onTexture = { v -> distance = v; rescore() },
+                    onBody = { v -> body = v; rescore() },
                     onArm = {
                         // One write, so the score, the file it came from, and the
                         // tuning can never disagree after a restart. See Store.arm.

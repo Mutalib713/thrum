@@ -50,13 +50,6 @@ class Store(ctx: Context) {
         }.apply()
 
     /**
-     * How hard a beat hits, 0–255. The floor every hit is mapped up to.
-     *
-     * A setting rather than a constant because the plan said from the start that
-     * this tuning is taste, not correctness — and taste belongs to the person
-     * holding the phone, not to whoever last edited the analyser.
-     */
-    /**
      * The file the armed score came from, so it can be analysed again.
      *
      * Without this, a restart left the score loaded but its levels gone, and the
@@ -69,9 +62,23 @@ class Store(ctx: Context) {
             if (value == null) remove(KEY_URI) else putString(KEY_URI, value)
         }.apply()
 
-    var punch: Int
+    /**
+     * How hard a beat hits, 0–255. The floor every hit is mapped up to.
+     *
+     * A setting rather than a constant because the plan said from the start that
+     * this tuning is taste, not correctness — and taste belongs to the person
+     * holding the phone, not to whoever last edited the analyser.
+     *
+     * **Read-only, and that is the fix rather than a tidiness.** Every tuning
+     * key is written by [arm] alone, in the same `edit()` as the score it was
+     * used to build, so the two cannot describe different rhythms. A setter here
+     * is precisely how they could: it moved the stored value without rebuilding
+     * anything, and the phone went on playing the old score — measured on
+     * 2026-09-21, `body=400` stored against a score that reproduces exactly at
+     * `body=100`. The compiler now enforces what a comment used to ask for.
+     */
+    val punch: Int
         get() = prefs.getInt(KEY_PUNCH, ScoreBuilder.MIN_FELT)
-        set(v) = prefs.edit().putInt(KEY_PUNCH, v).apply()
 
     /**
      * How far the vibration sits from the music, 0–100. **0 is closest.**
@@ -85,10 +92,11 @@ class Store(ctx: Context) {
      *
      * At 0 the whole kit comes through. Turn it up and the detail falls away
      * until only the bare beat is left.
+     *
+     * Read-only for the same reason as [punch]: [arm] is the only writer.
      */
-    var distance: Int
+    val distance: Int
         get() = prefs.getInt(KEY_DISTANCE, 0)
-        set(v) = prefs.edit().putInt(KEY_DISTANCE, v.coerceIn(0, 100)).apply()
 
     /**
      * How long each beat is driven, in milliseconds — the Body dial.
@@ -102,12 +110,12 @@ class Store(ctx: Context) {
      *
      * Stored with Punch and Distance, so the rhythm the phone plays and the
      * settings beside it on screen always describe the same thing.
+     *
+     * Read-only for the same reason as [punch]: [arm] is the only writer, and
+     * this key is the one whose split from its score was actually measured.
      */
-    var body: Int
+    val body: Int
         get() = prefs.getInt(KEY_BODY, ScoreBuilder.BODY_MS)
-        set(v) = prefs.edit()
-            .putInt(KEY_BODY, v.coerceIn(ScoreBuilder.BODY_MIN_MS, ScoreBuilder.BODY_MAX_MS))
-            .apply()
 
     /**
      * Arm [score] and record everything that belongs with it, in one write.
