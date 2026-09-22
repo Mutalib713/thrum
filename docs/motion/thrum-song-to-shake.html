@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thrum — from song to shake</title>
+<style>
+  :root {
+    --bg: #0d0d10;
+    --line: #2b2b33;
+    --text: #f2f2f5;
+    --muted: #8b8b96;
+    --beat: #5DCAA5;
+    --texture: #2f6353;
+    --play: #EF9F27;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #07070a;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .stage {
+    position: relative;
+    width: min(100vw, 177.78vh);
+    height: min(56.25vw, 100vh);
+    background: var(--bg);
+    padding: 3.6% 4.4% 2.6%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header { flex: 0 0 auto; display: flex; align-items: baseline; gap: 14px; }
+  h1 { font-size: clamp(16px, 2.9vw, 42px); font-weight: 500; letter-spacing: -0.02em; margin: 0; }
+  .sub { color: var(--muted); font-size: clamp(9px, 1.05vw, 15px); margin: 0; }
+
+  .strip {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 3%;
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    border-bottom: 1px solid var(--line);
+  }
+  .bar {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 0;
+    border-radius: 1px 1px 0 0;
+    transition: height 70ms linear;
+  }
+  .stage.frozen .bar { transition: none; }
+  .stage.frozen .ripple { display: none; }
+  .playhead {
+    position: absolute;
+    top: -6px;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--play);
+    opacity: 0.85;
+  }
+
+  .caption {
+    flex: 0 0 auto;
+    margin-top: 2.6%;
+    font-size: clamp(11px, 1.45vw, 21px);
+    white-space: nowrap;
+  }
+  .caption .n { color: var(--play); margin-right: 12px; font-variant-numeric: tabular-nums; }
+
+  .bench {
+    flex: 0 0 auto;
+    height: 25%;
+    margin-top: 2%;
+    display: flex;
+    align-items: flex-end;
+    gap: 4.5%;
+    min-height: 0;
+  }
+  .phone-wrap {
+    position: relative;
+    flex: 0 0 auto;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+  .phone {
+    position: relative;
+    height: 88%;
+    aspect-ratio: 1 / 2.05;
+    flex: 0 0 auto;
+    background: #22222a;
+    border: 1px solid #3d3d48;
+    border-radius: 11px;
+    will-change: transform;
+  }
+  .phone::after {
+    content: "";
+    position: absolute;
+    inset: 7% 8%;
+    border-radius: 5px;
+    background: #0f0f14;
+  }
+  .table {
+    position: absolute;
+    left: -18%; right: -18%; bottom: 4px;
+    height: 1px;
+    background: #3a3a44;
+  }
+  .ripple {
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 22px;
+    height: 8px;
+    margin-left: -11px;
+    border: 1px solid rgba(93,202,165,0.6);
+    border-radius: 50%;
+    animation: spread 700ms ease-out forwards;
+    pointer-events: none;
+  }
+  @keyframes spread {
+    from { transform: scale(0.35); opacity: 0.9; }
+    to   { transform: scale(3.2); opacity: 0; }
+  }
+
+  .facts {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 26px;
+    align-content: end;
+  }
+  .fact { border-top: 1px solid var(--line); padding-top: 7px; }
+  .fact .k { color: var(--muted); font-size: clamp(7px, 0.78vw, 11px); letter-spacing: 0.05em; text-transform: uppercase; }
+  .fact .v { font-size: clamp(10px, 1.35vw, 20px); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .fact .v small { color: var(--muted); font-weight: 400; font-size: 0.6em; margin-left: 6px; }
+  .fact.win .v { color: var(--beat); }
+
+  footer {
+    flex: 0 0 auto;
+    margin-top: 2%;
+    padding-top: 1.6%;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    color: var(--muted);
+    font-size: clamp(7px, 0.85vw, 12px);
+  }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; }
+  .legend span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: 0 0 auto; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <header>
+    <h1>Thrum</h1>
+    <p class="sub">a song becomes a vibration</p>
+  </header>
+
+  <section class="strip" id="strip">
+    <div class="playhead" id="playhead"></div>
+  </section>
+
+  <div class="caption"><span class="n" id="phaseNo">1</span><span id="phaseText">Reading the beat out of the track</span></div>
+
+  <section class="bench">
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="table"></div>
+      <div class="phone" id="phone"></div>
+    </div>
+    <div class="facts">
+      <div class="fact">
+        <div class="k">Score length</div>
+        <div class="v">2,250 steps <small>20 ms each · 45 s</small></div>
+      </div>
+      <div class="fact win">
+        <div class="k">Sustained drive</div>
+        <div class="v">0.540 <small>Android's own buzz 0.500</small></div>
+      </div>
+      <div class="fact">
+        <div class="k">Longest felt run</div>
+        <div class="v">1,460 ms <small>Android's own buzz 1,000 ms</small></div>
+      </div>
+      <div class="fact">
+        <div class="k">Body setting</div>
+        <div class="v">400 ms <small>each beat driven</small></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="legend">
+      <span><i class="swatch" style="background:#5DCAA5"></i>beat — felt as a hit</span>
+      <span><i class="swatch" style="background:#2f6353"></i>texture — hats, snare</span>
+      <span><i class="swatch" style="background:#22222a;border:1px solid #3d3d48"></i>stillness</span>
+    </div>
+    <div>real armed score · shown at 1/3 speed · first 120 of 2,250 steps</div>
+  </footer>
+</div>
+
+<script>
+const AMPS = [0,0,134,216,230,230,226,225,221,218,217,217,218,212,219,209,208,208,208,208,208,208,208,136,135,135,135,131,0,0,0,135,131,130,131,130,132,134,130,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,137,216,218,218,218,217,218,215,214,210,208,208,209,208,208,208,208,208,208,208,208,208,208,208,208,208,208,208,208,208,208,208,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+
+const MIN_FELT = 185;
+const MS_PER_STEP = 60;
+const HOLD_MS = 1500;
+const LOOP_MS = AMPS.length * MS_PER_STEP + HOLD_MS;
+
+const PHASES = [
+  [0,  'Reading the beat out of the track'],
+  [34, 'One strength per 20 ms — 2,250 of them'],
+  [68, 'The motor plays them back, in time'],
+  [96, 'Longer holds: what moves a table']
+];
+
+const strip = document.getElementById('strip');
+const playhead = document.getElementById('playhead');
+const phone = document.getElementById('phone');
+const phoneWrap = document.getElementById('phoneWrap');
+const phaseNo = document.getElementById('phaseNo');
+const phaseText = document.getElementById('phaseText');
+
+const bars = AMPS.map(a => {
+  const b = document.createElement('div');
+  b.className = 'bar';
+  b.style.background = a >= MIN_FELT ? '#5DCAA5' : (a > 0 ? '#2f6353' : 'transparent');
+  strip.insertBefore(b, playhead);
+  return b;
+});
+
+let lastBeat = -1;
+let lastPhase = -1;
+
+function ripple() {
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  phoneWrap.appendChild(r);
+  r.addEventListener('animationend', () => r.remove());
+}
+
+function render(t) {
+  const cycle = t % LOOP_MS;
+  const step = Math.min(Math.floor(cycle / MS_PER_STEP), AMPS.length);
+
+  const H = strip.clientHeight || 1;
+  for (let k = 0; k < bars.length; k++) {
+    const want = k < step ? (AMPS[k] / 255 * H) + 'px' : '0px';
+    if (bars[k].style.height !== want) bars[k].style.height = want;
+  }
+
+  const W = strip.clientWidth || 1;
+  playhead.style.transform = 'translateX(' + (step / AMPS.length * W) + 'px)';
+
+  const cur = step > 0 && step <= AMPS.length ? AMPS[step - 1] : 0;
+  if (cur > 0) {
+    const mag = cur / 255;
+    phone.style.transform =
+      'translate(' + ((Math.random() - 0.5) * 2 * mag * 7).toFixed(2) + 'px,' +
+                     ((Math.random() - 0.5) * 2 * mag * 2.2).toFixed(2) + 'px)';
+  } else {
+    phone.style.transform = 'translate(0,0)';
+  }
+
+  if (step > 0 && cur >= MIN_FELT && (step < 2 || AMPS[step - 2] < MIN_FELT) && step - 1 !== lastBeat) {
+    lastBeat = step - 1;
+    ripple();
+  }
+
+  const idx = step > 0 ? step - 1 : 0;
+  let p = 0;
+  for (let k = 0; k < PHASES.length; k++) if (idx >= PHASES[k][0]) p = k;
+  if (p !== lastPhase) {
+    lastPhase = p;
+    phaseNo.textContent = String(p + 1);
+    phaseText.textContent = PHASES[p][1];
+  }
+}
+
+const t0 = performance.now();
+
+const frozen = (location.hash.match(/^#t=(\d+)$/) || [])[1];
+if (frozen !== undefined) {
+  document.querySelector('.stage').classList.add('frozen');
+  render(parseInt(frozen, 10));
+} else {
+  render(0);
+  requestAnimationFrame(function frame(now) {
+    render(now - t0);
+    requestAnimationFrame(frame);
+  });
+}
+</script>
+</body>
+</html>
