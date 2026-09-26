@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The launcher icon's background layer, and the only colour this app names in
+      XML. Everything else lives in Theme.kt, because it is used by Compose.
+
+      The field colour from the sulphur-concrete world — wet board-marked concrete
+      in a stairwell. Kept as a resource rather than a hex in the drawable so the
+      icon's two halves are described in one place.
+    -->
+    <color name="ic_launcher_background">#1C1C1A</color>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The round variant. Identical to `ic_launcher.xml` on purpose: an adaptive icon
+  is a full square and the launcher applies the mask, so a separate round design
+  would only be a second thing to keep in step. What makes this file worth having
+  is that some launchers ask for `roundIcon` by name, and without it they fall
+  back to a shrunken square rather than the mask.
+
+  The mark is drawn inside the guaranteed-safe 66x66 of the 108x108 canvas, so it
+  survives the circular mask without being clipped — see the geometry note in
+  `drawable/ic_launcher_foreground.xml`.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

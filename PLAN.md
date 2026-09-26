@@ -694,11 +694,48 @@ Real release key generated: 4096-bit RSA, SHA384withRSA, valid until 2056. `thru
 
 **The keystore is now the app's identity.** Losing `thrum-release.jks` or its password means the app can never be updated again: a new key means a new listing, and every existing install has to be uninstalled first. `CLAUDE.md` carries the warning. **The backup has not been taken, and that one is Mutalib's to do — it cannot live on this laptop alone.**
 
-### [ ] Task 13 — Play Store listing
+### [~] Task 13 — Play Store listing — **COPY DONE 2026-09-26, assets and the Console still to do**
 
-Name decided (Thrum is still provisional). Listing states the hardware requirement **prominently and honestly** — not buried. Notification-access use explained clearly, both in the listing and in-app, because Google will ask.
+**Name settled: Thrum.** It already matches `applicationId` (`com.mosman.thrum`), which is permanent on Play once published, so keeping it costs nothing — and renaming later would leave a store name that does not match the identity underneath it. Mutalib's call, made explicitly rather than assumed.
 
-**Proof:** listing text reviewed against Sacred Rules 2 and 4. Hardware warning appears above the fold.
+Everything is in `docs/store/listing.md`. Limits confirmed against Play's current rules rather than recalled: **title 30 · short description 80 · full description 4000.**
+
+| Field | Length |
+|---|---|
+| Title — `Thrum: ringtone you can feel` | 28 / 30 |
+| Short description — `Hear your ringtone, feel it too. Needs a phone with a good vibration motor.` | 75 / 80 |
+| Full description | 3,049 / 4,000 |
+
+Counted by script, not by eye. **The first draft of this file claimed 2,742 for the full description and said the counts were real, not estimated.** It is 3,049. The claim was wrong, which is exactly what the evidence rule exists to catch.
+
+**The hardware warning is in the short description**, which is the only text that appears in search results. That spends most of the 80 characters on a caveat instead of on keywords, and it is the right trade: Sacred Rule 2 and R4 are about someone installing on a phone that cannot do this and leaving a one-star review. The full description repeats it in its own section, *before* any feature is described.
+
+**Rule review, which is what this task asked for:**
+
+- **Rule 2** — the requirement is in the short description, again in the first section of the long one, naming which phones can and cannot, saying it is physics rather than software, and saying the app checks on first launch and stops. Nobody can install without having been told.
+- **Rule 4** — states that the app converts files already on the device, and nowhere claims to provide, download or share music.
+- **Rule 3** — the missing `INTERNET` permission is offered as evidence rather than as an assurance.
+- **Rule 5** — a whole section headed "What Thrum does not do" names Spotify, YouTube Music, TikTok and WhatsApp calls as permanently out of reach. This is the most common way an app like this earns a one-star review, so it is answered before anyone can be disappointed.
+- **Rule 8** — no "haptics" and no "amplitude envelope" outside the section explicitly addressed to people who want the numbers.
+
+**Checked against the built artifact, not just written down.** `aapt2 dump badging` on the debug APK:
+
+```
+application: label='Thrum' icon='res/mipmap-anydpi-v26/ic_launcher.xml'
+uses-permission: name='android.permission.VIBRATE'
+```
+
+**No `INTERNET` permission.** The listing's central privacy claim is checkable, and it checks out. 99 tests, 0 failures.
+
+**Also fixed, because it turned out the app had no launcher icon at all.** No `android:icon` in the manifest and no `mipmap` or `drawable` directory — it was shipping with Android's default, which blocks publication and looks unfinished even for testing. Now an adaptive icon drawn as vector XML: the pulse ribbon, five square bars in the safety yellow on the concrete field. The app's own signature mark, rather than a second idea invented for the icon. minSdk is 31, so adaptive-only is sufficient and there is no legacy PNG mipmap to keep in step; a `<monochrome>` layer is included for Android 13+ themed icons.
+
+**Still to do — the assets are the blocker:**
+
+- 512×512 store icon PNG, exported from the vector
+- 1024×500 feature graphic
+- **2–8 phone screenshots. Needs the Pixel**, and the useful ones are the armed screen and the ribbon mid-play. Take them in the same sitting as the soak.
+- **A privacy policy at a hosted URL.** Play requires the URL even for an app that collects nothing.
+- The Console forms — data safety, notification-access declaration, content rating. Paste-ready text for the first two is in `docs/store/listing.md`, but read the form wording on the day: Play changes labels without changing what they mean.
 
 ### [ ] Task 14 — Launch
 

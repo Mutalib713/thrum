@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Thrum's launcher icon. Adaptive only — minSdk is 31, so every device this app
+  can install on supports adaptive icons and there is no legacy PNG mipmap to
+  keep in step. `PROFILE.md` §7.
+
+  The `<monochrome>` layer is what Android 13+ uses for themed icons, where the
+  launcher recolours the mark to match the wallpaper. It points at the same
+  vector, which is already a single flat colour, so it is a valid silhouette.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
