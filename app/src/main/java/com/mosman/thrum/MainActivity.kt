@@ -162,9 +162,17 @@ private fun ProbeScreen() {
                 // smears" apart from "sparse hits" — the two need opposite
                 // fixes. Tuning by asking Mutalib to re-feel a track after every
                 // guess would take all day; this way the guessing happens on the
-                // PC against the real numbers. Debug aid, not product.
-                score?.let { built ->
-                    runCatching { ctx.filesDir.resolve("last-score.txt").writeText(built.encode()) }
+                // PC against the real numbers.
+                //
+                // Debug aid, and now actually confined to debug builds. It used to
+                // write on every decode in release too, which cost a disk write per
+                // analysis for a file nothing in the shipped app ever reads. The
+                // probe is pulled with `adb` on a dev build; `BuildConfig.DEBUG` is
+                // available because `buildFeatures { buildConfig = true }`.
+                if (BuildConfig.DEBUG) {
+                    score?.let { built ->
+                        runCatching { ctx.filesDir.resolve("last-score.txt").writeText(built.encode()) }
+                    }
                 }
                 store.addEvent(
                     Event(

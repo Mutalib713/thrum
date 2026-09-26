@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Thrum feature graphic 1024x500</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #1C1C1A; }
+  .stage {
+    width: 1024px; height: 500px;
+    background: #1C1C1A;
+    display: flex; align-items: center;
+    box-sizing: border-box;
+    padding: 0 88px;
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mark { flex: 0 0 auto; margin-right: 64px; }
+  .copy { flex: 1 1 auto; min-width: 0; }
+  h1 {
+    margin: 0;
+    font-size: 92px; font-weight: 600; line-height: 1;
+    letter-spacing: -1.5px;
+    color: #F4F2EC;
+  }
+  .tag {
+    margin: 18px 0 0 0;
+    font-size: 30px; font-weight: 400; line-height: 1.35;
+    color: #D8C513;
+  }
+  .rule {
+    width: 96px; height: 5px; background: #D8C513;
+    margin: 26px 0 0 0;
+  }
+  .fine {
+    margin: 22px 0 0 0;
+    font-size: 21px; font-weight: 400; line-height: 1.45;
+    color: #9C9A8E;
+  }
+</style>
+</head>
+<body>
+<!--
+  Google Play feature graphic, 1024x500.
+
+  Play crops this in some placements, so everything that carries
+  meaning sits inside the middle band and nothing important is near
+  an edge. The left margin is 88px because the leftmost 40-odd pixels
+  can be clipped in wide placements.
+
+  The fine print repeats the two facts a browsing user most needs and
+  most often gets wrong: it is a vibrate-mode app, and nothing leaves
+  the phone. Both are checkable claims, not marketing — the second is
+  enforced by the absence of the INTERNET permission.
+-->
+<div class="stage">
+  <svg class="mark" width="184" height="184" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
+    <g fill="#D8C513">
+      <rect x="24" y="62" width="8" height="20"/>
+      <rect x="37" y="38" width="8" height="44"/>
+      <rect x="50" y="24" width="8" height="58"/>
+      <rect x="63" y="50" width="8" height="32"/>
+      <rect x="76" y="68" width="8" height="14"/>
+    </g>
+  </svg>
+  <div class="copy">
+    <h1>Thrum</h1>
+    <div class="rule"></div>
+    <p class="tag">Your ringtone, in your hand.</p>
+    <p class="fine">Vibrate mode only. No internet permission &mdash; nothing leaves your phone.</p>
+  </div>
+</div>
+</body>
+</html>

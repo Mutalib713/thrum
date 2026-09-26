@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thrum — privacy policy</title>
+<style>
+  :root { --ink: #1C1C1A; --muted: #5F5E5A; --faint: #8A8880; --field: #F7F6F2; --rule: #DEDCD4; --accent: #B9A80C; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 24px 96px; background: var(--field); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; line-height: 1.65; -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  header { padding: 64px 0 28px; border-bottom: 1px solid var(--rule); margin-bottom: 36px; }
+  .mark { display: block; margin-bottom: 22px; }
+  h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.4px; margin: 0 0 8px; }
+  .effective { color: var(--faint); font-size: 14px; margin: 0; }
+  h2 { font-size: 19px; font-weight: 600; letter-spacing: -0.2px; margin: 44px 0 12px; }
+  h2:first-of-type { margin-top: 0; }
+  p { margin: 0 0 14px; }
+  ul { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 7px; }
+  strong { font-weight: 600; }
+  a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+  code { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 14px; background: #ECEAE2; padding: 1px 5px; border-radius: 4px; }
+  .lede { font-size: 18px; line-height: 1.6; }
+  .card { background: #FFFFFF; border: 1px solid var(--rule); border-radius: 12px; padding: 22px 24px; margin: 0 0 18px; }
+  .card h2 { margin-top: 0; }
+  .bar { width: 64px; height: 4px; background: var(--accent); margin: 0 0 24px; }
+  .not { color: var(--muted); }
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--rule); color: var(--faint); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <svg class="mark" width="52" height="52" viewBox="0 0 108 108" role="img" aria-label="Thrum">
+    <g fill="#1C1C1A">
+      <rect x="24" y="62" width="8" height="20"/>
+      <rect x="37" y="38" width="8" height="44"/>
+      <rect x="50" y="24" width="8" height="58"/>
+      <rect x="63" y="50" width="8" height="32"/>
+      <rect x="76" y="68" width="8" height="14"/>
+    </g>
+  </svg>
+  <h1>Thrum — privacy policy</h1>
+  <p class="effective">Effective 26 September 2026 · applies to the Thrum Android app (<code>com.mosman.thrum</code>)</p>
+</header>
+
+<div class="bar"></div>
+
+<p class="lede">Thrum does not collect anything about you. Not a little, not anonymously, not in aggregate. The app has no internet permission, which means there is no code path by which anything you do in it could reach a server — not ours, and not anyone else's. There is no account to make, no analytics, no advertising, and no crash reporting.</p>
+
+<h2>What Thrum does not collect</h2>
+<p>Nothing. There is no data collection to describe, so the rest of this page is about the two things that are worth being precise about: what the app stores on your own phone, and the permissions it asks for.</p>
+
+<h2>What Thrum stores, and where</h2>
+<p>Everything Thrum remembers lives in a single private settings file on your device, named <code>thrum</code>. On a non-rooted phone, no other app can read it. It contains:</p>
+<ul>
+  <li><strong>The song you picked</strong>, stored as a reference — the same kind of pointer your phone uses to find the file. Not the audio itself, and not a copy of it.</li>
+  <li><strong>The rhythm Thrum worked out from it</strong> — a list of a few thousand numbers, at 20 milliseconds each. This is derived from the music, not the music.</li>
+  <li><strong>A short log of recent runs</strong>, used by the diagnostics screen inside the app.</li>
+  <li><strong>Three settings values</strong> — strength, distance, and body.</li>
+</ul>
+<p>That is the complete list. Nothing is written anywhere else, and no copy of any of it exists outside your phone.</p>
+
+<div class="card">
+  <h2>Backups are switched off</h2>
+  <p>Android can normally copy an app's data into your Google account, and can also copy it directly to a new phone when you set one up. Thrum turns both off. The app declares <code>android:allowBackup="false"</code> and supplies extraction rules that exclude every data domain from both cloud backup and device-to-device transfer.</p>
+  <p class="not">This is more than the manifest line alone would do. On Android 12 and later, <code>allowBackup="false"</code> stops cloud backup but can still permit a device-to-device transfer on phones from some manufacturers, so Thrum excludes the data explicitly rather than relying on the default. Thrum runs only on Android 12 and above, so there is no older device to account for.</p>
+  <p class="not">The cost to you is nil: if you reinstall Thrum or move to a new phone, you pick your song again. Nothing else is lost, because nothing else is stored.</p>
+</div>
+
+<h2>Permissions, and why each one exists</h2>
+
+<p><strong>Vibrate</strong> — this is the entire function of the app. Thrum makes your phone vibrate to the rhythm of a song. It is the only permission Thrum declares in its manifest.</p>
+
+<p><strong>Notification access</strong> — this one is not a normal permission and cannot be granted by installing the app. You turn it on yourself in Android's system settings, and you can turn it off there at any time.</p>
+<p>Android announces an incoming call by posting a notification. Reading that notification is how Thrum knows to start vibrating. The alternative would be asking for access to your phone calls or replacing your dialer, both of which are far heavier asks for an app whose only job is to vibrate a motor.</p>
+<p>Thrum looks at one field: whether the notification is categorised as a call. It acts on those and ignores every other notification completely. It does not read, store, display, or transmit the content of any notification, and because the app has no internet permission, nothing it sees could be sent anywhere even in principle.</p>
+
+<h2>What Thrum never asks for</h2>
+<ul>
+  <li><strong>Internet.</strong> The permission is absent from the app, not merely unused. You can verify this yourself: on the Play Store listing, expand the app's data safety section, or inspect the installed package's manifest.</li>
+  <li><strong>Phone, call log, contacts, or SMS.</strong> Thrum never asks for <code>READ_PHONE_STATE</code> and does not know who is calling you. It only knows that a call is arriving.</li>
+  <li><strong>Your music library.</strong> Thrum does not scan your music. You pick one file through the system file picker, and Thrum is given access to that file and nothing else.</li>
+  <li><strong>Location, camera, microphone, storage, or your accounts.</strong> None of these are requested at any point.</li>
+</ul>
+
+<h2>No third parties</h2>
+<p>Thrum contains no advertising SDK, no analytics SDK, no crash reporter, and no social or login integration. It has no server and no backend, and no company or person receives data from it, because there is nothing that could send it.</p>
+
+<h2>Music and copyright</h2>
+<p>Thrum does not provide, download, host, stream, or redistribute any music. It reads a file that is already on your device, converts it to a vibration pattern on your device, and leaves it where it found it. Thrum ships with no audio and cannot obtain any.</p>
+
+<h2>Children</h2>
+<p>Thrum is not directed at children. Because it collects no personal data from anyone, it collects none from children either.</p>
+
+<h2>Your control</h2>
+<p>You can revoke notification access at any time in Android's settings, which stops Thrum from reacting to calls. Uninstalling the app removes the settings file described above along with it — and since nothing was ever copied anywhere else, there is nothing left behind to delete. No request to us is needed or possible, because we hold no data about you.</p>
+
+<h2>Changes to this policy</h2>
+<p>If Thrum ever changes in a way that affects this page, the effective date at the top will change and the new version will be published at this address. Given that the app currently has no way to transmit data, any change here would be a significant one, and it would be described plainly rather than buried.</p>
+
+<h2>Contact</h2>
+<p>Questions about this policy, or about how Thrum handles data, can go to <a href="mailto:mutalibusman713@gmail.com">mutalibusman713@gmail.com</a>.</p>
+
+<footer>
+  Thrum is developed by an independent developer and is not affiliated with Google or Android.
+</footer>
+
+</main>
+</body>
+</html>

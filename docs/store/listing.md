@@ -158,8 +158,8 @@ changes a setting on the user's behalf.
 - **Target audience:** 18+ is not required, but the app is aimed at adults who
   own a capable phone. No children's categories.
 - **News app:** no. **Government app:** no. **Financial features:** no.
-- **Privacy policy:** still required by the Console even with nothing collected.
-  **This does not exist yet** — see below.
+- **Privacy policy:** required by the Console even with nothing collected.
+  Written, in `privacy-policy.html`. **Still needs a public URL** — see below.
 
 ---
 
@@ -192,15 +192,64 @@ the numbers, and "vibration motor" is the only technical term used before that.
 
 ## Assets — the only things still missing
 
+Everything below is in `docs/store/assets/` unless stated otherwise.
+
 | Asset | Spec | Status |
 |---|---|---|
-| Launcher icon | 512×512 PNG, 32-bit | **In-app icon done** as vector XML; the store PNG still has to be exported from it |
-| Feature graphic | 1024×500 PNG/JPG | Not started |
+| Store icon | 512×512, 32-bit PNG | **Done** — `icon-512.png`, RGBA, generated from the same five bars as the vector |
+| Feature graphic | 1024×500 PNG/JPG | **Done** — `feature-graphic.png` |
+| Privacy policy | A hosted URL | Written as `privacy-policy.html`; **needs hosting** |
 | Phone screenshots | 2–8, min 320 px, 16:9 or 9:16 | **Blocked on the phone** |
-| Privacy policy | A hosted URL | Not written. Play requires the URL even for an app that collects nothing |
 | Short promo video | Optional | Skipped deliberately — nothing to show that a screenshot does not |
 
-Screenshots are the real blocker: they need the app running on the Pixel, and the
+Both images are rendered from HTML by headless Chrome rather than drawn by hand,
+so they are reproducible: edit the HTML, re-run the render, and the geometry
+matches the app's own vector instead of resembling it.
+
+Screenshots are the last blocker and they need the app running on the Pixel. The
 most useful ones are of the armed screen and the pulse ribbon mid-play. Take them
 in the same sitting as the soak test.
+
+### Rendering the images again
+
+Chrome will not write to a relative path here — pass an absolute one, or the
+command fails with `Access is denied` and no file:
+
+```
+"/c/Program Files/Google/Chrome/Application/chrome.exe" \
+  --headless=new --disable-gpu --hide-scrollbars \
+  --force-device-scale-factor=1 --window-size=512,512 \
+  --screenshot="C:\...\docs\store\assets\icon-512.png" \
+  "file:///C:/.../docs/store/assets/icon-512.html"
+```
+
+Chrome emits 24-bit RGB. Play's spec says 32-bit, so the icon is converted to
+RGBA afterwards — see `icon-512.html` for the note. Re-convert if you re-render.
+
+---
+
+## One thing the listing forced: backups are now off
+
+Writing the privacy policy meant checking that its central claim was true rather
+than aspirational, and it was not. The manifest had `android:allowBackup="true"`,
+which is the Android default and means Auto Backup can copy app data into the
+user's Google account. What it would have copied: the chosen track's `content://`
+reference, the derived score, the event log, and the three dial values.
+
+The app now declares `allowBackup="false"` **and** ships
+`res/xml/data_extraction_rules.xml`, which excludes every domain from both cloud
+backup and device-to-device transfer. The second part is not belt-and-braces: on
+Android 12+, `allowBackup="false"` stops cloud backup but can still permit a D2D
+transfer on phones from some manufacturers. `minSdk` is 31, so every device Thrum
+can install on is affected — there is no older device to account for, and
+therefore no `fullBackupContent` companion file is needed.
+
+The user gives up nothing that matters. None of that data is personal, and all of
+it is reproducible by picking a song again, so excluding it costs a re-pick after
+a phone migration and buys a privacy claim that holds up under inspection.
+
+`files/last-score.txt` was also being written on every decode **in release
+builds**, for a file nothing in the shipped app reads. It is now behind
+`BuildConfig.DEBUG`, so the diagnostics probe still works on a dev build and the
+release build stops doing work for nobody.
 

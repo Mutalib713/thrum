@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Thrum backs nothing up, in either direction.
+
+  Why this file exists at all when the manifest already says
+  `android:allowBackup="false"`: on Android 12 (API 31) and higher, the platform
+  documentation is explicit that allowBackup="false" "disables cloud-based backup
+  and restore (such as Google Drive backups) but doesn't disable device-to-device
+  transfers for the app" on devices from some manufacturers. minSdk here is 31, so
+  every device Thrum can install on is affected. allowBackup="false" alone would
+  therefore leave a real transfer path open while the app told users that nothing
+  leaves the phone.
+
+  This is the belt to that brace. Both sections exclude every domain.
+
+  No `fullBackupContent` companion is needed: that attribute covers API 30 and
+  below, and minSdk = 31 means no such device can run this app.
+
+  What is actually being excluded, so nobody has to guess later. `Store.kt` keeps
+  a SharedPreferences file named "thrum" holding the chosen track's content:// URI,
+  the derived score, the event log, and the three dial values. `MainActivity` also
+  writes files/last-score.txt, and that one is a debug aid gated behind
+  BuildConfig.DEBUG — see the comment there.
+
+  None of it is personal data, and all of it is reproducible by picking a song
+  again. That is precisely why excluding it costs the user nothing and is worth
+  doing: the claim in the store listing is that nothing leaves the phone, and with
+  Auto Backup on, some of this could have.
+
+  Sacred Rule 3 — everything runs on the phone.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="root" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="root" path="." />
+    </device-transfer>
+</data-extraction-rules>

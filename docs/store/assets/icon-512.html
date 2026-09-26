@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Thrum store icon 512</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #1C1C1A; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<!--
+  Google Play store icon, 512x512.
+
+  Rendered from the same five bars as
+  app/src/main/res/drawable/ic_launcher_foreground.xml, at the same
+  scale relative to the adaptive canvas, so the store icon and the
+  icon on the home screen are the same object rather than two
+  drawings that resemble each other.
+
+  Opaque rather than transparent: Play shows this square in several
+  contexts and a transparent version picks up whatever is behind it.
+  The concrete field is part of the mark.
+
+  The mark spans x=24..84 and y=24..82 of 108, so it reads at 56% of
+  the icon's width. That is the low end of normal for an app icon and
+  it is deliberate: this is what the launcher actually shows.
+-->
+<svg width="512" height="512" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="108" height="108" fill="#1C1C1A"/>
+  <g fill="#D8C513">
+    <rect x="24" y="62" width="8" height="20"/>
+    <rect x="37" y="38" width="8" height="44"/>
+    <rect x="50" y="24" width="8" height="58"/>
+    <rect x="63" y="50" width="8" height="32"/>
+    <rect x="76" y="68" width="8" height="14"/>
+  </g>
+</svg>
+</body>
+</html>
