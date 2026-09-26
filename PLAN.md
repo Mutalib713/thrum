@@ -228,15 +228,32 @@ Kept because two of these were dead ends that look obviously correct on paper, a
 
 It does — and it also **bridges neighbouring beats into one run**, which the cymbal-wash check catches every time: eight beats become seven. Tried with the detail gate at 0.06, 0.08, 0.12 and 0.14; with both layers sharing one normalisation scale instead of one each; and with a warm-up on the followers. All still merged. **Reverted.** Do not retry without a plan for the merge, and do not soften the cymbal-wash check — it was the only thing that caught it.
 
-**Open, found while chasing that:** the analyser has no history at the start of a track, so the opening hit runs long — 280 ms against a typical 180 ms on the score currently armed. A warm-up period fixes it, but an onset detector fundamentally cannot see a beat at time zero, so the test fixtures need a realistic lead-in before that change can land. Small, real, not urgent.
+**Open, found while chasing that:** the analyser has no history at the start of a track, so the opening hit runs long — 280 ms against a typical 180 ms on the score currently armed.
 
-**Chased 2026-09-26, and the premise was wrong.** Measured it instead of assuming: five lead-ins — none, 0.5 s of digital silence, and noise floors at −55, −40 and −20 dB — on a two-bar four-on-the-floor fixture at 120 bpm. **The fixture cannot reproduce the defect.** Every run came out 400 ms, the first one included, at every lead-in. The fixture's own kick is the reason: it is a 60 ms decaying burst, so each beat spans several steps of onset and every run is the hold plus that smear, settled or not. A lead-in was not the only thing missing — the transient is too soft to show the effect at all.
+**Reproduced 2026-09-26.** It took two fixture changes, and the second is the one that matters.
 
-So the prerequisite is a fixture built on a **sharp, single-step transient**, where a settled beat produces exactly the hold length and an unsettled one visibly runs past it. That fixture is what is owed here, not a lead-in. Until it exists a warm-up would be a change nothing could test, and this file's own history says that is the wrong way round: a warm-up on the followers was already tried for the band-pass merge and **reverted**, and the tuning here is too finely balanced to move on a guess.
+*A lead-in was not enough.* Measured across five lead-ins — none, 0.5 s of digital silence, and noise floors at −55, −40 and −20 dB — on a two-bar `fourOnTheFloor` at 120 bpm: every run came out 400 ms, the first included, at every lead-in. The sparse fixture is **silent between kicks**, so the "recent average" follower never rises, every beat towers over a floor of nearly zero, and all of them produce the same six above-gate steps. Uniform input, so nothing to see.
 
-**Landed instead:** `the opening beat is no longer than the beats that follow it`, which pins the property the real defect violates across all five lead-ins, so the fixture that *can* reproduce it has something to fail against. `Fixture.noise()` is new and is what makes a realistic floor expressible at all — a fixture opening on exact zeros drives the "recent average" follower to zero, which is not a stand-in for the first second of a real track.
+*A bed is what was missing.* Real music is loud almost all the time. `Fixture.fourOnTheFloorOverBed` puts a continuous low bed under sharp 20 ms kicks, and the follower finally has something to settle at — which it can only do **after** it has heard something, and that is precisely the history the opening beat does not have. Body is set to 180 for the measurement rather than the 400 default, because at 400 the hold swallows the extra onset steps and hides the defect a second time.
 
-Still small, still real, still not urgent — but now with a stated prerequisite instead of a guess at the fix.
+At bed −12 dB, the reproduction:
+
+```
+first=480ms  typical=180ms   runs=[480, 180, 180, 180, 180, 180, 180, 180]
+```
+
+Sixteen beats collapse into eight. The first two are welded into one 480 ms buzz — at the very start of the ringtone, which is the part most often felt.
+
+**The fix was attempted twice and reverted, and that is the useful part.** `sustained` starts at zero and needs 350 ms to become a usable estimate, so during that window `envelope - sustained` is not an onset, it is the whole signal — and every one of those steps is held by `holdPulsesAtLeast`, fusing them into a single smear.
+
+1. **Settle `sustained` fast (30 ms) for the first 350 ms of the low band.** 480 ms → 400 ms. Nothing else broke, and it is not a fix.
+2. **Do the same for the high band.** The opening run is fixed — and `moving the detail dial actually changes the score` fails. The spurious opening transient was what set the detail band's normalisation scale; removing it rescales the whole band below `DETAIL_GATE` and the detail layer collapses to nothing.
+
+That second failure is not a flaw in the attempt, it is a real dependency: **the detail layer's scaling rests on an artifact of the opening.** Untangling it means re-tuning `DETAIL_GATE` and `DETAIL_CURVE`, which this file classifies as taste rather than correctness — and taste needs a hand on the phone, which is the standing gate on this project. Guessing at it would repeat the 1.5 kHz band-pass mistake above.
+
+**Parked, with the test already written.** `the opening beat is no longer than the beats that follow it` carries the reproduction and is `@Ignore`d with the reason; enable it the moment the re-tune happens. `Fixture.noise()` and `Fixture.fourOnTheFloorOverBed()` are new and are what make the defect expressible at all. The analyser itself is untouched — no partial fix was shipped.
+
+Still small, still real, still not urgent — but it now has a reproduction and a named blocker instead of a guess at the fix.
 
 ### [~] Task 6 — The honest hardware check — **BUILT 2026-08-01, half-proven**
 

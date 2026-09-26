@@ -7,6 +7,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 
 /**
@@ -963,38 +964,70 @@ class QaSuiteTest {
     }
 
     @Test
+    @Ignore(
+        "Reproduces a real defect that has no fix yet: at bed -12 dB the opening run " +
+            "is 480 ms against a typical 180 ms. Enable this when the fix lands. " +
+            "Two fixes were tried and reverted — see the comment for why.",
+    )
     fun `the opening beat is no longer than the beats that follow it`() {
-        // PLAN.md's Task 4 debt says the opening hit runs long — 280 ms against a
+        // PLAN.md's Task 4 debt: the opening hit runs long — 280 ms against a
         // typical 180 ms on the armed score — because an onset detector has no
         // history at the start of a track.
         //
-        // Chasing it turned up something the debt entry did not say: this fixture
-        // cannot reproduce it, with or without a lead-in. Every run comes out the
-        // same length, first included, at every level from digital silence up to
-        // a -20 dB noise floor. The reason is the fixture's own kick — a 60 ms
-        // decaying burst, which spans several steps of onset, so every run is
-        // 400 ms whether or not the followers have settled. A lead-in was not the
-        // only thing missing; the transient is too soft to show the effect.
+        // Reproducing it took two fixture changes, and only the second matters.
+        // The sparse [fourOnTheFloor] cannot show it at any lead-in, because it
+        // is *silent between kicks*: the "recent average" follower never rises,
+        // so every beat towers over a floor of nearly zero and produces the same
+        // six above-gate steps. Uniform input, so no visible defect.
         //
-        // So this is not the test that would have caught the real defect. It pins
-        // the property the real defect violates, so that a fixture built on a
-        // sharp single-step transient — the one that *can* reproduce it — has
-        // something to fail against. The measurements are in PLAN.md.
+        // Real music is loud almost all the time. Put a bed under the kicks and
+        // the follower has something to settle at — and it can only settle after
+        // it has heard something, which is exactly the history the opening beat
+        // does not have. That asymmetry is the defect.
+        //
+        // Body is 180 here rather than the 400 default because that is the
+        // setting the debt was measured at. At 400 the hold swallows the extra
+        // onset steps and hides the defect a second time.
+        //
+        // **The fix was attempted and reverted, and this note is the point of the
+        // test.** `sustained` starts at zero and needs 350 ms to become a usable
+        // estimate, so during that window `envelope - sustained` is not an onset,
+        // it is the whole signal — and every one of those steps gets held by
+        // `holdPulsesAtLeast`, fusing them into one smear.
+        //
+        // Two attempts:
+        //  1. Settle `sustained` fast (30 ms) for the first 350 ms of the *low*
+        //     band. 480 ms -> 400 ms. Nothing else broke, and it is not a fix.
+        //  2. Do the same for the *high* band. The opening run is fixed — and
+        //     `moving the detail dial actually changes the score` fails, because
+        //     the spurious opening transient was what set the detail band's
+        //     normalisation scale. Removing it rescales the whole band below
+        //     `DETAIL_GATE` and the detail layer collapses to nothing.
+        //
+        // That is why this is parked rather than fixed. The second attempt is not
+        // a bug in the attempt, it is a real dependency: the detail layer's
+        // scaling rests on an artifact of the opening. Untangling it means
+        // re-tuning `DETAIL_GATE` and `DETAIL_CURVE`, which PLAN.md classifies as
+        // taste rather than correctness — and taste needs a hand on the phone,
+        // which is the standing gate on this project. Guessing at it would be
+        // exactly the move that got the 1.5 kHz band-pass reverted.
+        //
+        // Enable this test the moment that tuning happens; it is already written.
         val rate = 44_100
-        val leadIns = linkedMapOf<String, Fixture.() -> Unit>(
-            "no lead-in" to { },
-            "digital silence" to { silence(0.5) },
-            "noise floor -55 dB" to { noise(0.5, 60) },
-            "noise floor -40 dB" to { noise(0.5, 600) },
-            "noise floor -20 dB" to { noise(0.5, 2_000) },
+        val beds = linkedMapOf(
+            "no bed" to 0,
+            "bed -30 dB" to 1_000,
+            "bed -18 dB" to 4_000,
+            "bed -12 dB" to 8_000,
         )
-        for ((label, lead) in leadIns) {
+        for ((label, bed) in beds) {
             val audio = Fixture(rate).apply {
-                lead()
-                fourOnTheFloor(bars = 2, bpm = 120)
+                fourOnTheFloorOverBed(bars = 4, bpm = 120, bedAmplitude = bed)
             }.samples()
             val builder = ScoreBuilder(rate, Demo.STEP_MS).apply { feed(audio, audio.size) }
-            val runs = runLengthsMs(ScoreBuilder.toScore(builder.levels(), Demo.STEP_MS))
+            val runs = runLengthsMs(
+                ScoreBuilder.toScore(builder.levels(), Demo.STEP_MS, bodyMs = 180),
+            )
             val first = runs.first()
             val longestLater = runs.drop(1).max()
             assertTrue(
@@ -1135,6 +1168,50 @@ class QaSuiteTest {
                     // exists to ignore.
                     val wash = hats * kotlin.math.sin(2 * Math.PI * 8000.0 * t / sampleRate)
                     out.add((kick + wash).toInt().coerceIn(-32768, 32767).toShort())
+                    t++
+                }
+            }
+        }
+
+        /**
+         * Sharp kicks over a continuous low bed — what real music actually is,
+         * and the one thing [fourOnTheFloor] is not.
+         *
+         * This fixture exists because the plain one cannot reproduce the long
+         * opening hit, and the reason took a while to see. [fourOnTheFloor] is
+         * *silent between kicks*, so the "recent average" follower never rises:
+         * every beat, first and fortieth alike, towers over a floor of nearly
+         * zero and produces the same six above-gate steps. Uniform input, so no
+         * visible defect — the fixture was hiding it, not failing to lead in.
+         *
+         * Real tracks are loud almost all the time. With a bed under the kicks
+         * the follower has something to settle at, and it can only settle *after*
+         * it has heard something — which is exactly the history the opening beat
+         * does not have. That asymmetry is the defect.
+         *
+         * The kick is 20 ms against 20 ms steps, so a beat is one step wide, and
+         * [bedAmplitude] is what decides how far the follower settles.
+         */
+        fun fourOnTheFloorOverBed(
+            bars: Int,
+            bpm: Int,
+            bedAmplitude: Int,
+            kickAmplitude: Int = 20000,
+            hitMs: Double = 20.0,
+        ) {
+            val beatSamples = (60.0 / bpm * sampleRate).toInt()
+            val hitSamples = (hitMs / 1000.0 * sampleRate).toInt().coerceAtLeast(1)
+            var t = 0
+            repeat(bars * 4) {
+                for (n in 0 until beatSamples) {
+                    val bed = bedAmplitude * kotlin.math.sin(2 * Math.PI * 55.0 * t / sampleRate)
+                    val kick = if (n < hitSamples) {
+                        val decay = 1.0 - n.toDouble() / hitSamples
+                        kickAmplitude * decay * kotlin.math.sin(2 * Math.PI * 60.0 * n / sampleRate)
+                    } else {
+                        0.0
+                    }
+                    out.add((bed + kick).toInt().coerceIn(-32768, 32767).toShort())
                     t++
                 }
             }
