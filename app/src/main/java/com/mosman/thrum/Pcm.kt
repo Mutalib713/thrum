@@ -1,5 +1,7 @@
 package com.mosman.thrum
 
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.math.abs
 
 /**
@@ -117,6 +119,157 @@ object Pcm {
             if (magnitude > peak) peak = magnitude
         }
         return peak.coerceAtMost(MAX_SAMPLE)
+    }
+
+    // --- Reading a decoder's buffer -----------------------------------------
+    //
+    // Task 11. These two functions used to live in AudioDecoder and knew about
+    // exactly two encodings: 16-bit and float. Everything else fell through to
+    // `size / 2` and a short read, which does not fail — it produces *numbers*.
+    // A 24-bit WAV decoded as 1.5× too many samples and a 8-bit WAV as half as
+    // many, both as noise that still "decoded", and both became a vibration score
+    // with nothing anywhere saying it was wrong. That is the same failure shape as
+    // reading float bytes as shorts, which the old comment here already warned
+    // about; it just did not close the door behind the warning.
+    //
+    // Moved into pure Kotlin for the usual reason: this is arithmetic, and
+    // arithmetic is the part that can be proved on the PC in seconds.
+
+    /**
+     * PCM encodings, mirrored from `android.media.AudioFormat` so this file keeps
+     * no Android imports.
+     *
+     * Mirrored rather than referenced is a real risk — a platform value could
+     * change and these would silently disagree. `QaSuiteTest` asserts every one of
+     * them against the real `AudioFormat` constant, which is enough because those
+     * are compile-time inlined `int`s and so are readable in a JVM test.
+     */
+    const val ENCODING_PCM_16BIT = 2
+    const val ENCODING_PCM_8BIT = 3
+    const val ENCODING_PCM_FLOAT = 4
+    const val ENCODING_PCM_24BIT_PACKED = 21
+    const val ENCODING_PCM_32BIT = 22
+
+    /** Returned by [samplesIn] for an encoding this app cannot read. */
+    const val UNREADABLE_ENCODING = -1
+
+    /**
+     * Bytes per sample, or [UNREADABLE_ENCODING] for anything this app does not
+     * read.
+     *
+     * The single source of truth for which encodings are supported. [samplesIn]
+     * and [isReadable] are both derived from it, so they cannot disagree — and
+     * `readSamples` has a branch for every value it returns.
+     */
+    private fun bytesPerSample(encoding: Int): Int = when (encoding) {
+        ENCODING_PCM_8BIT -> 1
+        ENCODING_PCM_16BIT -> 2
+        ENCODING_PCM_24BIT_PACKED -> 3
+        ENCODING_PCM_32BIT, ENCODING_PCM_FLOAT -> 4
+        else -> UNREADABLE_ENCODING
+    }
+
+    /** True when [encoding] is one of the forms [readSamples] reads correctly. */
+    fun isReadable(encoding: Int): Boolean = bytesPerSample(encoding) != UNREADABLE_ENCODING
+
+    /**
+     * How many samples [byteCount] bytes hold in [encoding], or
+     * [UNREADABLE_ENCODING] when the encoding is not one this app reads.
+     *
+     * Returning a sentinel rather than guessing is the whole point. A wrong count
+     * here is not an error that shows up as an error — it is a plausible score
+     * built from nonsense.
+     */
+    fun samplesIn(byteCount: Int, encoding: Int): Int {
+        val width = bytesPerSample(encoding)
+        return if (width == UNREADABLE_ENCODING) UNREADABLE_ENCODING else byteCount / width
+    }
+
+    /**
+     * Copy one decoder buffer into [out] as 16-bit samples, honouring [encoding].
+     *
+     * @return the number of samples written, or [UNREADABLE_ENCODING] for an
+     *   encoding this app does not read. Never a wrong number: a caller that sees
+     *   the sentinel refuses the file and says so.
+     *
+     * 24- and 32-bit are read **little-endian**, one byte at a time. Every Android
+     * ABI is little-endian, so this is not a portability compromise; it is the
+     * platform's own layout, and reading bytes individually avoids depending on a
+     * buffer's `ByteOrder` having been set correctly by a caller.
+     */
+    fun readSamples(
+        buffer: ByteBuffer,
+        offset: Int,
+        size: Int,
+        encoding: Int,
+        out: ShortArray,
+    ): Int {
+        buffer.position(offset)
+        buffer.limit(offset + size)
+
+        return when (encoding) {
+            ENCODING_PCM_FLOAT -> {
+                buffer.order(ByteOrder.nativeOrder())
+                val floats = buffer.asFloatBuffer()
+                val count = minOf(floats.remaining(), out.size)
+                for (i in 0 until count) {
+                    val v = floats.get(i).coerceIn(-1f, 1f)
+                    out[i] = (v * MAX_SAMPLE).toInt().toShort()
+                }
+                count
+            }
+
+            ENCODING_PCM_16BIT -> {
+                buffer.order(ByteOrder.nativeOrder())
+                val shorts = buffer.asShortBuffer()
+                val count = minOf(shorts.remaining(), out.size)
+                shorts.get(out, 0, count)
+                count
+            }
+
+            ENCODING_PCM_8BIT -> {
+                // WAV's 8-bit is **unsigned**: 128 is silence, not 0. Reading it
+                // as signed would invert the whole waveform about a zero that is
+                // not where signed arithmetic thinks it is.
+                val count = minOf(size, out.size)
+                for (i in 0 until count) {
+                    val b = buffer.get(offset + i).toInt() and 0xFF
+                    out[i] = ((b - 128) shl 8).toShort()
+                }
+                count
+            }
+
+            ENCODING_PCM_24BIT_PACKED -> {
+                val count = minOf(size / 3, out.size)
+                for (i in 0 until count) {
+                    val at = offset + i * 3
+                    // The top byte is read **signed**, so it carries the sign of
+                    // the 24-bit value into the 16-bit one. Keeping the top two
+                    // bytes is the whole conversion: it is a truncation, and
+                    // truncating a signed value toward zero is what dropping the
+                    // low byte does.
+                    val hi = buffer.get(at + 2).toInt()
+                    val mid = buffer.get(at + 1).toInt() and 0xFF
+                    out[i] = ((hi shl 8) or mid).toShort()
+                }
+                count
+            }
+
+            ENCODING_PCM_32BIT -> {
+                val count = minOf(size / 4, out.size)
+                for (i in 0 until count) {
+                    val at = offset + i * 4
+                    // Four bytes little-endian, so the most significant byte is the
+                    // *fourth* one. Read signed, for the same reason as 24-bit.
+                    val hi = buffer.get(at + 3).toInt()
+                    val mid = buffer.get(at + 2).toInt() and 0xFF
+                    out[i] = ((hi shl 8) or mid).toShort()
+                }
+                count
+            }
+
+            else -> UNREADABLE_ENCODING
+        }
     }
 
     /** Full scale for 16-bit audio, which is what every decoder here is asked for. */

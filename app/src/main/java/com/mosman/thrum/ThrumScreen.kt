@@ -108,6 +108,10 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var distance by remember { mutableStateOf(store.distance) }
     var body by remember { mutableStateOf(store.body) }
     var ratePlaying by remember { mutableStateOf(0) }
+    // Set when a dial cannot be honoured, and shown beside the dials rather than
+    // replacing the screen: the armed score is still armed and still plays, so
+    // throwing the user out to an error state would overstate the problem.
+    var rebuildProblem by remember { mutableStateOf<String?>(null) }
 
     // Polled rather than observed: the user leaves for system settings and
     // comes back, and a screen still showing "grant permission" after they
@@ -176,6 +180,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         // name. The source is written when the user actually arms, by [Store.arm].
         pickedUri = uri
         failure = null
+        rebuildProblem = null
         val name = AudioDecoder.displayName(ctx, uri)
         reading = name
         scope.launch {
@@ -241,9 +246,15 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         val source = levels ?: run {
             // Levels are gone — this is a restart, with the score restored from
             // storage but nothing to rebuild it from. Analyse the saved file
-            // again in the background and try once more. A dial that quietly
-            // does nothing is worse than one that takes a moment.
-            val saved = store.sourceUri ?: return
+            // again in the background and try once more.
+            val saved = store.sourceUri ?: run {
+                // Nothing to rebuild from at all. Say so rather than returning
+                // quietly: a dial that moves and changes nothing is
+                // indistinguishable from a broken dial, which is the same failure
+                // this project keeps meeting in new costumes.
+                rebuildProblem = ctx.getString(R.string.tune_no_source)
+                return
+            }
             if (reading != null) return
             reading = trackName.ifEmpty { score?.sourceName.orEmpty() }
             scope.launch {
@@ -258,11 +269,21 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     )
                 }
                 reading = null
-                if (result is Decoded.Ok) {
-                    pickedUri = uri
-                    levels = builder?.levels()
-                    levelStepMs = builder?.stepMsUsed ?: Demo.STEP_MS
-                    rescore()
+                when (result) {
+                    is Decoded.Ok -> {
+                        pickedUri = uri
+                        levels = builder?.levels()
+                        levelStepMs = builder?.stepMsUsed ?: Demo.STEP_MS
+                        rescore()
+                    }
+
+                    // Task 11's attack: the file was deleted after it was picked.
+                    // This used to fall through silently, so moving a dial did
+                    // nothing at all and said nothing at all — on a screen whose
+                    // whole job is to never report an intention as a fact. The
+                    // decoder's own sentence is the explanation, so it is shown
+                    // as-is.
+                    is Decoded.Failed -> rebuildProblem = result.message
                 }
             }
             return
@@ -273,6 +294,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
             bodyCeiling = ceilingFor(punch, distance),
         ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
         score = rebuilt
+        rebuildProblem = null
         // Rewritten atomically with its source and tuning, so a restart between
         // a dial move and this line cannot restore a score that disagrees with
         // the settings beside it.
@@ -402,6 +424,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     texture = distance,
                     body = body,
                     ratePlaying = ratePlaying,
+                    rebuildProblem = rebuildProblem,
                     onRateTest = { runRateTest() },
                     // Deliberately no `store.punch = v` (and the same for the
                     // other two) on these lines. The stored tuning describes the
@@ -636,6 +659,7 @@ private fun Ready(
     texture: Int,
     body: Int,
     ratePlaying: Int,
+    rebuildProblem: String?,
     onRateTest: () -> Unit,
     onPunch: (Int) -> Unit,
     onTexture: (Int) -> Unit,
@@ -792,6 +816,17 @@ private fun Ready(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // Why a dial is not doing anything, next to the dials. Task 11: the source
+        // file can be deleted or have its permission withdrawn between the pick and
+        // the next nudge of a slider, and the honest answer is to say so rather
+        // than let the control move and nothing happen.
+        if (rebuildProblem != null) {
+            Text(
+                stringResource(R.string.tune_problem, rebuildProblem),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
 
         // Measuring the instrument rather than tuning blind against it. If the
         // motor cannot separate taps at the rate a score asks for, no amount of

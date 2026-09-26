@@ -1,5 +1,8 @@
 package com.mosman.thrum
 
+import android.media.AudioFormat
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -1180,6 +1183,160 @@ class QaSuiteTest {
         assertEquals(Setup.Ringer.UNKNOWN, Setup.Ringer.of("VIBRATE"))
         assertEquals(Setup.Ringer.UNKNOWN, Setup.Ringer.of(""))
         assertEquals(Setup.Ringer.UNKNOWN, Setup.Ringer.of("normal"))
+    }
+
+    // --- Task 11: reading the sample encodings a phone can hand back ---------
+    //
+    // These live in Pcm so they can be proved here. Every one of them is a
+    // conversion where a mistake does not throw — it produces a number, and that
+    // number becomes a vibration score that looks exactly like a working one.
+    // Before Task 11 only 16-bit and float were handled; everything else fell
+    // through to a short read and became noise.
+
+    @Test
+    fun `the mirrored encodings still match the platform's`() {
+        // Pcm keeps no Android imports, so it mirrors these by hand. A silent drift
+        // would misread every WAV, and it would present as "the rhythm feels wrong"
+        // rather than as a failure. AudioFormat's constants are compile-time ints,
+        // so they are readable here with no device involved.
+        assertEquals(AudioFormat.ENCODING_PCM_8BIT, Pcm.ENCODING_PCM_8BIT)
+        assertEquals(AudioFormat.ENCODING_PCM_16BIT, Pcm.ENCODING_PCM_16BIT)
+        assertEquals(AudioFormat.ENCODING_PCM_FLOAT, Pcm.ENCODING_PCM_FLOAT)
+        assertEquals(AudioFormat.ENCODING_PCM_24BIT_PACKED, Pcm.ENCODING_PCM_24BIT_PACKED)
+        assertEquals(AudioFormat.ENCODING_PCM_32BIT, Pcm.ENCODING_PCM_32BIT)
+    }
+
+    @Test
+    fun `every readable encoding has a branch, and the rest are refused`() {
+        val readable = listOf(
+            Pcm.ENCODING_PCM_8BIT,
+            Pcm.ENCODING_PCM_16BIT,
+            Pcm.ENCODING_PCM_24BIT_PACKED,
+            Pcm.ENCODING_PCM_32BIT,
+            Pcm.ENCODING_PCM_FLOAT,
+        )
+        for (encoding in readable) {
+            assertTrue("$encoding should be readable", Pcm.isReadable(encoding))
+            assertTrue(
+                "$encoding should report samples, not the sentinel",
+                Pcm.samplesIn(480, encoding) > 0,
+            )
+        }
+        // 0 is ENCODING_INVALID and the platform has plenty of other members. An
+        // unrecognised encoding must be refused, never guessed at.
+        for (encoding in listOf(0, 1, 5, 9, 23, -1)) {
+            assertTrue("$encoding should be refused", !Pcm.isReadable(encoding))
+            assertEquals(Pcm.UNREADABLE_ENCODING, Pcm.samplesIn(480, encoding))
+        }
+    }
+
+    @Test
+    fun `eight bit audio is read as unsigned, because that is what it is`() {
+        // WAV's 8-bit is unsigned, with 128 at silence. Reading it as signed would
+        // put silence at 0 and invert the waveform around it.
+        val bytes = byteArrayOf(128.toByte(), 255.toByte(), 0.toByte())
+        val out = ShortArray(3)
+        val count = Pcm.readSamples(
+            ByteBuffer.wrap(bytes), 0, bytes.size, Pcm.ENCODING_PCM_8BIT, out,
+        )
+        assertEquals(3, count)
+        assertEquals(0, out[0].toInt())
+        assertEquals(32512, out[1].toInt())
+        assertEquals(-32768, out[2].toInt())
+    }
+
+    @Test
+    fun `twenty four bit audio keeps its sign and its scale`() {
+        // Little-endian, three bytes each. The top byte is read signed, and that is
+        // the entire conversion: a 24-bit value becomes 16-bit by dropping the low
+        // byte. Getting this wrong is invisible in a log and obvious in a score.
+        val bytes = byteArrayOf(
+            0xFF.toByte(), 0xFF.toByte(), 0x7F.toByte(), // +8388607, full scale
+            0x00, 0x00, 0x80.toByte(),                   // -8388608, full negative
+            0x00, 0x00, 0x00,                            // zero
+            0x00, 0x00, 0x40,                            // +4194304, half scale
+        )
+        val out = ShortArray(4)
+        val count = Pcm.readSamples(
+            ByteBuffer.wrap(bytes), 0, bytes.size, Pcm.ENCODING_PCM_24BIT_PACKED, out,
+        )
+        assertEquals(4, count)
+        assertEquals(32767, out[0].toInt())
+        assertEquals(-32768, out[1].toInt())
+        assertEquals(0, out[2].toInt())
+        assertEquals(16384, out[3].toInt())
+    }
+
+    @Test
+    fun `thirty two bit audio reads the sign from the fourth byte`() {
+        // Four bytes little-endian, so the byte carrying the sign is the *fourth*.
+        // Reading the second instead — which is what the first draft of this code
+        // did, and what writing this test caught — reads the wrong end of every
+        // sample and produces a plausible waveform that is simply wrong.
+        val bytes = byteArrayOf(
+            0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0x7F.toByte(), // +2147483647
+            0x00, 0x00, 0x00, 0x80.toByte(),                            // -2147483648
+        )
+        val out = ShortArray(2)
+        val count = Pcm.readSamples(
+            ByteBuffer.wrap(bytes), 0, bytes.size, Pcm.ENCODING_PCM_32BIT, out,
+        )
+        assertEquals(2, count)
+        assertEquals(32767, out[0].toInt())
+        assertEquals(-32768, out[1].toInt())
+    }
+
+    @Test
+    fun `sixteen bit audio is copied through untouched`() {
+        val bytes = ByteBuffer.allocate(6).order(ByteOrder.nativeOrder())
+            .putShort(0).putShort(32767).putShort(-32768).array()
+        val out = ShortArray(3)
+        val count = Pcm.readSamples(
+            ByteBuffer.wrap(bytes), 0, bytes.size, Pcm.ENCODING_PCM_16BIT, out,
+        )
+        assertEquals(3, count)
+        assertArrayEquals(shortArrayOf(0, 32767, -32768), out)
+    }
+
+    @Test
+    fun `float audio is scaled across the full 16-bit range`() {
+        val bytes = ByteBuffer.allocate(12).order(ByteOrder.nativeOrder())
+            .putFloat(0f).putFloat(1f).putFloat(-1f).array()
+        val out = ShortArray(3)
+        val count = Pcm.readSamples(
+            ByteBuffer.wrap(bytes), 0, bytes.size, Pcm.ENCODING_PCM_FLOAT, out,
+        )
+        assertEquals(3, count)
+        assertEquals(0, out[0].toInt())
+        assertEquals(32767, out[1].toInt())
+        assertEquals(-32767, out[2].toInt())
+    }
+
+    @Test
+    fun `an unreadable encoding writes nothing rather than something plausible`() {
+        // The half that matters. Returning a number here would be the whole bug:
+        // the caller has no way to tell a decoded sample from an invented one.
+        val out = ShortArray(4) { 999 }
+        val count = Pcm.readSamples(ByteBuffer.wrap(ByteArray(16)), 0, 16, 5, out)
+        assertEquals(Pcm.UNREADABLE_ENCODING, count)
+        assertArrayEquals(shortArrayOf(999, 999, 999, 999), out)
+    }
+
+    @Test
+    fun `no encoding can write past the end of the output array`() {
+        // The decoder chooses the chunk size, not us, and an overrun here would be
+        // an IndexOutOfBounds inside a notification callback.
+        for (encoding in listOf(
+            Pcm.ENCODING_PCM_8BIT,
+            Pcm.ENCODING_PCM_16BIT,
+            Pcm.ENCODING_PCM_24BIT_PACKED,
+            Pcm.ENCODING_PCM_32BIT,
+            Pcm.ENCODING_PCM_FLOAT,
+        )) {
+            val out = ShortArray(2)
+            val count = Pcm.readSamples(ByteBuffer.wrap(ByteArray(64)), 0, 64, encoding, out)
+            assertTrue("$encoding reported $count for a 2-element array", count <= 2)
+        }
     }
 
     private fun decoded(

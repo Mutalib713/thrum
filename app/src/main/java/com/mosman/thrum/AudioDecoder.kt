@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.SystemClock
 import android.provider.OpenableColumns
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 /**
  * Turns a user-picked audio file into plain numbers. Task 3.
@@ -157,7 +156,7 @@ object AudioDecoder {
         var frames = 0L
         var peak = 0
         var inputDone = false
-        var idleRounds = 0
+        var stalled = 0
 
         try {
             codec.configure(format, null, null, 0)
@@ -165,9 +164,15 @@ object AudioDecoder {
             val info = MediaCodec.BufferInfo()
 
             while (true) {
+                // Whether this round moved anything at all. See the stall guard
+                // after the output handling for why this is one flag rather than a
+                // counter kept per branch.
+                var progressed = false
+
                 if (!inputDone) {
                     val index = codec.dequeueInputBuffer(TIMEOUT_US)
                     if (index >= 0) {
+                        progressed = true
                         val buffer = codec.getInputBuffer(index)
                         val size = if (buffer == null) -1 else extractor.readSampleData(buffer, 0)
                         if (size < 0) {
@@ -182,31 +187,31 @@ object AudioDecoder {
 
                 when (val index = codec.dequeueOutputBuffer(info, TIMEOUT_US)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                        progressed = true
                         val out = codec.outputFormat
                         sampleRate = out.optInt(MediaFormat.KEY_SAMPLE_RATE, sampleRate)
                         channels = out.optInt(MediaFormat.KEY_CHANNEL_COUNT, channels)
                         encoding = out.optInt(KEY_PCM_ENCODING, encoding)
-                        idleRounds = 0
                     }
 
-                    MediaCodec.INFO_TRY_AGAIN_LATER -> {
-                        // A decoder that has been fed everything and still emits
-                        // nothing is stuck. Without this the loop would spin
-                        // until the user force-stopped the app.
-                        if (inputDone && ++idleRounds > MAX_IDLE_ROUNDS) {
-                            return Run.Failed("The decoder stopped responding partway through that file.")
-                        }
-                    }
+                    MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
 
                     else -> {
                         if (index >= 0) {
-                            idleRounds = 0
+                            progressed = true
                             if (info.size > 0 && channels > 0) {
                                 val buffer = codec.getOutputBuffer(index)
                                 if (buffer != null) {
-                                    val samples = samplesIn(info.size, encoding)
+                                    // Refuse an encoding this app cannot read, rather
+                                    // than reading it as though it were 16-bit. A wrong
+                                    // answer here is not an error — it is a score, built
+                                    // from noise, with nothing anywhere saying so.
+                                    val samples = Pcm.samplesIn(info.size, encoding)
+                                    if (samples == Pcm.UNREADABLE_ENCODING) {
+                                        return Run.Failed(unreadableEncoding())
+                                    }
                                     if (interleaved.size < samples) interleaved = ShortArray(samples)
-                                    val count = readSamples(
+                                    val count = Pcm.readSamples(
                                         buffer, info.offset, info.size, encoding, interleaved,
                                     )
                                     val monoFrames = Pcm.monoFrames(count, channels)
@@ -226,11 +231,29 @@ object AudioDecoder {
                     }
                 }
 
+                // The stall guard — the only other way out of this loop.
+                //
+                // A decoder that is neither accepting input nor producing output is
+                // dead, and without this the loop spins on it until the user
+                // force-stops the app. The guard used to count only *after* the last
+                // input had been queued, which missed the worse case: a codec that
+                // never accepts input at all could never start the counter, so it
+                // hung forever on a file somebody only wanted to preview.
+                //
+                // Looser before input is done, because a brief pause there is
+                // ordinary decoder behaviour, and a false positive refuses a file
+                // that was perfectly fine.
+                if (progressed) {
+                    stalled = 0
+                } else if (++stalled > if (inputDone) MAX_IDLE_ROUNDS else MAX_STALLED_ROUNDS) {
+                    return Run.Failed("The decoder stopped responding partway through that file.")
+                }
+
                 if (sampleRate > 0 && Pcm.framesToMs(frames, sampleRate) > MAX_DECODE_MS) {
                     return Run.Failed(
-                    "That file doesn't state its length, and has already decoded past " +
-                        "${MAX_DECODE_MS / 60_000} minutes. Pick a ringtone rather than an album.",
-                )
+                        "That file doesn't state its length, and has already decoded past " +
+                            "${MAX_DECODE_MS / 60_000} minutes. Pick a ringtone rather than an album.",
+                    )
                 }
             }
         } catch (e: MediaCodec.CodecException) {
@@ -268,6 +291,10 @@ object AudioDecoder {
         if (sampleRate <= 0 || channels <= 0) {
             return Run.Failed("That file doesn't say what sample rate or how many channels it has.")
         }
+        // WAV states its encoding in the header, so this is the one place a file can
+        // be refused before a single sample is read — and the one place a 24-bit or
+        // 8-bit WAV used to slip through and decode as noise.
+        if (!Pcm.isReadable(encoding)) return Run.Failed(unreadableEncoding())
 
         val bytes = ByteBuffer.allocate(RAW_CHUNK_BYTES)
         var interleaved = ShortArray(INITIAL_BUFFER)
@@ -280,9 +307,9 @@ object AudioDecoder {
             val size = extractor.readSampleData(bytes, 0)
             if (size < 0) return finish(sampleRate, channels, frames, peak)
 
-            val samples = samplesIn(size, encoding)
+            val samples = Pcm.samplesIn(size, encoding)
             if (interleaved.size < samples) interleaved = ShortArray(samples)
-            val count = readSamples(bytes, 0, size, encoding, interleaved)
+            val count = Pcm.readSamples(bytes, 0, size, encoding, interleaved)
             val monoFrames = Pcm.monoFrames(count, channels)
             if (mono.size < monoFrames) mono = ShortArray(monoFrames)
             Pcm.downmixToMono(interleaved, count, channels, mono)
@@ -312,46 +339,16 @@ object AudioDecoder {
     }
 
     /**
-     * Copy one decoder buffer into [out] as 16-bit samples.
+     * A file whose audio is in a form this app cannot read correctly.
      *
-     * Decoders are allowed to hand back 32-bit floats instead of shorts, and
-     * several do for OGG. Treating those bytes as shorts produces noise that
-     * still "decodes" — a plausible-looking result that is entirely wrong — so
-     * the encoding is read from the format rather than assumed.
+     * Refusing is the only honest option. The alternative — reading it as though
+     * it were 16-bit — produces a number for every sample and a score that looks
+     * exactly like a working one, with nothing anywhere saying otherwise.
+     * `Pcm.readSamples` carries the detail of which forms are read and why.
      */
-    private fun readSamples(
-        buffer: ByteBuffer,
-        offset: Int,
-        size: Int,
-        encoding: Int,
-        out: ShortArray,
-    ): Int {
-        buffer.position(offset)
-        buffer.limit(offset + size)
-        buffer.order(ByteOrder.nativeOrder())
-
-        return when (encoding) {
-            AudioFormat.ENCODING_PCM_FLOAT -> {
-                val floats = buffer.asFloatBuffer()
-                val count = minOf(floats.remaining(), out.size)
-                for (i in 0 until count) {
-                    val v = floats.get(i).coerceIn(-1f, 1f)
-                    out[i] = (v * Pcm.MAX_SAMPLE).toInt().toShort()
-                }
-                count
-            }
-
-            else -> {
-                val shorts = buffer.asShortBuffer()
-                val count = minOf(shorts.remaining(), out.size)
-                shorts.get(out, 0, count)
-                count
-            }
-        }
-    }
-
-    private fun samplesIn(byteCount: Int, encoding: Int): Int =
-        if (encoding == AudioFormat.ENCODING_PCM_FLOAT) byteCount / 4 else byteCount / 2
+    private fun unreadableEncoding(): String =
+        "That file's audio is in a form Thrum can't read, so it would come out as noise " +
+            "rather than a rhythm. Converting it to MP3 or M4A will fix it."
 
     /** The file's own name, for the results readout. Falls back rather than failing. */
     fun displayName(ctx: Context, uri: Uri): String {
@@ -392,6 +389,17 @@ object AudioDecoder {
 
     /** Enough rounds of nothing, after the last input, to call a decoder dead. */
     private const val MAX_IDLE_ROUNDS = 50
+
+    /**
+     * The same, before the last input has been queued — and looser, because a
+     * brief pause while a decoder fills its buffers is ordinary behaviour.
+     *
+     * 150 rounds at a 10 ms dequeue timeout is roughly three seconds of *no*
+     * progress in either direction, which no working decoder does. The cost of
+     * being too strict is refusing a file that was perfectly fine, which is worse
+     * than waiting a moment longer.
+     */
+    private const val MAX_STALLED_ROUNDS = 150
 
     /** A ringtone, not an album. Guards against a file that decodes forever. */
     private const val MAX_DECODE_MS = 30 * 60 * 1000L

@@ -645,11 +645,32 @@ Reliability soak. Arm it, leave the phone alone for 24 hours, call it. Reboot th
 
 ## Milestone 3 — Ship it
 
-### [ ] Task 11 — Hardening pass
+### [~] Task 11 — Hardening pass — **BUILT 2026-09-26, three of seven attacks need the phone**
 
-Run the benchmark audit and red-team prompts from the pipeline (Phase 5). For this app specifically: a giant audio file, a zero-byte file, a file that isn't audio, a corrupt file, a file deleted after being picked, permission revoked while armed, and a call arriving mid-conversion.
+The headline is that **four of the seven attacks were already handled**, and Task 3 deserves the credit. The other three were not, and two more turned up while reading the decoder closely that were never on the list.
 
-**Proof:** each attack listed with what happened and the fix. No crashes.
+| Attack | What happened | Fix |
+|---|---|---|
+| **A giant audio file** | Refused *before* decoding. The container states its own length, and anything over 30 minutes is turned away in the header rather than after being ground through — the check exists because Mutalib's two 1h49m recordings each took most of a minute to refuse. A file that declares no length is refused in-loop once it passes 30 minutes, and both messages name the length they are refusing. | none needed |
+| **A zero-byte file** | `setDataSource` throws, caught, and answered with "Couldn't open that file. It may have been moved or deleted, or it isn't audio this phone can read." | none needed |
+| **A file that isn't audio** | Same path. If the container opens but holds no `audio/*` track: "There's no audio in that file." | none needed |
+| **A corrupt file** | Either the extractor refuses it outright, or the codec throws mid-stream. `CodecException`, `IllegalStateException` and a deliberately wide generic net each produce a sentence instead of a crash — the `IllegalStateException` branch names the Dolby-in-`.m4a` case that cost Task 3 an hour. | none needed |
+| **A file deleted after being picked** | **Broken, and it is the worst kind.** The re-decode correctly returned a failure — and `rescore()` dropped it on the floor. The dial moved, the score did not change, and the screen said nothing. A control that moves and does nothing is indistinguishable from a broken control. | Fixed: the failure is surfaced beside the dials in the decoder's own words, and a score with no recorded source says so instead of returning silently. Deliberately **not** the full error state — the armed score is still armed and still plays, so ejecting the user would overstate it. |
+| **Permission revoked while armed** | Already correct. The listener permission is polled, so the screen falls back to the Permission state; the armed score survives, so re-granting restores it. | none needed |
+| **A call arriving mid-conversion** | Already correct, and worth writing down because it is not obvious. `Store.arm` is the only writer of the armed score and arming is a deliberate press, so a call during a decode plays the *previously* armed score — which is the right answer, because the new one is not armed yet. | none needed |
+
+**Two more, found by reading rather than by attacking:**
+
+1. **8-bit and 24-bit audio decoded as noise.** The sample reader knew about exactly two encodings, 16-bit and float. Everything else fell through to `size / 2` and a short read, which does not fail — it produces *numbers*. A 24-bit WAV became 1.5× too many samples and an 8-bit WAV half as many, both as noise, and both became a vibration score that looked exactly like a working one. Now all five encodings are read correctly (8-bit unsigned, 24- and 32-bit sign-preserved) and anything else is refused with a sentence rather than guessed at. The arithmetic moved to `Pcm` so it could be proved on the PC — which is how the next one was caught.
+2. **A decoder that accepts no input spun forever.** The stall guard only counted rounds *after* the last input had been queued, so a codec that never accepted input could never start the counter: the loop had no exit at all, and the app would hang until the user force-stopped it — on a file they only wanted to preview. The guard now counts rounds where *nothing* progressed, with a looser cap before input is done so a brief pause is not mistaken for death.
+
+**Also caught while writing the test:** the 32-bit branch read its sign byte from offset +2 instead of +3. Little-endian four-byte samples carry the sign in the *fourth* byte, so it read the wrong end of every sample — a plausible waveform, entirely wrong. The test failed, which is the entire reason the arithmetic was moved somewhere it could be tested.
+
+**Proof — split honestly, because the three are not equal.**
+
+- **Proven by test:** the encodings. **99 tests, 0 failures** (90 before, 9 new): every readable encoding round-trips, an unreadable one writes *nothing* rather than something plausible, no encoding can overrun the output array, and the mirrored `AudioFormat` constants still match the platform's. All of it runs on the PC with no phone.
+- **Proven by reading, not by attack:** the giant / zero-byte / not-audio / corrupt cases, and the mid-conversion call. Each is a code path with a return, and each was read line by line — but none has been fed the real file it defends against.
+- **Not proven, and it needs the phone:** the deleted-file message actually appearing beside the dials, and the stall guard not producing a false positive on a slow decode. A false positive there refuses a file that was fine, which is the failure mode to watch for.
 
 ### [~] Task 12 — Release build, signed and shrunk — **BUILT 2026-09-26, install pending**
 

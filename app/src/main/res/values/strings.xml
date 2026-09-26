@@ -89,6 +89,12 @@
         alongside the kick, so you feel the whole pattern. Turn it up and the detail drops away
         until only the bare beat is left.</string>
     <string name="tune_note">Changes apply straight away. Play it to feel them.</string>
+    <!-- Shown beside the dials when a rebuild is impossible. Task 11: the source
+         file can be deleted, or its permission withdrawn, between picking it and
+         moving a slider. The dial must not move and do nothing quietly. -->
+    <string name="tune_problem">The dials can\'t change this rhythm at the moment. %1$s</string>
+    <string name="tune_no_source">The file it was built from is no longer recorded, so there is
+        nothing to rebuild it from. Choose the song again to change the feel.</string>
     <string name="rate_title">How fast can this phone tap?</string>
     <string name="rate_help">Plays the same tap at six speeds, slowest first, with a pause
         between each. Hold the phone and notice where the taps stop feeling separate and turn into
