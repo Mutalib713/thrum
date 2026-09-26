@@ -595,11 +595,39 @@ expectation with the bound measured above rather than as an absolute. Not done i
 change as the strength work, deliberately — it is test hygiene, not a fix, and mixing it in
 would have made a tuning commit look like a refactor.
 
-### [ ] Task 9 — Setup guidance
+### [~] Task 9 — Setup guidance — **BUILT 2026-09-26, proof pending**
 
-A short screen telling the user exactly which system settings to change, based on whatever Task 2 discovered. Plain language. Deep-links to the settings screen; the app never changes a setting itself (`PROFILE.md` §9).
+**The task shrank, and that is a result rather than a shortcut.** It was written expecting a screen listing system settings to change. Task 2's measurement removed almost all of them: `vibrate_when_ringing` stayed on and `ring_vibration_intensity` stayed at 3/3 through all thirteen real calls and made no difference, because the last `RINGTONE` vibration wins. A screen telling users to change either would be teaching a superstition.
 
-**Proof:** Mutalib follows the screen on a fresh install, without help, and it works.
+What is left is one setting that silently kills the app, and one that quietly does:
+
+| Ringer | `Also when the ringer is on` | What happens | Verdict |
+|---|---|---|---|
+| Vibrate | either | the case the app exists for | fires |
+| Ring | on | fires — hears one song, feels another | fires |
+| Ring | off | dead by the user's own switch | blocked |
+| **Silent** | **either** | **Android discards the vibration** | **blocked** |
+| unreadable | either | nothing can be promised | unknown |
+
+**Silent mode is the whole point of the screen.** Android throws a `RINGTONE` vibration away outright when the ringer is silent — `ignored_for_ringer_mode`, `duration 0ms`, in the system's own record. Mutalib felt it and named it. No app can work around it, and until now the screen said *"Put your phone on vibrate"* and then never checked whether it was. To anyone not thinking about it, silent and vibrate are both just *no sound* — so the wrong one makes the app look broken, which is exactly what R4 is about.
+
+`armed_body` and `armed_ring_note` are gone, replaced by a verdict read live from `AudioManager.ringerMode`, polled at the same cadence as the permission. Both were static lines describing an intention, and the note was also wrong whenever the ringer was not actually on.
+
+**Structure.** `Setup.kt` is pure Kotlin with no Android imports, for the same reason `Score` has none: the decision table is the part that can be proved on this PC. `SetupVerdict` on the product screen renders it. The app still changes nothing itself — silent mode gets a button that *opens* Sound & vibration, not a button that fixes it (§9).
+
+**Proof — the table, exhaustively.** **90 tests, 0 failures** (82 before, 8 new); APK 25.72 MB. The new eight cover every ringer × switch combination rather than the two happy ones:
+
+- vibrate fires whichever way the switch is set, and silent never does — the switch cannot reach into either
+- ring mode follows the switch both ways, matching `NotifService.onIncoming`'s own condition
+- an unreadable ringer reads as neither working nor broken
+- only silent and ring-off set `blocked`, which is what picks the headline and the colour
+- only silent sends the user out to system settings
+- the table is total: all five verdicts are reachable, so no ringer mode is left with nothing to say
+- `Ringer.of` maps exactly and case-sensitively — a looser match would hide a change to `Haptics.ringerMode`'s contract
+
+**Not proven, and it needs the phone:** that `AudioManager` reports silent as `"silent"` on the Pixel, and that the verdict reads correctly at fontScale 1.3 with a long track name above it. **The proof as written — Mutalib follows the screen on a fresh install without help — has not happened**, so this stays `[~]` rather than ticked.
+
+**Open question, deliberately not guessed at: Do Not Disturb.** DND may suppress an incoming call's ringtone and its vibration together, which would be a *fourth* silent-failure mode. It is readable (`NotificationManager.getCurrentInterruptionFilter`), but **nothing about it has been measured on this phone** and the evidence rule does not allow inventing a verdict. Measure it in Task 10: turn DND on, call the phone, read `dumpsys vibrator_manager`. Only then decide whether it earns a row.
 
 ### [ ] Task 10 — ⚠ Does it still work tomorrow?
 
@@ -608,6 +636,8 @@ Reliability soak. Arm it, leave the phone alone for 24 hours, call it. Reboot th
 **⚠ Why risky:** R5. Android kills background services, and a notification listener that isn't bound at call time means the vibration silently doesn't happen. An app that works on Tuesday and not Thursday is worse than one that never worked.
 
 **Also watch here:** the 5.3-second notification delivery seen once in Task 2. Record the latency of every soak call, not just whether it fired — a delayed rhythm is a failure even though the log says `FIRED`.
+
+**And the Task 9 open question.** Turn **Do Not Disturb** on, call the phone, and read `dumpsys vibrator_manager`. If DND suppresses the call's vibration as well as its sound, that is a *fourth* way to be silently dead — and the verdict screen from Task 9 currently says "Ready" in that state, which would make it a screen reporting an intention. Measure before deciding whether it earns a row; do not reason it out.
 
 **Proof:** three successful calls — after 24h idle, after reboot, and under battery saver. If any fail, fix before Milestone 3.
 

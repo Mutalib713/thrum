@@ -120,6 +120,17 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         }
     }
 
+    // The ringer mode, polled for the same reason the permission is: the user
+    // leaves for Settings and comes back, and a verdict one screen out of date is
+    // worse than none. This is the whole of Task 9 — see [Setup] for why there is
+    // nothing else left to ask the user to change.
+    val ringer by produceState(initialValue = Setup.Ringer.UNKNOWN) {
+        while (true) {
+            value = Setup.Ringer.of(Haptics.ringerMode(ctx))
+            delay(POLL_MS)
+        }
+    }
+
     val player = remember { mutableStateOf<MediaPlayer?>(null) }
 
     // The coroutine driving the ribbon's playhead, held so it can be cancelled.
@@ -373,8 +384,20 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     score = state.score,
                     armed = state.armed,
                     progress = progress,
+                    ringer = ringer,
                     ringMode = ringMode,
                     onRingMode = { on -> ringMode = on; store.fireInRingMode = on },
+                    onSoundSettings = {
+                        // The public action for Sound & vibration, which is where
+                        // the ringer mode lives on every device this app targets.
+                        // Guarded because an OEM build can ship without it, and a
+                        // crash on the one screen whose job is to explain a
+                        // problem would be a poor joke.
+                        runCatching { ctx.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }
+                            .onFailure {
+                                runCatching { ctx.startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                            }
+                    },
                     punch = punch,
                     texture = distance,
                     body = body,
@@ -605,8 +628,10 @@ private fun Ready(
     score: Score,
     armed: Boolean,
     progress: Float,
+    ringer: Setup.Ringer,
     ringMode: Boolean,
     onRingMode: (Boolean) -> Unit,
+    onSoundSettings: () -> Unit,
     punch: Int,
     texture: Int,
     body: Int,
@@ -646,15 +671,19 @@ private fun Ready(
         )
 
         if (armed) {
-            Text(
-                stringResource(R.string.armed_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                stringResource(R.string.armed_body),
-                style = MaterialTheme.typography.bodyLarge,
+            // Replaces two static lines that used to sit here — "Put your phone
+            // on vibrate", and a note describing what happens when the ringer is
+            // on. Both were instructions this screen could not check, and the
+            // second was wrong whenever the ringer was not actually on. This
+            // reads the phone's real ringer mode and states what will happen.
+            //
+            // It is the same distinction R2 taught the hard way: the app spent a
+            // day trusting its own `FIRED` event while the system was throwing
+            // the vibration away, and only a hand on the phone disproved it. A
+            // screen must not describe an intention.
+            SetupVerdict(
+                verdict = Setup.verdict(ringer, ringMode),
+                onSoundSettings = onSoundSettings,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -673,13 +702,6 @@ private fun Ready(
                     )
                 }
                 Switch(checked = ringMode, onCheckedChange = onRingMode)
-            }
-            if (!ringMode) {
-                Text(
-                    stringResource(R.string.armed_ring_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         } else {
             Primary(stringResource(R.string.ready_action), onArm)
@@ -793,6 +815,77 @@ private fun Ready(
             )
         }
         Secondary(stringResource(R.string.rate_run), Modifier.fillMaxWidth(), onRateTest)
+    }
+}
+
+/**
+ * The one honest answer to "will this work?" — Task 9.
+ *
+ * Shown only once a score is armed, because that is the moment the claim becomes
+ * real: before arming, "will it work" is a question about a setting, and after,
+ * it is a promise about the next call.
+ *
+ * Three things are deliberately absent.
+ *
+ * - **No settings this app changes.** `PROFILE.md` §9: where a system setting has
+ *   to move, the app explains why and sends the user to do it. Silent mode is the
+ *   only one, and it gets a button that opens Settings, not a button that fixes it.
+ * - **No advice about `vibrate_when_ringing` or vibration intensity.** Task 2 left
+ *   both alone through thirteen real calls with no effect; the last `RINGTONE`
+ *   vibration wins regardless. Telling a user to change them would be teaching a
+ *   superstition.
+ * - **Colour is never the only signal.** The headline says the verdict in words —
+ *   "Ready" or "Won't work yet" — and the colour agrees with it. The armed dot in
+ *   the masthead got that same critique pass.
+ */
+@Composable
+private fun SetupVerdict(verdict: Setup.Verdict, onSoundSettings: () -> Unit) {
+    Text(
+        stringResource(if (verdict.blocked) R.string.setup_wont_title else R.string.armed_title),
+        style = MaterialTheme.typography.headlineMedium,
+        color = if (verdict.blocked) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.primary
+        },
+        modifier = Modifier.semantics { heading() },
+    )
+    Text(
+        stringResource(
+            when (verdict) {
+                Setup.Verdict.WILL_FIRE -> R.string.setup_vibrate
+                Setup.Verdict.WILL_FIRE_IN_RING -> R.string.setup_ring_on
+                Setup.Verdict.WONT_FIRE_SILENT -> R.string.setup_silent
+                Setup.Verdict.WONT_FIRE_RING_OFF -> R.string.setup_ring_off
+                Setup.Verdict.UNKNOWN -> R.string.setup_unknown
+            },
+        ),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+    )
+    // The remedy, and only when there is one worth reading. The ring-mode fix is
+    // the switch immediately below this, so it needs a sentence, not a paragraph.
+    when (verdict) {
+        Setup.Verdict.WONT_FIRE_SILENT -> Text(
+            stringResource(R.string.setup_silent_help),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Setup.Verdict.WONT_FIRE_RING_OFF -> Text(
+            stringResource(R.string.setup_ring_off_help),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        else -> Unit
+    }
+    if (verdict.needsSoundSettings) {
+        Secondary(
+            stringResource(R.string.setup_sound_action),
+            Modifier.fillMaxWidth(),
+            onSoundSettings,
+        )
     }
 }
 

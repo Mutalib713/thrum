@@ -1072,6 +1072,116 @@ class QaSuiteTest {
         }
     }
 
+    // --- Task 9: the setup verdict ------------------------------------------
+    //
+    // The reason this decision lives in pure Kotlin is so it can be proved here,
+    // on the PC, with no phone in the room. Every combination of ringer mode and
+    // switch is covered rather than the two happy ones, because the failures are
+    // the entire reason the screen exists.
+    //
+    // What cannot be tested here is whether `AudioManager` really reports
+    // "silent" — that needs the phone. What can be, and is: that once it does,
+    // the app says the right thing about it.
+
+    @Test
+    fun `vibrate fires whatever the ring-mode switch says`() {
+        // The switch is about ring mode. It must not be able to reach into the
+        // one case this whole app is for.
+        for (switch in listOf(true, false)) {
+            assertEquals(Setup.Verdict.WILL_FIRE, Setup.verdict(Setup.Ringer.VIBRATE, switch))
+        }
+    }
+
+    @Test
+    fun `silent never fires, whatever the ring-mode switch says`() {
+        // The measured one, and the reason the screen is worth building. Android
+        // discards a RINGTONE vibration outright when the ringer is silent, so no
+        // switch in this app can rescue it — and a verdict that let the switch
+        // appear to would be a promise the motor cannot keep.
+        for (switch in listOf(true, false)) {
+            assertEquals(Setup.Verdict.WONT_FIRE_SILENT, Setup.verdict(Setup.Ringer.SILENT, switch))
+        }
+    }
+
+    @Test
+    fun `ring mode follows the user's switch, both ways`() {
+        // The same rule NotifService.onIncoming applies at call time. If these two
+        // ever disagree, the screen is describing a different app than the one
+        // that answers the phone.
+        assertEquals(
+            Setup.Verdict.WILL_FIRE_IN_RING,
+            Setup.verdict(Setup.Ringer.RING, fireInRingMode = true),
+        )
+        assertEquals(
+            Setup.Verdict.WONT_FIRE_RING_OFF,
+            Setup.verdict(Setup.Ringer.RING, fireInRingMode = false),
+        )
+    }
+
+    @Test
+    fun `an unreadable ringer is an admission, not a verdict`() {
+        // AudioManager reports a mode this app does not know on some OEM builds.
+        // Claiming it will work would be inventing a fact; claiming it will not
+        // would be crying wolf. It has to be neither.
+        val verdict = Setup.verdict(Setup.Ringer.UNKNOWN, fireInRingMode = true)
+        assertEquals(Setup.Verdict.UNKNOWN, verdict)
+        assertTrue("an unknown ringer must not read as working", !verdict.fires)
+        assertTrue("an unknown ringer must not read as broken", !verdict.blocked)
+    }
+
+    @Test
+    fun `only the two read failures count as blocked`() {
+        // `blocked` picks the headline and the colour. Anything that made it true
+        // without a fact behind it would turn a working phone red.
+        val expected = mapOf(
+            Setup.Verdict.WILL_FIRE to false,
+            Setup.Verdict.WILL_FIRE_IN_RING to false,
+            Setup.Verdict.WONT_FIRE_SILENT to true,
+            Setup.Verdict.WONT_FIRE_RING_OFF to true,
+            Setup.Verdict.UNKNOWN to false,
+        )
+        assertEquals("a verdict was added without deciding this", Setup.Verdict.values().size, expected.size)
+        for ((verdict, blocked) in expected) {
+            assertTrue("$verdict blocked should be $blocked", blocked == verdict.blocked)
+        }
+    }
+
+    @Test
+    fun `only silent sends the user out to system settings`() {
+        // Ring mode has a switch on the screen the verdict sits on, so it needs a
+        // sentence rather than a button. Silent mode has nothing, and never will:
+        // PROFILE.md §9 — the app explains and deep-links, and does not edit a
+        // setting on anyone's behalf.
+        for (verdict in Setup.Verdict.values()) {
+            val silent = verdict == Setup.Verdict.WONT_FIRE_SILENT
+            assertTrue("$verdict needsSoundSettings should be $silent", silent == verdict.needsSoundSettings)
+        }
+    }
+
+    @Test
+    fun `every combination of ringer and switch lands on exactly one verdict`() {
+        // The table is total. A ringer mode with no verdict would be a screen with
+        // nothing to say at the moment it matters most.
+        val reached = mutableSetOf<Setup.Verdict>()
+        for (ringer in Setup.Ringer.values()) {
+            for (switch in listOf(true, false)) reached += Setup.verdict(ringer, switch)
+        }
+        assertEquals(Setup.Verdict.values().toSet(), reached)
+    }
+
+    @Test
+    fun `ringer words map exactly, and anything else is unknown`() {
+        assertEquals(Setup.Ringer.VIBRATE, Setup.Ringer.of("vibrate"))
+        assertEquals(Setup.Ringer.RING, Setup.Ringer.of("ring"))
+        assertEquals(Setup.Ringer.SILENT, Setup.Ringer.of("silent"))
+        // Case matters deliberately. The only producer is Haptics.ringerMode, and
+        // accepting anything looser would quietly hide a change to that contract —
+        // the same shape of mistake as trusting our own FIRED event.
+        assertEquals(Setup.Ringer.UNKNOWN, Setup.Ringer.of("VIBRATE"))
+        assertEquals(Setup.Ringer.UNKNOWN, Setup.Ringer.of(""))
+        assertEquals(Setup.Ringer.UNKNOWN, Setup.Ringer.of("normal"))
+    }
+
     private fun decoded(
         containerMs: Long = 0,
         decodedMs: Long = 0,

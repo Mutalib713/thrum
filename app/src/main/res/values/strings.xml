@@ -42,11 +42,36 @@
 
     <!-- Armed -->
     <string name="armed_title">Ready</string>
-    <string name="armed_body">Put your phone on vibrate. Next time it rings, this is what you
-        feel.</string>
-    <string name="armed_ring_note">Leave the ringer on and nothing changes. Your phone plays its
-        usual ringtone, and Thrum keeps out of the way.</string>
     <string name="armed_change">Choose a different song</string>
+
+    <!-- Setup. Task 9, and it is short on purpose: the supersede measurement
+         (PROFILE.md §11 R2) removed almost everything this screen was going to
+         ask for. What is left is the one setting that silently kills the app.
+
+         The verdict is read live from the phone's ringer mode, so this is the
+         only guidance there is — and "silent" is the case that matters, because
+         to anyone who is not thinking about it, silent and vibrate are both just
+         "no sound". -->
+    <string name="setup_wont_title">Won\'t work yet</string>
+
+    <string name="setup_vibrate">Your phone is on vibrate, so next time it rings, this is what
+        you feel.</string>
+
+    <string name="setup_ring_on">Your phone is ringing, so you will hear your ringtone and feel
+        this. Unless they are the same file, those are two different songs.</string>
+
+    <string name="setup_silent">Your phone is on silent, and Android throws the vibration away
+        before it reaches the motor. No app can get around that.</string>
+    <string name="setup_silent_help">It has to be Vibrate, not Silent. Both look like \"no sound\",
+        but Silent means nothing vibrates at all.</string>
+    <string name="setup_sound_action">Open sound settings</string>
+
+    <string name="setup_ring_off">Your phone is ringing and \"Also when the ringer is on\" is
+        switched off below, so nothing vibrates.</string>
+    <string name="setup_ring_off_help">Turn that switch on, or put your phone on vibrate.</string>
+
+    <string name="setup_unknown">Thrum can\'t read this phone\'s ringer setting, so it can\'t
+        promise anything either way. It will still try when a call comes in.</string>
 
     <!-- The technical row, for the kind of person who wants the numbers -->
     <string name="tech_row">%1$d steps · %2$d ms each · still %3$d%% of the time</string>
