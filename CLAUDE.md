@@ -59,6 +59,19 @@ One file is machine-specific and deliberately gitignored, so a fresh clone will 
 
 **No truststore any more.** The old `build-truststore.p12` existed only because Avast re-signed every HTTPS connection on the previous laptop. Avast is not installed on this one — verified absent, with zero Avast roots in either certificate store — so Java's own `cacerts` is correct and the three `systemProp.javax.net.ssl.*` lines are gone from `gradle.properties`. `tools/TlsProbe.java` stays, because it diagnoses any future certificate failure in seconds instead of after a long build.
 
+## Signing — the release key (Task 12)
+
+Two gitignored files at the repo root. Together they are the app's identity:
+
+- **`thrum-release.jks`** — the real release key. 4096-bit RSA, SHA384withRSA, valid until 2056.
+- **`keystore.properties`** — `storeFile`, `storePassword`, `keyAlias`, `keyPassword`.
+
+`app/build.gradle.kts` reads the properties file when it exists and signs release builds with it. When it does not exist — a fresh clone, or any machine without the secret — it falls back to the debug key so `assembleRelease` still runs and R8 can still be checked. Play rejects a debug-signed upload at the door, so the fallback cannot reach users.
+
+> **⚠ Back the keystore up somewhere you will still have in five years, and do not lose the password.** Google Play ties an app to its signing key permanently. If `thrum-release.jks` or its password is lost, the app can never be updated again: a new key means a new listing, and every existing install has to be uninstalled first — which wipes the armed score. Before publishing, a copy belongs somewhere that is not this laptop.
+
+A **release** build cannot install over a **debug** install — different keys, `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Uninstall first, and know that uninstalling wipes the armed score and the tuning dials.
+
 ## Machine gotchas
 
 - **AGP 9 has built-in Kotlin.** Do NOT apply `org.jetbrains.kotlin.android` — it collides with "Cannot add extension 'kotlin'". Apply only `com.android.application` + `org.jetbrains.kotlin.plugin.compose`. This is about AGP, not the machine, so it survived the laptop change.

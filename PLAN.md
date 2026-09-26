@@ -651,11 +651,27 @@ Run the benchmark audit and red-team prompts from the pipeline (Phase 5). For th
 
 **Proof:** each attack listed with what happened and the fix. No crashes.
 
-### [ ] Task 12 — Release build, signed and shrunk
+### [~] Task 12 — Release build, signed and shrunk — **BUILT 2026-09-26, install pending**
 
-Release keystore (git-ignored), R8 on, size checked.
+Real release key generated: 4096-bit RSA, SHA384withRSA, valid until 2056. `thrum-release.jks` and `keystore.properties` sit at the repo root, both git-ignored — confirmed with `git check-ignore` rather than by trusting the file.
 
-**Proof:** signed release APK installs and works on the Pixel. Size reported.
+`app/build.gradle.kts` reads the properties file when it exists and signs with it; when it does not — a fresh clone, or any machine without the secret — it falls back to the debug key so `assembleRelease` still runs and R8 can still be checked. **Play rejects a debug-signed upload, so the fallback cannot reach users.**
+
+| | |
+|---|---|
+| Release APK | **1.98 MB** (2,079,266 bytes) |
+| Debug APK, for scale | 25.72 MB |
+| Signer | `CN=Thrum, O=Mutalib Osman, C=GH`, SHA-256 `011c0805…` |
+| Tests | 90, 0 failures |
+
+**R8 did not break the serialisation — checked, not assumed.** This is the bug that silently wiped every saved routine in `pixel-routines`, and it only appears in a release build, so it is the one thing here worth verifying rather than hoping:
+
+- `mapping.txt` shows `Event$Kind CAPPED -> CAPPED` and `DECODED -> DECODED` — the constants kept their names. Only the class was renamed (`Event$Kind -> ao`), which is harmless because what gets persisted is `kind.name`, a string.
+- All six constant names — `FIRED`, `SKIPPED`, `STOPPED`, `CAPPED`, `LISTENER`, `DECODED` — are present in the release `classes.dex`, so `Event.decode`'s string match still resolves.
+
+**Not proven, and it needs the phone:** that the signed release APK installs and runs on the Pixel. It **cannot install over the debug build** — different keys, `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — so the first release install requires an uninstall, which wipes the armed score and the tuning dials. Do that when the current tuning is already written down, not casually.
+
+**The keystore is now the app's identity.** Losing `thrum-release.jks` or its password means the app can never be updated again: a new key means a new listing, and every existing install has to be uninstalled first. `CLAUDE.md` carries the warning. **The backup has not been taken, and that one is Mutalib's to do — it cannot live on this laptop alone.**
 
 ### [ ] Task 13 — Play Store listing
 
