@@ -230,6 +230,14 @@ It does — and it also **bridges neighbouring beats into one run**, which the c
 
 **Open, found while chasing that:** the analyser has no history at the start of a track, so the opening hit runs long — 280 ms against a typical 180 ms on the score currently armed. A warm-up period fixes it, but an onset detector fundamentally cannot see a beat at time zero, so the test fixtures need a realistic lead-in before that change can land. Small, real, not urgent.
 
+**Chased 2026-09-26, and the premise was wrong.** Measured it instead of assuming: five lead-ins — none, 0.5 s of digital silence, and noise floors at −55, −40 and −20 dB — on a two-bar four-on-the-floor fixture at 120 bpm. **The fixture cannot reproduce the defect.** Every run came out 400 ms, the first one included, at every lead-in. The fixture's own kick is the reason: it is a 60 ms decaying burst, so each beat spans several steps of onset and every run is the hold plus that smear, settled or not. A lead-in was not the only thing missing — the transient is too soft to show the effect at all.
+
+So the prerequisite is a fixture built on a **sharp, single-step transient**, where a settled beat produces exactly the hold length and an unsettled one visibly runs past it. That fixture is what is owed here, not a lead-in. Until it exists a warm-up would be a change nothing could test, and this file's own history says that is the wrong way round: a warm-up on the followers was already tried for the band-pass merge and **reverted**, and the tuning here is too finely balanced to move on a guess.
+
+**Landed instead:** `the opening beat is no longer than the beats that follow it`, which pins the property the real defect violates across all five lead-ins, so the fixture that *can* reproduce it has something to fail against. `Fixture.noise()` is new and is what makes a realistic floor expressible at all — a fixture opening on exact zeros drives the "recent average" follower to zero, which is not a stand-in for the first second of a real track.
+
+Still small, still real, still not urgent — but now with a stated prerequisite instead of a guess at the fix.
+
 ### [~] Task 6 — The honest hardware check — **BUILT 2026-08-01, half-proven**
 
 The detection has worked since Task 1 (`Haptics.capability`). What this task added is the **screen**, designed alongside Task 7 rather than twice: it names what is wrong, says no setting or future version will fix it, and **carries no action at all**. A "try anyway" button would be a lie with a tap target.

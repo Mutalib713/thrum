@@ -963,6 +963,49 @@ class QaSuiteTest {
     }
 
     @Test
+    fun `the opening beat is no longer than the beats that follow it`() {
+        // PLAN.md's Task 4 debt says the opening hit runs long — 280 ms against a
+        // typical 180 ms on the armed score — because an onset detector has no
+        // history at the start of a track.
+        //
+        // Chasing it turned up something the debt entry did not say: this fixture
+        // cannot reproduce it, with or without a lead-in. Every run comes out the
+        // same length, first included, at every level from digital silence up to
+        // a -20 dB noise floor. The reason is the fixture's own kick — a 60 ms
+        // decaying burst, which spans several steps of onset, so every run is
+        // 400 ms whether or not the followers have settled. A lead-in was not the
+        // only thing missing; the transient is too soft to show the effect.
+        //
+        // So this is not the test that would have caught the real defect. It pins
+        // the property the real defect violates, so that a fixture built on a
+        // sharp single-step transient — the one that *can* reproduce it — has
+        // something to fail against. The measurements are in PLAN.md.
+        val rate = 44_100
+        val leadIns = linkedMapOf<String, Fixture.() -> Unit>(
+            "no lead-in" to { },
+            "digital silence" to { silence(0.5) },
+            "noise floor -55 dB" to { noise(0.5, 60) },
+            "noise floor -40 dB" to { noise(0.5, 600) },
+            "noise floor -20 dB" to { noise(0.5, 2_000) },
+        )
+        for ((label, lead) in leadIns) {
+            val audio = Fixture(rate).apply {
+                lead()
+                fourOnTheFloor(bars = 2, bpm = 120)
+            }.samples()
+            val builder = ScoreBuilder(rate, Demo.STEP_MS).apply { feed(audio, audio.size) }
+            val runs = runLengthsMs(ScoreBuilder.toScore(builder.levels(), Demo.STEP_MS))
+            val first = runs.first()
+            val longestLater = runs.drop(1).max()
+            assertTrue(
+                "$label: the opening run is ${first}ms but a later run is only " +
+                    "${longestLater}ms — all runs were $runs",
+                first <= longestLater,
+            )
+        }
+    }
+
+    @Test
     fun `a near silent window does not amplify its noise floor`() {
         // The guard on the window. At -44 dB the opening is dither, not music,
         // and normalising *to* it would turn the noise floor into a drum kit.
@@ -1038,6 +1081,29 @@ class QaSuiteTest {
 
         fun silence(seconds: Double) {
             repeat((seconds * sampleRate).toInt()) { out.add(0) }
+        }
+
+        /**
+         * Broadband noise at [amplitude] — what a real recording has at its
+         * start and digital silence does not.
+         *
+         * Added while chasing the long opening hit (PLAN.md, Task 4 debt). A
+         * fixture that opens on exact zeros is not a stand-in for the first
+         * second of a track: it drives the "recent average" follower to zero, so
+         * the first real beat towers over it by an absurd margin and the onset
+         * stays positive far longer than it would over a genuine noise floor.
+         * Tests built on zeros therefore cannot tell a real defect from an
+         * artifact of the fixture, which is precisely the trap that made the
+         * opening-hit fix look like it needed to wait.
+         */
+        fun noise(seconds: Double, amplitude: Int) {
+            val count = (seconds * sampleRate).toInt()
+            var seed = 0x2545F4914F6CDD1DL
+            for (n in 0 until count) {
+                seed = seed * 6364136223846793005L + 1442695040888963407L
+                val v = ((seed ushr 33) % (2L * amplitude + 1)) - amplitude
+                out.add(v.toInt().toShort())
+            }
         }
 
         fun tone(hz: Double, seconds: Double, amplitude: Int) {
