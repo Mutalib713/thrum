@@ -654,6 +654,29 @@ What is left is one setting that silently kills the app, and one that quietly do
 
 **Open question, deliberately not guessed at: Do Not Disturb.** DND may suppress an incoming call's ringtone and its vibration together, which would be a *fourth* silent-failure mode. It is readable (`NotificationManager.getCurrentInterruptionFilter`), but **nothing about it has been measured on this phone** and the evidence rule does not allow inventing a verdict. Measure it in Task 10: turn DND on, call the phone, read `dumpsys vibrator_manager`. Only then decide whether it earns a row.
 
+### Seen on the phone, 2026-09-28 — the setup screen runs, and what that exposed
+
+**Task 9's screen was seen running for the first time.** It had been built on 2026-09-26 and never once looked at, because the phone could not be reached. Over wireless debugging it came up armed and correct:
+
+- masthead, the pulse ribbon, the track name, `0:45 · 79 hits`, and **`Ready`**
+- `Vibrate mode, playing your own music` — so the ringer verdict reads correctly on the Pixel **in vibrate mode**, which is half of what line 653 says is unproven
+- the disclosure paragraph, the `Also when the ringer is on` toggle on, and both action buttons
+- `2250 steps · 20 ms each · still 32% of the time`
+- `Tune the feel`: Punch, Beat length 400 ms, Distance from the music 61
+- the tap test, and a `Diagnostics` row
+
+The long track name wraps to two lines without breaking the layout. Two of the three things line 653 lists as needing the phone are therefore answered for vibrate mode; **silent mode and fontScale 1.3 are still unmeasured**, and the proof as written — Mutalib follows the screen on a fresh install without help — still has not happened.
+
+**`still 32% of the time` reconciles the two numbers that looked wrong.** The armed score has 1,513 non-zero steps of 2,250, which reads as 67%. The screen says 32%, and both are right: 67% is steps the score *marks*, 32% is what survives `MIN_FELT` and actually moves the motor. A score that is vibrating two-thirds of the time would be a buzz, not a rhythm.
+
+**New defect — the preview button loses a word.** The label is `ready_preview` = `"Play it with the song"`. On screen it reads **`Play it with the`**. The two buttons sit in a `Row` with `Modifier.weight(1f)` each, so at 411 dp — the Pixel 6 Pro's own logical width — the text does not fit. `Secondary` passes `maxLines = 1` and no `overflow`, and Compose defaults to `TextOverflow.Clip`, so the word is dropped with **no ellipsis**. It does not look truncated; it looks like a sentence that stops. The accessibility tree still reports the full string, so the two disagree — which is the class of lie this project keeps having to fix. One line to fix (`overflow = TextOverflow.Ellipsis`), or shorten the string, or let it wrap like `Primary` does.
+
+**The debug score dump does not cover the live path.** `files/last-score.txt` is written only inside `ProbeScreen` in `MainActivity.kt` — the *legacy* diagnostics screen. The live UI is `ThrumApp` in `ThrumScreen.kt`, which never writes it. Picking a song the normal way therefore leaves the file untouched: it carried an mtime of `2026-09-21`, a week stale, while the app had decoded that same track minutes earlier. It was pulled and read before that was noticed. **Check the mtime before trusting it**; for a song armed through the normal screen the source of truth is `armed_score` in `shared_prefs/thrum.xml`, written by `Store.arm`.
+
+**Punch's ceiling is 210, not 255.** `range = 120f..(Score.MAX_AMPLITUDE - ScoreBuilder.MIN_HEADROOM)` = `120..210`, so a Punch of 210 is the dial pinned at maximum. It read 208 on arrival and 210 afterwards; the likely cause is a synthetic `input swipe` whose press landed on the track, since a Compose slider jumps to the position pressed. **`input swipe` is not safe around this screen** — press-to-position means an automated scroll can silently retune a dial. Body (400, its own maximum), Distance (61) and Texture (0) were untouched.
+
+**The app re-decodes, ~6 s, when `levels` is lost.** `levels` is in-memory only, so losing it sends `rescore()` down its rebuild path: `c2.android.mp3.decoder`, 48 kHz stereo, 17:10:16 → 17:10:22 for the 45 s track, with `Reading` on screen. That is by design and the code says so. What is *not* established is what lost `levels` — the process was 3 h 8 m old throughout and the scroll position survived, so the composition was not recreated. Left unresolved rather than guessed at; it is not a correctness problem, only a 6-second one.
+
 ### [ ] Task 10 — ⚠ Does it still work tomorrow?
 
 Reliability soak. Arm it, leave the phone alone for 24 hours, call it. Reboot the phone, call it again. Turn on battery saver, call it again.
@@ -719,7 +742,7 @@ Real release key generated: 4096-bit RSA, SHA384withRSA, valid until 2056. `thru
 
 **The keystore is now the app's identity.** Losing `thrum-release.jks` or its password means the app can never be updated again: a new key means a new listing, and every existing install has to be uninstalled first. `CLAUDE.md` carries the warning. **The backup has not been taken, and that one is Mutalib's to do — it cannot live on this laptop alone.**
 
-### [~] Task 13 — Play Store listing — **COPY DONE 2026-09-26, assets and the Console still to do**
+### [~] Task 13 — Play Store listing — **ALL ASSETS DONE 2026-09-28, hosting and the Console still to do**
 
 **Name settled: Thrum.** It already matches `applicationId` (`com.mosman.thrum`), which is permanent on Play once published, so keeping it costs nothing — and renaming later would leave a store name that does not match the identity underneath it. Mutalib's call, made explicitly rather than assumed.
 
@@ -754,13 +777,14 @@ uses-permission: name='android.permission.VIBRATE'
 
 **Also fixed, because it turned out the app had no launcher icon at all.** No `android:icon` in the manifest and no `mipmap` or `drawable` directory — it was shipping with Android's default, which blocks publication and looks unfinished even for testing. Now an adaptive icon drawn as vector XML: the pulse ribbon, five square bars in the safety yellow on the concrete field. The app's own signature mark, rather than a second idea invented for the icon. minSdk is 31, so adaptive-only is sufficient and there is no legacy PNG mipmap to keep in step; a `<monochrome>` layer is included for Android 13+ themed icons.
 
-**Still to do — the assets are the blocker:**
+**Still to do — and it is no longer the assets:**
 
-- 512×512 store icon PNG, exported from the vector
-- 1024×500 feature graphic
-- **2–8 phone screenshots. Needs the Pixel**, and the useful ones are the armed screen and the ribbon mid-play. Take them in the same sitting as the soak.
-- **A privacy policy at a hosted URL.** Play requires the URL even for an app that collects nothing.
-- The Console forms — data safety, notification-access declaration, content rating. Paste-ready text for the first two is in `docs/store/listing.md`, but read the form wording on the day: Play changes labels without changing what they mean.
+- ~~512×512 store icon PNG, exported from the vector~~ — **done**, `docs/store/assets/icon-512.png`, RGBA, checked against the pixel geometry rather than eyeballed
+- ~~1024×500 feature graphic~~ — **done**, `docs/store/assets/feature-graphic.png`
+- ~~**2–8 phone screenshots. Needs the Pixel**~~ — **done 2026-09-28**, `screenshot-01-armed.png` and `screenshot-02-tuning.png`, both 1080×1920 (9:16) RGBA, taken over wireless debugging. How, and the two traps in re-taking them, are in `docs/store/listing.md`
+- **A privacy policy at a hosted URL.** Play requires the URL even for an app that collects nothing. `privacy-policy.html` is written and self-contained; **it still needs to be put somewhere public**
+- **Confirm `mutalibusman713@gmail.com` may appear publicly** as the policy's contact address — it is in the written page and has not been signed off
+- The Console forms — data safety, notification-access declaration, content rating. Paste-ready text for the first two is in `docs/store/listing.md`, but read the form wording on the day: Play changes labels without changing what they mean
 
 ### [ ] Task 14 — Launch
 

@@ -199,16 +199,53 @@ Everything below is in `docs/store/assets/` unless stated otherwise.
 | Store icon | 512×512, 32-bit PNG | **Done** — `icon-512.png`, RGBA, generated from the same five bars as the vector |
 | Feature graphic | 1024×500 PNG/JPG | **Done** — `feature-graphic.png` |
 | Privacy policy | A hosted URL | Written as `privacy-policy.html`; **needs hosting** |
-| Phone screenshots | 2–8, min 320 px, 16:9 or 9:16 | **Blocked on the phone** |
+| Phone screenshots | 2–8, min 320 px, 16:9 or 9:16 | **Done** — `screenshot-01-armed.png`, `screenshot-02-tuning.png`, both 1080×1920 (9:16), RGBA |
 | Short promo video | Optional | Skipped deliberately — nothing to show that a screenshot does not |
 
 Both images are rendered from HTML by headless Chrome rather than drawn by hand,
 so they are reproducible: edit the HTML, re-run the render, and the geometry
 matches the app's own vector instead of resembling it.
 
-Screenshots are the last blocker and they need the app running on the Pixel. The
-most useful ones are of the armed screen and the pulse ribbon mid-play. Take them
-in the same sitting as the soak test.
+### How the screenshots were taken, 2026-09-28
+
+Over wireless debugging, on the Pixel 6 Pro, from a debug build.
+
+The phone is 1440×3120 (9:19.5), which is outside Play's 16:9 / 9:16 window, so
+the display was overridden rather than the image cropped:
+
+```
+adb shell wm size 1080x1920
+adb shell wm density 420     # keeps the 411 dp logical width, so the layout
+                             # is the same one a normal phone shows
+adb shell screencap -p /sdcard/hero.png
+adb shell wm size reset
+adb shell wm density reset
+```
+
+Cropping was the alternative and it is worse: it either cuts content or removes
+the status bar and leaves the layout looking like nothing any phone renders.
+Overriding the size re-lays-out the app at a real 9:16 and the result needs no
+editing at all. **Reset both afterwards** — leaving an override in place makes
+the owner's phone look wrong.
+
+Two things to know before re-taking them:
+
+- **Kill the heads-up banners first.** The first attempts were ruined by a
+  WhatsApp banner across the masthead and, once, by the notification shade
+  opening by itself after the resize. `adb shell settings put global
+  heads_up_notifications_enabled 0`, then restore it to `1`.
+- **The `Diagnostics` row is debug-only.** `MainActivity` passes `onDiagnostics`
+  only when `BuildConfig.DEBUG` is set, so that row does not exist in a release
+  build. Both screenshots are framed above it, so neither shows a control the
+  shipped app does not have. If more shots are taken lower down the page, take
+  them from a release build instead of cropping around it.
+
+**One open question for the listing:** the armed screenshot shows the real track
+name — `AIZO__but_it_s_lofi_hiphop____Jujutsu_Kaisen(256k).mp3`. That is honest
+(it is a file the owner had, which is exactly what the app converts) and it is
+not redistribution under Rule 4. But it names a commercial soundtrack on a public
+store page. A neutral filename would avoid the question entirely; that is a
+judgement call, not a defect.
 
 ### Rendering the images again
 
@@ -252,4 +289,18 @@ a phone migration and buys a privacy claim that holds up under inspection.
 builds**, for a file nothing in the shipped app reads. It is now behind
 `BuildConfig.DEBUG`, so the diagnostics probe still works on a dev build and the
 release build stops doing work for nobody.
+
+**Correction, 2026-09-28 — the dump does not cover the live path.** "The
+diagnostics probe still works on a dev build" is true but easy to misread, and it
+nearly cost an afternoon. The only writer is `MainActivity.kt`, inside
+`ProbeScreen` — the *legacy* diagnostics screen, reachable from the `Diagnostics`
+row. The live UI is `ThrumApp` in `ThrumScreen.kt`, and **it never writes the
+file at all**. So picking a song the normal way leaves `last-score.txt` untouched:
+on the phone it still carried a mtime of `2026-09-21`, a week stale, while the app
+had decoded the same track that afternoon. The file was pulled and read before
+that was noticed.
+
+The live equivalent is `armed_score` in `shared_prefs/thrum.xml`, written by
+`Store.arm`, and it is the one to read when the song was armed through the normal
+screen. Anyone reaching for `last-score.txt` should check its mtime first.
 
