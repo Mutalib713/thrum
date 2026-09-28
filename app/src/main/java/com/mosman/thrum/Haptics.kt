@@ -101,18 +101,7 @@ object Haptics {
                 score.amplitudes.toIntArray(),
                 if (loop) REPEAT_FROM_START else NO_REPEAT,
             )
-            val v = vibrator(ctx)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_RINGTONE))
-            } else {
-                v.vibrate(
-                    effect,
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build(),
-                )
-            }
+            ringtoneVibrate(vibrator(ctx), effect)
             null
         } catch (e: Exception) {
             "The vibrator refused ${score.amplitudes.size} steps: " +
@@ -145,26 +134,69 @@ object Haptics {
             val composition = VibrationEffect.startComposition()
             for ((id, scale) in idAndScale) composition.addPrimitive(id, scale.coerceIn(0f, 1f))
             val effect = composition.compose()
-            // Same usage handling as [play], and for the same reason: it has to
-            // be the ringtone path, or the comparison against the real thing is
-            // measuring a different code path than the product uses. Guarded
-            // because VibrationAttributes is API 33 while minSdk is 31.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_RINGTONE))
-            } else {
-                v.vibrate(
-                    effect,
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build(),
-                )
-            }
+            // Same usage path as [play], through the same helper and for the same
+            // reason: it has to be the ringtone path, or a comparison against the
+            // real thing is measuring a different code path than the product uses.
+            ringtoneVibrate(v, effect)
             null
         } catch (e: Exception) {
             "The vibrator refused that primitive: " +
                 "${e.javaClass.simpleName}${e.message?.let { " — $it" } ?: ""}"
         }
+    }
+
+    /**
+     * Send an effect down the ringtone path.
+     *
+     * Factored out because there are now three callers and they must not drift:
+     * the whole point of the comparison button is that it is the *same* path the
+     * product uses, and three hand-copied branches is three chances for that to
+     * quietly stop being true. Guarded because `VibrationAttributes` is API 33
+     * while minSdk is 31.
+     */
+    private fun ringtoneVibrate(v: Vibrator, effect: VibrationEffect) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_RINGTONE))
+        } else {
+            v.vibrate(
+                effect,
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build(),
+            )
+        }
+    }
+
+    /**
+     * Play the vibration Android itself uses for an incoming call on this phone.
+     *
+     * **Read off the device rather than copied from AOSP.** `dumpsys
+     * vibrator_manager` records this phone's stock ringtone vibration as
+     * `[Step=0ms(amplitude=0.00), Step=1000ms(amplitude=1.00),
+     * Step=1000ms(amplitude=0.00)], repeat=1` — one second at **full** amplitude,
+     * then a second of complete silence, for ever. That is exactly what
+     * `createWaveform(longArrayOf(0, 1000, 1000), 1)` builds, which is why this is
+     * a constant and not a settings lookup: the comparison has to be against the
+     * thing the phone actually does.
+     *
+     * It exists because "is Thrum strong enough?" cannot be answered against a
+     * memory of the buzz. It goes down the same [USAGE_RINGTONE] path as [play],
+     * so the two are genuinely comparable rather than two different code paths
+     * wearing the same label.
+     *
+     * The pattern repeats by itself, so **the caller must stop it** — the screen
+     * arms [STOCK_BUZZ_MS] for that.
+     */
+    fun playStockRingtoneBuzz(ctx: Context): String? = try {
+        ringtoneVibrate(
+            vibrator(ctx),
+            VibrationEffect.createWaveform(STOCK_TIMINGS, STOCK_REPEAT_FROM),
+        )
+        null
+    } catch (e: Exception) {
+        "The vibrator refused the stock buzz: " +
+            "${e.javaClass.simpleName}${e.message?.let { " — $it" } ?: ""}"
     }
 
     /** Shown on screen during Milestone 0 testing, so the phone's state is never a guess. */
@@ -197,4 +229,19 @@ object Haptics {
 
     private const val NO_REPEAT = -1
     private const val REPEAT_FROM_START = 0
+
+    /** The stock ringtone vibration, read off the Pixel: 1 s full, 1 s silent. */
+    private val STOCK_TIMINGS = longArrayOf(0, 1000, 1000)
+
+    /** Repeat from index 1, so the silent tail leads back into the drive. */
+    private const val STOCK_REPEAT_FROM = 1
+
+    /**
+     * How long the stock buzz is allowed to run before the screen stops it.
+     *
+     * The pattern loops for ever, and this is Mutalib's daily phone — see the
+     * safety-cap rule on [play]. Three cycles is long enough to judge the feel and
+     * short enough that it never becomes the thing you are trying to switch off.
+     */
+    const val STOCK_BUZZ_MS = 6_000L
 }

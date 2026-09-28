@@ -108,6 +108,16 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var distance by remember { mutableStateOf(store.distance) }
     var body by remember { mutableStateOf(store.body) }
     var ratePlaying by remember { mutableStateOf(0) }
+
+    /**
+     * True while the phone's own ringtone buzz is playing.
+     *
+     * Deliberately separate from [progress]: the ribbon draws the armed score, and
+     * animating it while a *different* vibration plays is exactly the class of lie
+     * this screen keeps having to fix. The ribbon stays on the score, and this
+     * flag only drives the button's own label.
+     */
+    var stockPlaying by remember { mutableStateOf(false) }
     // Set when a dial cannot be honoured, and shown beside the dials rather than
     // replacing the screen: the armed score is still armed and still plays, so
     // throwing the user out to an error state would overstate the problem.
@@ -152,6 +162,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         sweepJob.value?.cancel()
         sweepJob.value = null
         Haptics.stop(ctx)
+        stockPlaying = false
         player.value?.runCatching { if (isPlaying) stop() }
         player.value?.runCatching { release() }
         player.value = null
@@ -334,6 +345,30 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         sweepJob.value = scope.launch { sweep(built.durationMs) { progress = it } }
     }
 
+    /**
+     * Play the phone's own ringtone buzz, so it can be held up against Thrum's
+     * rhythm without trusting anyone's memory of what the stock buzz feels like.
+     *
+     * The stock pattern repeats for ever, so the safety cap is not optional — see
+     * the rule on [Haptics.play]. It also leaves [progress] alone on purpose; see
+     * [stockPlaying].
+     */
+    fun playStockBuzz() {
+        stopEverything()
+        if (stockPlaying) return
+        val failed = Haptics.playStockRingtoneBuzz(ctx)
+        if (failed != null) {
+            failure = failed
+            return
+        }
+        stockPlaying = true
+        sweepJob.value = scope.launch {
+            delay(Haptics.STOCK_BUZZ_MS)
+            stockPlaying = false
+            Haptics.stop(ctx)
+        }
+    }
+
     fun playWithSong(built: Score) {
         val uri = pickedUri ?: return
         stopEverything()
@@ -424,6 +459,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     texture = distance,
                     body = body,
                     ratePlaying = ratePlaying,
+                    stockPlaying = stockPlaying,
                     rebuildProblem = rebuildProblem,
                     onRateTest = { runRateTest() },
                     // Deliberately no `store.punch = v` (and the same for the
@@ -452,6 +488,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     },
                     onPreview = { playWithSong(state.score) },
                     onFeel = { playAlone(state.score) },
+                    onStockBuzz = { playStockBuzz() },
                     onStop = { stopEverything() },
                     onChange = { picker.launch(arrayOf("audio/*")) },
                 )
@@ -659,6 +696,7 @@ private fun Ready(
     texture: Int,
     body: Int,
     ratePlaying: Int,
+    stockPlaying: Boolean,
     rebuildProblem: String?,
     onRateTest: () -> Unit,
     onPunch: (Int) -> Unit,
@@ -667,6 +705,7 @@ private fun Ready(
     onArm: () -> Unit,
     onPreview: () -> Unit,
     onFeel: () -> Unit,
+    onStockBuzz: () -> Unit,
     onStop: () -> Unit,
     onChange: () -> Unit,
 ) {
@@ -749,6 +788,29 @@ private fun Ready(
                 Secondary(stringResource(R.string.ready_feel), Modifier.weight(1f), onFeel)
             }
         }
+
+        // The comparison button. It gets its own row rather than becoming a third
+        // `weight(1f)` above: three buttons across 411 dp is how "Play it with the
+        // song" already lost its last word, and a comparison you cannot read the
+        // label of is not much of a comparison.
+        //
+        // It plays the phone's real ringtone vibration, read off `dumpsys
+        // vibrator_manager` — one second at full amplitude, then one second of
+        // silence. Answering "is it strong enough?" needs the actual thing beside
+        // it, not a memory of it.
+        Secondary(
+            label = stringResource(
+                if (stockPlaying) R.string.ready_stock_stop else R.string.ready_stock,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onStockBuzz,
+        )
+        Text(
+            stringResource(R.string.ready_stock_help),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
         TextButton(onClick = onChange, modifier = Modifier.heightIn(min = Touch.min)) {
             Text(
                 stringResource(if (armed) R.string.armed_change else R.string.error_action),

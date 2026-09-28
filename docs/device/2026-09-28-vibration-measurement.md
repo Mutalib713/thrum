@@ -84,38 +84,46 @@ the floor (`minFelt`), and with the floor at 210 out of 255 nearly everything
 clears it, so almost nothing is silenced and the score saturates into a solid
 band. Louder, flatter, less like a beat.
 
-### The number that changed, and why it matters
+### The number that changed — and a retraction
 
-The armed screen said **`still 32% of the time`** earlier the same day. It now says
-**`still 10% of the time`**, and the waveform's step count moved from 2,488 to
-2,313. Same file, same dials except Punch 208 → 210.
+The armed screen said **`still 32% of the time`** on the AIZO track. It later read
+**`still 10% of the time`**, and the waveform's step count moved 2,488 → 2,313,
+with Punch 208 → 210.
 
-**That is the wrong direction for that change.** Raising `minFelt` from 208 to 210
-can only push *more* steps below the floor, so `still` should have gone up, not
-from 32% down to 10%. The score itself must have been rebuilt differently.
+**An earlier draft of this file called that the most important lead in it, on the
+grounds that raising `minFelt` can only push *more* steps below the floor, so
+`still` should have risen — and concluded the analyser might not be reproducible.**
 
-This is not proven and is written down as open rather than guessed at. But it is
-the most important lead in the file, because it says the same song may not produce
-the same score twice — and a rhythm that quietly changes between runs cannot be
-tuned by ear at all.
+**That was over-claimed, and it is withdrawn.** The screen a few minutes later
+showed a **different track**: `Asake,_Travis_Scott_-_Active__Official_Video_(128k).m4a`,
+with `armed_score` at 8,578 chars against the AIZO score's 7,585. Mutalib was
+testing other songs. A different file explains a different score completely, and
+nothing here shows the same file producing two scores.
 
----
+Worth noting for next time: **every score is 2,250 steps**, because every track is
+cut to `RINGTONE_SECONDS` (45 s at 20 ms). So the step count on screen cannot tell
+two scores apart — only the encoded length and the histogram can.
+
+**The retraction does not change the main finding.** The current armed score is
+still a near-continuous drive: the ribbon renders as a solid block, `still` is 10%,
+and the vibrator dump shows 89.6% of steps non-zero. That stands on its own.
+
+**What would settle reproducibility** is arming the *same* track twice and
+comparing the two encoded scores. Nobody has done that.
 
 ## What to do next
 
-1. **The tap test is the discriminator, and it takes ten seconds.** It plays short
-   sharp pulses rather than a flat drive, and those pulses are what moved the phone
-   by 1.75 g above. If Mutalib can feel the taps but not the armed rhythm, then the
-   motor and the app are both fine and the fault is entirely in the score's shape.
-   If he cannot feel the taps either, the problem is elsewhere and this file's
-   conclusion is wrong.
-2. **Find out why the score changed between two re-decodes of one file.** Decode
-   `armed_score` from `shared_prefs/thrum.xml` and compare its amplitude histogram
-   against a fresh analysis on the PC. Until that is explained, every tuning
-   judgement on the phone is being made against a moving target.
-3. **Then, and only then, the contrast.** The fix direction is more silence and
-   more dynamic range — real gaps between hits — not more amplitude, which is
-   already at the ceiling and is what produced the hum.
+1. **Compare the two buzzes.** The screen now has a **Play the phone's own buzz**
+   button that plays this phone's real stock ringtone vibration — one second at
+   full amplitude, then one second of silence — down the same `USAGE_RINGTONE`
+   path the product uses, so the two are genuinely comparable. Play one, then the
+   other.
+2. **Then the contrast.** If the stock buzz wins, the fix direction is **more
+   silence and more dynamic range, not more amplitude** — amplitude is already at
+   the ceiling (full for the stock pattern, 0.84 mean for Thrum's) and is what
+   produced the hum. If Thrum already wins, the problem is elsewhere and this
+   file's diagnosis needs revisiting.
+3. **Only then, reproducibility** — same track, twice, compared.
 
 ## Reproducing the measurement
 

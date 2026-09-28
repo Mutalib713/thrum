@@ -40,6 +40,17 @@
     <string name="ready_feel">Feel it on its own</string>
     <string name="ready_stop">Stop</string>
 
+    <!-- The comparison button. "Is it strong enough?" cannot be answered against
+         a memory of the stock buzz, so this plays the real thing beside it. The
+         pattern is the one this phone actually uses, read off `dumpsys
+         vibrator_manager` rather than copied from AOSP: one second at full
+         amplitude, then one second of complete silence, repeating. -->
+    <string name="ready_stock">Play the phone\'s own buzz</string>
+    <string name="ready_stock_stop">Stop the buzz</string>
+    <string name="ready_stock_help">The vibration Android uses for a call on this phone: one
+        second at full strength, then one second of silence. Play it, then play yours, and
+        compare the two.</string>
+
     <!-- Armed -->
     <string name="armed_title">Ready</string>
     <string name="armed_change">Choose a different song</string>
