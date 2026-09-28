@@ -677,6 +677,30 @@ The long track name wraps to two lines without breaking the layout. Two of the t
 
 **The app re-decodes, ~6 s, when `levels` is lost.** `levels` is in-memory only, so losing it sends `rescore()` down its rebuild path: `c2.android.mp3.decoder`, 48 kHz stereo, 17:10:16 → 17:10:22 for the 45 s track, with `Reading` on screen. That is by design and the code says so. What is *not* established is what lost `levels` — the process was 3 h 8 m old throughout and the scroll position survived, so the composition was not recreated. Left unresolved rather than guessed at; it is not a correctness problem, only a 6-second one.
 
+### The standing gate, answered 2026-09-28 — and the motor is not the problem
+
+Mutalib, verbatim: *"still i cant feel anything aint strong enough"*. Body was already at 400 (its maximum) and Punch at 210 (its ceiling), so there was no dial left to turn up and the question became whether the motor was doing anything at all.
+
+**It is. The phone physically shakes.** Measured with `dumpsys sensorservice`'s last-50 accelerometer window, verified live by the wall-clock timestamps advancing between captures rather than assumed:
+
+| capture | \|g\| sd | max jerk |
+|---|---|---|
+| idle (flat, untouched) | 0.0096 | 0.030 |
+| during the tap test, 1 s | 0.0193 | 1.160 |
+| during the tap test, 8 s | **0.1110 (×11.6)** | **3.240 (×108)** |
+
+Peak sample `(-0.57, -1.75, 10.01)` — **1.75 g sideways**. A handset that is not moving cannot do that, so the motor, the HAL and the app's call path are all working.
+
+**The defect is the shape, and it is the buzz the app exists to replace.** `dumpsys vibrator_manager` shows Thrum asking for 2,313 steps of 20 ms with **89.6% of them non-zero at a near-constant 0.84 amplitude**. A hand feels a haptic through its *onset*, and a drive that is already on and stays on has almost no onset to feel. It reads as a flat hum. **Punch at its maximum made this worse, not better**: Punch is the floor, so at 210 of 255 almost nothing is silenced and the score saturates into a solid band. Louder, flatter, less like a beat.
+
+**⚠ Open, and the most important lead in the file: the score may not be reproducible.** `still` read **32%** earlier the same day and reads **10%** now, and the waveform's step count moved 2,488 → 2,313 — with only Punch changed, 208 → 210. Raising `minFelt` can only push *more* steps below the floor, so `still` should have risen, not fallen by two thirds. Something rebuilt the score differently. **Until that is explained, tuning by ear on the phone is tuning against a moving target.** Decode `armed_score` and compare its histogram against a fresh PC analysis.
+
+**Next:** the tap test is the ten-second discriminator — its pulses are sharp, they are what moved the phone by 1.75 g, and if Mutalib can feel *those* but not the armed rhythm then the fault is entirely in the score's shape. Then the fix direction is **more silence and more contrast, not more amplitude**, which is already at the ceiling.
+
+Full write-up, with the method and the reproduction: `docs/device/2026-09-28-vibration-measurement.md`.
+
+**Note for anyone trying this again:** `cmd vibrator` **does not exist** on this device — `adb shell cmd vibrator` returns `Can't find service: vibrator` — so there is no way to fire a test vibration over adb. The tap test is the only on-device pulse source, and the accelerometer is the only objective readout.
+
 ### [ ] Task 10 — ⚠ Does it still work tomorrow?
 
 Reliability soak. Arm it, leave the phone alone for 24 hours, call it. Reboot the phone, call it again. Turn on battery saver, call it again.
