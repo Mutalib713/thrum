@@ -113,7 +113,7 @@ Every pair computed by `palette.py`, not eyeballed. **Rejected:** the data layer
 
 **Signature move — the pulse ribbon.** The score drawn as vertical bars, with a playhead sweeping it in real time as the rhythm plays. It is memorable, it exists in no other app, it is the one thing a screenshot carries — and it does real work: it is how the user *sees* that the rhythm follows their song, before they ever feel it. Empty state is a flat line, which is precisely what Android gives them today.
 
-**What we refuse.** No purple or indigo anything. No `Get Started`. No three-feature-card row — there is one feature. No glass. No emoji anywhere. No centered-hero-with-two-buttons. No stock imagery: the only picture in this app is the user's own rhythm. No baseline M3 purple, which is the Android form of the same tell.
+**What we refuse.** No purple or indigo anything. No `Get Started`. No three-feature-card row — there is one feature. ~~No glass.~~ **Overridden 2026-09-29 — see Phase 4.** No emoji anywhere. No centered-hero-with-two-buttons. No stock imagery: the only picture in this app is the user's own rhythm. No baseline M3 purple, which is the Android form of the same tell.
 
 **Anti-convergence check** (vs the last project, ACES redesign): different tone (instrument vs editorial energy), different accent (sulphur yellow vs ACES palette), different layout axis (single vertical column, no sections). Passes on three of four.
 
@@ -135,3 +135,28 @@ Tokens live in `ui/Theme.kt`, `ui/Tokens.kt`. No raw values in composables after
 ## Phase 4–6
 
 Filled in as built. Gate output and critique changes recorded here.
+
+### 2026-09-29 — "No glass" withdrawn, liquid glass adopted
+
+Phase 2 refused glass outright. That refusal was written before the app had been seen
+running on a phone, and it is withdrawn at Mutalib's request.
+
+**Why it can be withdrawn safely.** The usual argument against glass is that it
+destroys text contrast, because text ends up on an unknown composite. Thrum escapes
+that, for one reason: **it generates its own backdrop.** The backdrop is the score
+drawn as wide bars and blurred, so its brightest possible value is a constant we
+choose. With that capped at `#54470C` and the panel fill fixed at `field` 82 %, the
+composite is bounded for the entire length of every track — L stays inside
+0.011–0.017, so ink holds 13.5:1 or better and ink2 6.5:1 or better everywhere. That
+is arithmetic, not taste.
+
+**The consequence, which is the part that must not be forgotten:** a panel carrying
+text cannot be very transparent. The glass reads from its rim, its bright top edge,
+and from the backdrop at full strength in the gutters *between* panels. Making the
+fill more transparent to look more like glass trades a guarantee for a decoration.
+
+**Also unchanged:** the pulse ribbon is never glazed. It is a machine part shown at
+its real shape — flat, full-contrast, square-cornered bars on a glass card, never
+under glass.
+
+Full spec, copy deck, and the Figma prompt: `docs/design/`.
