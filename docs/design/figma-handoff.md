@@ -197,6 +197,27 @@ the bars would turn the app's signature move into a decorative chart.
 
 Also never glazed: any text, the armed dot, the slider thumbs.
 
+### 4.5 How transparent each surface may be
+
+The rule is one line: **only a surface with no text on it may be transparent.**
+
+| Tier | Surface | Fill | Why |
+|---|---|---|---|
+| — | The ribbon bars | no panel | They are content. Flat, full contrast, never under glass. |
+| A | **Any panel carrying text** | field at **82%** | The composite stays in band, so ink holds 13.5:1 and ink2 6.5:1 at every point in every track. |
+| B | **The ribbon card** | field at **30%** | Nothing but the ribbon sits on it, and the bars are bright yellow with large contrast headroom. Verified: the bars still hold **6.4:1** at the loudest point of a track. |
+| C | **The gutters** | no panel | The score runs at full strength between and around panels. This is where the glass gets its colour. |
+
+Tier B is the one worth pushing, and it is why clearing the screen out makes the app
+glassier rather than merely emptier: **the fewer panels that carry text, the more
+surface there is that can be genuinely see-through.** Even at 20% the bars hold
+6.0:1, so if the build looks better that way, it is safe.
+
+**The liquid part is that the backdrop moves.** It is not a static image — it is the
+score, so while a preview plays, the field's colour flows and the panels' tint
+changes with the rhythm. That is the difference between glass and *liquid* glass, and
+it costs nothing, because the data is already there.
+
 ---
 
 ## 5. Screen inventory — seven states, one screen
@@ -224,70 +245,88 @@ Also never glazed: any text, the armed dot, the slider thumbs.
 
 ---
 
-## 6. The Armed screen, in order
+## 6. The production screen, in order
 
-Single scrolling column. **24 dp** side margins, **24 dp** between blocks.
+The screen that shipped was a test bench: preview, feel, compare, three dials, a
+tap-rate test and a technical row, all stacked down one column. It read as a
+diagnostics panel because it *was* one — every control on it existed to answer a
+question during development.
+
+The product screen keeps six things and moves the rest. Single scrolling column,
+**24 dp** side margins, **24 dp** between blocks.
 
 ```
-  Thrum                                            ( • )   ← armed dot, accent, only when armed
+  Thrum                                            ( • )   ← armed dot, only when armed
   Vibrate mode, playing your own music
 
-  ┌──────────────────────────────────────────────────┐   ← GLASS CARD
-  │  ▁▃▅█▅▃▁▃▅█▅▃▁  the pulse ribbon, 96 dp tall    │     rim white 16%
-  │  3 dp bars, 1 dp apart, square corners,           │     top edge white 26%
+  ┌──────────────────────────────────────────────────┐   ← RIBBON CARD, 30% — see §4.5
+  │  ▁▃▅█▅▃▁▃▅█▅▃▁  the pulse ribbon, 150 dp tall    │     the field shows through it
+  │  3 dp bars, 1 dp apart, square corners,           │
   │  accent yellow, 1 dp playhead sweeping            │
   └──────────────────────────────────────────────────┘
 
-  Asake — Active                                       ← 20 sp, 2 lines then ellipsis
+  Asake, Travis Scott - Active                         ← 20 sp, 2 lines then ellipsis
   0:45 · 79 hits                                       ← 14 sp, muted
 
   Ready                                                ← 25 sp, accent yellow
   Your phone is on vibrate, so next time it rings,     ← 16 sp
   this is what you feel.
 
-  Also when the ringer is on                    ( ●——)  ← GLASS ROW, switch on
-  Your phone plays its own ringtone and Thrum
-  vibrates your track over it. Unless they are
-  the same file, you hear one song and feel another.
+  Also when the ringer is on                    ( ●——)  ← GLASS ROW, 82%, switch on
+  Your ringtone and your track
 
-  [ Play it with the song ] [ Feel it on its own ]     ← two glass pills, equal width
-
-  [        Play the phone's own buzz        ]          ← full width, tinted not filled
-  The vibration Android uses for a call on this
-  phone: one second at full strength, then one
-  second of silence. Play it, then play yours,
-  and compare the two.
-
-  Choose a different song                              ← text button
-
-  2250 steps · 20 ms each · still 10% of the time      ← 12 sp, muted, monospaced feel
-
-  Tune the feel                                        ← 16 sp, section heading
-  Punch 210
-  How hard a beat lands. It also sets how far Detail
-  can go, so raise this first if Detail runs out of room.
-  ────────────────●───────────────────────             ← recessed track, glass bead thumb
-
-  Beat length 400 ms
-  How long each beat is driven for. ...
-  ────────────────●───────────────────────
-
-  Distance from the music 61
-  0 is as close as it gets: ...
-  ────────────────●───────────────────────
-
-  Changes apply straight away. Play it to feel them.
-
-  How fast can this phone tap?                         ← 16 sp, section heading
-  Plays the same tap at six speeds, slowest first, ...
-  [            Run the tap test            ]
+  Tune it                                        ›     ← quiet row, opens the Tune sheet
+  Choose a different song                              ← quiet row
 ```
 
-**Only one filled button per screen.** Everything else is glass. A screen of three
-filled buttons has no primary action.
+That is the whole screen. The armed state is the one the user will actually live in,
+and it now has **no filled button at all** — because once the app is armed there is
+genuinely nothing to do. The single filled button exists only *before* arming, as
+"Use this when someone calls".
+
+A calm screen is the honest one here. The product's promise is that you open it once
+and never again, so the resting state should look settled rather than busy.
+
+### What moved, and where
+
+| Off the product screen | Went to | Why |
+|---|---|---|
+| The three tuning dials | the **Tune sheet** | Taste still belongs to the person holding the phone — but one tap away, not in the way. |
+| "Play it with the song" | the **Tune sheet** | It is how you judge a tuning, not how you use the app. |
+| "Feel it on its own" | the **Tune sheet** | Same. |
+| "Play the phone's own buzz" | **diagnostics** | It exists to answer "is Thrum strong enough?", which is a question about the instrument. |
+| "Run the tap test" | **diagnostics** | Measures the hardware, not the product. |
+| The technical row | **diagnostics** | For the person who wants the numbers. They will find them. |
+
+This reverses an earlier decision, deliberately. The tuning was put on the product
+screen on the grounds that taste belongs to the user — which is still true. What
+changed is the recognition that *reachable* and *in the way* are different things,
+and the test bench was making the app look unfinished.
+
+### The Empty state, which is the real first impression
+
+```
+  Thrum
+  Vibrate mode, playing your own music
+
+  ┌──────────────────────────────────────────────────┐
+  │  ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁ ▁  a flat line of 1 dp    │  ← what Android gives you today
+  └──────────────────────────────────────────────────┘
+
+  Pick the song you want to feel                        ← 25 sp
+  Any track on your phone. Thrum follows the bass and   ← 16 sp
+  drums, and makes your phone vibrate to them when
+  someone calls.
+
+  [              Choose a song              ]           ← the only filled button
+```
+
+Four blocks. The flat line in the ribbon is doing the selling, and it is honest: it
+is literally the vibration the phone makes today.
+
+**One filled button per screen. In the armed state, none.**
 
 ---
-
 ## 7. Components
 
 | Component | Spec |
@@ -420,8 +459,21 @@ running on a Pixel 6 Pro, not a mockup.
    setting. Glass is specified for dark. In daylight a dark pane over a light field
    becomes a grey smudge, so light mode needs either a white-translucency variant or
    the flat treatment left alone. **Undecided.**
-2. **The ribbon card.** Currently the ribbon sits on a glass card with flat,
-   full-contrast bars. An alternative is a deeper inset with no card at all, letting
-   the backdrop read right up to the bars. **Undecided.**
-3. **Whether the dials are glass at all.** Three sliders inside glass panels may be
-   one glass surface too many. **Undecided.**
+2. **Does the Tune sheet need a way in that is visible enough?** The dials moved off
+   the product screen, which is right, but "Tune it" is a single muted row. If nobody
+   finds it, the tuning work may as well not exist. **Undecided.**
+3. **Is the armed screen too empty?** It now has no filled button and a lot of field
+   showing below the content. That is deliberate — a settled resting state — but it
+   is a judgement call about how much emptiness reads as calm versus unfinished.
+   **Undecided.**
+4. **Where "Feel it on its own" belongs.** It sits in the Tune sheet for now. It is
+   arguably a product feature rather than a tuning aid — the way you check that the
+   thing you just armed is what you wanted. **Undecided.**
+
+### Settled this pass
+
+- ~~The ribbon card: card or bare inset.~~ **Card, at 30% fill.** It is the one
+  surface with no text on it, so it is where the glass gets to be genuinely
+  transparent, and it needs a rim to read as a pane at all.
+- ~~Whether the dials are glass.~~ **Yes, but inside the Tune sheet, not on the
+  product screen.** They were never the problem; their *location* was.
