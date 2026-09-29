@@ -327,6 +327,54 @@ is literally the vibration the phone makes today.
 **One filled button per screen. In the armed state, none.**
 
 ---
+### The other states, in order
+
+**Permission** — masthead, then:
+- "Thrum has to see your call notifications" at 25 sp, wrapping to two lines
+- the paragraph at 16 sp
+- one filled button, "Turn on notification access"
+
+No ribbon. This is a gate, and a ribbon would be a promise the app cannot keep yet.
+
+**Blocked** — masthead, then:
+- "This phone can't do it" at 25 sp in `warn`
+- the paragraph at 16 sp
+- the hardware line at 12 sp, muted: `Motor: yes. Strength control: no.`
+- **and nothing else.** No button, no way forward.
+
+**Error** — masthead, then:
+- "That one didn't work" at 25 sp in `warn`
+- the decoder's own sentence at 16 sp
+- one filled button, "Choose a different song"
+
+**Playing** — the Armed screen with exactly two changes: the ribbon's playhead is
+drawn, and the two quiet rows are replaced by a single full-width glass pill reading
+"Stop". No other control appears. A Stop button that exists when nothing is playing is
+how people learn to distrust the live ones.
+
+**The Tune sheet** — a bottom sheet, radius 16 on the top corners, fill `field` at 96%,
+sliding over the Armed screen, which is dimmed behind it by a 45% black scrim.
+Contents, top to bottom: a 40 dp grip bar; "Tune the feel" at 16 sp; the three dials;
+"Changes apply straight away. Play it to feel them." at 12 sp muted.
+
+**The slider track is a recessed groove, not a raised bar**, with a glass bead thumb
+carrying a 2 dp accent rim. That is the one control where the glass metaphor does real
+work: a groove reads as something you push *into*, which is what a dial is.
+
+**Won't work yet** — the Armed screen with the verdict replaced. This is the most
+important state to get right, because it is the only one where the app tells the user
+to go and change a system setting.
+- "Won't work yet" at 25 sp in `warn`
+- the paragraph at 16 sp
+- the remedy at 12 sp muted
+- a full-width **glass** pill, "Open sound settings" — glass, not filled, because the
+  app is sending the user somewhere rather than doing the thing itself
+- the quiet row "Choose a different song"
+
+The app never changes the setting itself. It explains, and it sends.
+
+---
+
 ## 7. Components
 
 | Component | Spec |
