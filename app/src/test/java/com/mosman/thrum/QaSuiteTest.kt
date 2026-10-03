@@ -644,6 +644,101 @@ class QaSuiteTest {
         assertEquals("the two hits should now read as one run", 1, held.pulseCount())
     }
 
+    // --- Task 15: the hum, measured on the PC. The 2026-09-28 measurement
+    // --- found the armed score driving the motor 89.6 % of the time at a
+    // --- near-constant 0.84, and a hand reads that as a hum. These metrics
+    // --- lived in a Python transcription of the analyser; they live here now,
+    // --- so every tuning change from here on is measured, not remembered.
+
+    @Test
+    fun `the stock buzz benchmark measures what the phone records`() {
+        // The benchmark is the score built from the pattern read off
+        // `dumpsys vibrator_manager` — one second at 255, one second of
+        // silence — so the metrics and the thing they are compared against go
+        // through the same arithmetic. Its numbers are the definition of
+        // "reads as a buzz": half on, all the way up, 0.500 sustained.
+        val m = Feel.STOCK_BUZZ_METRICS
+        assertEquals(50, m.dutyPct)
+        assertEquals(50, m.stillPct)
+        assertEquals(255, m.meanOn)
+        assertEquals(0.500f, m.sustainedDrive, 0.001f)
+        assertEquals(1000, m.longestFeltRunMs)
+    }
+
+    @Test
+    fun `the metrics call a solid drive exactly what it is`() {
+        // The degenerate cases, so the arithmetic itself is pinned: a score
+        // that never stops is the hum at its limit — duty 100, sustained 1.000
+        // — and silence is duty 0 however you slice it.
+        val solid = Feel.of(Score(20, List(100) { 255 }))
+        assertEquals(100, solid.dutyPct)
+        assertEquals(0, solid.stillPct)
+        assertEquals(255, solid.meanOn)
+        assertEquals(1.000f, solid.sustainedDrive, 0.001f)
+        val quiet = Feel.of(Score(20, List(100) { 0 }))
+        assertEquals(0, quiet.dutyPct)
+        assertEquals(100, quiet.stillPct)
+        assertEquals(0.000f, quiet.sustainedDrive, 0.001f)
+    }
+
+    @Test
+    fun `the feel ladder orders itself the way the dial says it does`() {
+        // Crisp < default < strong on every axis the dial claims to move. If
+        // the crisp end is not quieter and shorter than the strong end, the
+        // dial has stopped being a dial — which is the complaint that started
+        // the dead-detail-dial bug.
+        //
+        // On [Fixture.fourOnTheFloor], not the over-bed fixture, and the reason
+        // is a measurement worth keeping: over a bed, the parked opening-beat
+        // defect sets a 480 ms floor on the longest felt run at EVERY setting
+        // (measured 2026-10-03: 480 ms at Body 100 and Body 400 alike), so the
+        // opening smear masks the dial exactly the way the @Ignore'd
+        // reproduction says it does. On the sparse fixture the dial's own
+        // effect is what dominates, which is what a ladder test is for.
+        fun metrics(bodyMs: Int) = Feel.of(
+            analyse(bodyMs = bodyMs) { fourOnTheFloor(bars = 4, bpm = 120) },
+        )
+        val crisp = metrics(ScoreBuilder.BODY_MIN_MS)
+        val standard = metrics(ScoreBuilder.BODY_MS)
+        val strong = metrics(ScoreBuilder.BODY_MAX_MS)
+        assertTrue("crisp duty ${crisp.dutyPct} not under strong ${strong.dutyPct}", crisp.dutyPct < strong.dutyPct)
+        assertTrue(
+            "sustained did not rise with the dial: ${crisp.sustainedDrive} -> " +
+                "${standard.sustainedDrive} -> ${strong.sustainedDrive}",
+            crisp.sustainedDrive < standard.sustainedDrive &&
+                standard.sustainedDrive <= strong.sustainedDrive,
+        )
+        assertTrue(
+            "longest felt run did not rise with the dial: " +
+                "${crisp.longestFeltRunMs} -> ${standard.longestFeltRunMs}",
+            crisp.longestFeltRunMs < standard.longestFeltRunMs,
+        )
+    }
+
+    @Test
+    fun `the punch ceiling does not saturate the fixture into the hum the phone recorded`() {
+        // The 2026-09-28 hum was measured with Punch at its 210 ceiling: duty
+        // 89.6 %, mean-on 0.84. On the fixture the same setting measures far
+        // under that (41 % duty, 0.35 sustained — printed and pinned below),
+        // because the fixture is silent between kicks where the real track has
+        // continuous bass. So this pin is the direction, not the phone's
+        // number: whatever the analyser does, the loudest dial position must
+        // never take the score past the buzz's sustained drive by more than
+        // the margin the real track measured (0.540 against 0.500). The phone
+        // sitting is where the real track's numbers get re-measured.
+        val m = Feel.of(
+            analyse(punch = 210, bodyMs = ScoreBuilder.BODY_MS) {
+                fourOnTheFloorOverBed(bars = 4, bpm = 120, bedAmplitude = 8_000)
+            },
+        )
+        assertTrue(
+            "sustained drive ${m.sustainedDrive} at the punch ceiling " +
+                "(duty ${m.dutyPct}%, mean-on ${m.meanOn}) exceeded the buzz " +
+                "benchmark by more than the measured margin",
+            m.sustainedDrive <= Feel.STOCK_BUZZ_METRICS.sustainedDrive * 1.10f,
+        )
+    }
+
     @Test
     fun `holding a pulse keeps its leading edge where the beat is`() {
         // Widening around the peak instead of forward would move the hit earlier

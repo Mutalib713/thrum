@@ -354,8 +354,15 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
      * [stockPlaying].
      */
     fun playStockBuzz() {
+        // The label reads "Stop the buzz" while it plays, so the stop has to be
+        // decided BEFORE anything is cleared. stopEverything() resets
+        // stockPlaying, and the check used to sit after it — dead code, so every
+        // press while the buzz played started a fresh one instead of stopping
+        // it. Task 15 names this bug; it is the comparison button the whole
+        // feel-fix depends on.
+        val wasPlaying = stockPlaying
         stopEverything()
-        if (stockPlaying) return
+        if (wasPlaying) return
         val failed = Haptics.playStockRingtoneBuzz(ctx)
         if (failed != null) {
             failure = failed
