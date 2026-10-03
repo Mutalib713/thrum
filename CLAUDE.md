@@ -4,7 +4,9 @@
 
 ## What this app is, in one line
 
-Makes Android's vibrate mode follow the rhythm of your own ringtone instead of buzzing a flat pattern.
+Turns sound into something you can feel: your phone vibrates to the rhythm of a song you chose when someone calls, and you can play your music inside Thrum and feel every beat. **Calls come first.**
+
+Since 2026-10-03 Thrum is the full app (calls, music, videos, My Haptics, export). The screens to build are in `docs/design/screens/thrum-screens.png`; `PROFILE.md` §4 says what each one does.
 
 ## Standing rules
 
@@ -18,11 +20,11 @@ Makes Android's vibrate mode follow the rhythm of your own ringtone instead of b
 
 ## Sacred Rules (copied from PROFILE.md §6 — do not diverge)
 
-1. v1 ships **one screen and one active vibration score.** Doesn't fit? It's v2.
+1. **One song for calls at a time, and calls come first.** v1 is PROFILE.md §4 and the final screens. Not on them? It's v2.
 2. **Never let a user believe the app works when their hardware cannot do it.** The capability check runs first and its verdict is honest.
-3. **Everything runs on the phone. No server, ever.** Nothing leaves the device.
+3. **Everything runs on the phone. No server, no network, ever.** Nothing leaves the phone unless the user exports it, and an export never contains audio.
 4. **Never ship, host, or redistribute audio.** Convert what's already on the user's device, nothing else.
-5. **Never claim or attempt system-wide audio haptics.** Android gives no app access to another app's audio. Spotify, YouTube Music, WhatsApp calls are permanently out of reach.
+5. **Never claim or attempt system-wide audio haptics.** Android gives no app access to another app's audio. Spotify, YouTube Music, WhatsApp calls are permanently out of reach. Thrum's own player plays only files on the phone, inside Thrum.
 6. **Prove it on hardware before building around it.** No emulator exists here and emulators can't do vibration anyway.
 7. **The feature flag is not a strategy.** The app must work with `enableRingtoneHapticsCustomization` OFF.
 8. Plain-language first, always.

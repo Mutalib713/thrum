@@ -2,21 +2,27 @@
 
 > This file is the constitution. Every session reads it FIRST, before touching code.
 > Sacred Rules (§6) change only with Mutalib's explicit approval.
-> Name "Thrum" is provisional and may be changed before launch; nothing else here is casual.
+> The name is settled: Thrum (Task 13). Nothing here is casual.
 
 Started 2026-07-26. Owner: Mutalib (Mutalib713).
+
+**2026-10-03: scope redefined by Mutalib.** Thrum is now the full app: calls, music, videos, My Haptics and export. He approved the rule changes in §5 and §6 the same day ("this is the final build"). The final screens are in `docs/design/screens/`. Everything measured before that date (§11) still stands, and the calls feature it describes is the one already working on his phone.
 
 ---
 
 ## 1. WHAT
 
-Thrum makes an Android phone's vibration follow the rhythm of your own ringtone instead of buzzing a flat, meaningless pattern — the thing iPhones do, which Android leaves switched off.
+**Thrum turns sound into something you can feel. Hear it. Feel it.**
 
-You pick any audio file already on your phone. Thrum listens to it, works out where the beats and the weight are, and saves that as a vibration score. When a call comes in while your phone is on vibrate, Thrum plays that score through the vibration motor. Your pocket feels the shape of your ringtone. No sound comes out.
+It started with one job, and that job still comes first: when someone calls, the phone's vibration follows the rhythm of a song you chose, instead of the flat buzz every Android phone makes. iPhones do this; Android leaves it switched off.
+
+Since 2026-10-03 Thrum is also a place to feel your music. It finds the songs on your phone (after asking), plays any of them with a vibration that follows the beat, and can do the same for the sound of a video or an audio file. Every haptic is kept in My Haptics and can be exported.
+
+Underneath, it is one idea. Thrum listens to a track, works out where the beats and the weight are, and saves that as a **vibration score**: one strength value for every 20 ms. On a call in vibrate mode, the score plays through the motor and no sound comes out. In the app, you hear the song and feel the score together, or feel it alone.
 
 ## 2. WHO
 
-**Primary user:** an owner of a phone with a good vibration motor (Pixel, Samsung flagship, and similar) who keeps their phone on vibrate most of the time and is annoyed that vibrate mode feels identical no matter which ringtone they chose.
+**Primary user:** an owner of a phone with a good vibration motor (Pixel, Samsung flagship, and similar) who keeps their phone on vibrate most of the time and is annoyed that vibrate mode feels identical no matter which ringtone they chose. Since 2026-10-03, the same person is also someone who wants to feel the music already on their phone.
 
 **Reached via:** Google Play Store, strangers on the internet. Explicitly NOT a Ghana-first product — see §10, most phones here physically cannot do this.
 
@@ -42,42 +48,60 @@ That primary metric doubles as the device test matrix, so it does two jobs.
 
 ## 4. V1 SCOPE
 
-1. **Capability check on first launch.** Detect whether this phone can actually do rich vibration. If not, say so plainly and honestly before the user invests any time. (See §6, Sacred Rule 2.)
-2. **Pick an audio file** already on the phone (device audio picker; includes stock ringtones, downloaded MP3s, WhatsApp audio).
-3. **Analyse it into a vibration score** — an amplitude-over-time envelope derived from the low-frequency energy of the track, because bass and drums are what a hand can actually feel.
-4. **Preview.** Play the audio and the vibration together so the user can feel it before committing. This is the core "does this feel right" loop.
-5. **Arm it.** Store the score as the active one. On an incoming call while the phone is on vibrate, play the score through the motor.
-6. **Setup guidance screen.** Plainly walk the user through the one or two system settings needed for this to work without fighting the system's own buzz (determined empirically in Task 1 — see §11).
-7. **One screen.** Everything above lives on a single screen plus the capability/setup screens. Material You, follows system light/dark.
+Rewritten 2026-10-03. The layout reference for every screen is `docs/design/screens/thrum-screens.png`; the numbers in brackets are its screen numbers. The original one-screen scope is in git history, and most of it lives on inside items 1 and 3.
+
+1. **Honest phone check first** [1, 22, 25]. Before anything else, check that the motor can change strength. If it cannot, say so plainly and stop, with no "continue anyway" (Sacred Rule 2).
+2. **First launch in seven screens** [1–7]: splash, welcome, how sound becomes touch (with a "feel the difference" button), calls/music/videos, calls (asks for call access; "Maybe later" allowed), music, you're set. **Calls come first** in every list and in this order.
+3. **One song for calls** [5, 18, 24, 27]. Any haptic can be "used for calls", and choosing another replaces it. A call plays **the first 45 seconds** of it, repeated until the call is answered or ends. It plays in vibrate mode and, while the user leaves the switch on, in ring mode too. Silent mode gets an honest warning, because Android throws the vibration away there. With nothing chosen, calls get Android's normal buzz: **no demo pattern**.
+4. **Music** [8–12]. The tab starts empty, with "Scan for music". Thrum asks for music access only when the user taps it, then lists every song and audio file it finds, with search. If access is refused, the user can still pick one song at a time.
+5. **Haptics for songs** [10, 11, 13]. After a scan, Thrum asks: make every song's haptic now, **in the background**, or one at a time as each is first played. Either way, a song played before its turn jumps the queue. The choice can be changed in Settings, and progress shows as "2 of 5 done".
+6. **The player** [14]. Plays the whole song with its haptic, "hear and feel" or "feel only", with previous and next. It is also each song's page: tune it, use it for calls, export it.
+7. **Videos and audio files** [16]. One at a time, through the phone's own file chooser. Thrum reads the audio track of a video, and never asks for access to all videos.
+8. **My Haptics** [19]. Every haptic in one list, filtered by All, Music, Videos, Files.
+9. **Tune the feel** [15]. Three presets (Crisp, Full, Strong) and three dials: Intensity (was Punch), Focus (was Distance), Duration (was Body).
+10. **Export and import** [16, 17]. Export one haptic or all of them as Thrum pattern files saved on the phone; songs without a haptic get one first. Import opens a Thrum file. **Only the vibration is exported, never audio.** "A ringtone with the vibration inside" is shown as not built yet: that is the v2 encoder.
+11. **Home** [18]. The song for calls with its rhythm, "Feel a test call", the last call, shortcuts to Music and Create, and recently played songs.
+12. **Settings, About, Phone check** [20–22]. The founder story lives in About, not in first launch.
+13. **Look.** The current colours (sulphur-concrete), drawn flat. Liquid glass is wanted and gets discussed after everything else (Mutalib, 2026-10-03). Follows system light/dark.
 
 ## 5. NOT IN V1
 
-Explicit exclusions. No session builds these "helpfully":
+Rewritten 2026-10-03, when ring mode, a library of haptics, music, videos and export moved *into* v1 with Mutalib's approval. These stay out, and no session builds them "helpfully":
 
-- **No OGG haptic-channel encoder.** That is v2. It is the hardest part of the project and v1 must not depend on it.
-- **No ring-mode support.** v1 fixes vibrate mode only. Ring mode already works for stock ringtones and needs the v2 encoder to work for imported files.
-- **No per-contact vibration scores.** Mutalib explicitly deferred this ("i will try the who is calling one later"). It is the strongest v2 candidate.
-- No notification sounds, no alarms, no messaging apps.
-- No music-app haptics of any kind. Android does not permit it — see §6, Sacred Rule 5.
-- No accounts, no login, no server, no cloud, no analytics beyond what §3 needs.
-- No sharing or downloading of vibration scores between users.
-- No library or collection of saved scores. One active score.
-- No custom pattern editor, no drawing your own vibration.
+- **No ringtone files with the vibration built in** (the OGG haptic-channel encoder). Export shows it as "not built yet". It is v2, and still the hardest part of the project.
+- **No per-contact vibration.** Mutalib deferred it ("i will try the who is calling one later"). It is the strongest v2 candidate.
+- **No music from other apps.** Spotify, YouTube Music, TikTok and WhatsApp calls stay out of reach (Sacred Rule 5). Thrum plays only files that are on the phone, inside Thrum.
+- **No scanning of videos or photos.** Videos are picked one at a time.
+- No drawing or editing a pattern by hand. Tuning, yes; a pattern editor, no.
+- No accounts, no login, no server, no cloud, no analytics, and no syncing between phones beyond the user exporting a file.
+- No notification sounds, alarms or messaging-app vibrations.
 - No widget, no Quick Settings tile.
 - No paid tier, no ads, no in-app purchase.
+
+*Moved into v1 on 2026-10-03, so no longer exclusions:* ring mode, a library of saved haptics (My Haptics), sharing scores as exported files, and music beyond the one ringtone.
 
 ## 6. SACRED RULES
 
 Decisions no future session may reopen without Mutalib saying so:
 
-1. **v1 ships one screen and one active vibration score.** If a feature does not fit that, it is v2.
+1. **One song for calls at a time, and calls come first.** v1 is the app described in §4 and drawn in `docs/design/screens/`; anything not on those screens is v2.
 2. **Never let a user believe the app works when their hardware cannot do it.** The capability check runs before anything else and its verdict is honest, not hedged. A one-star review saying "does nothing" is worse than a user who never installs.
-3. **Everything runs on the phone. No server, ever.** No audio, no score, and no file leaves the device. This keeps running costs at zero regardless of user count, and means there is no privacy story to get wrong.
+3. **Everything runs on the phone. No server, no network, ever.** No audio, score or file leaves the phone unless the user exports it themselves, and an export never contains audio. This keeps running costs at zero regardless of user count, and means there is no privacy story to get wrong.
 4. **Never ship, host, or redistribute audio.** The app converts files that are already on the user's device. Stock ringtones are Google's property; converting one locally for personal use is fine, distributing it is how apps get pulled.
-5. **Never claim or attempt system-wide audio haptics.** Android gives no app access to another app's audio. Spotify, YouTube Music, WhatsApp calls and TikTok are permanently out of reach. Do not design around a workaround for this; there isn't one.
+5. **Never claim or attempt system-wide audio haptics.** Android gives no app access to another app's audio. Spotify, YouTube Music, WhatsApp calls and TikTok are permanently out of reach. Thrum's own player only plays files that are on the phone, inside Thrum. Do not design around a workaround for this; there isn't one.
 6. **Prove it on hardware before building around it.** Every assumption about how the system ringer behaves gets tested on a real phone with a real incoming call. Emulators cannot test vibration and this machine has none anyway.
 7. **The feature flag is not a strategy.** `enableRingtoneHapticsCustomization` may be flippable via adb on Mutalib's own phone, but a Play Store app can never flip it. The app must work with that flag OFF.
 8. **Plain-language first, always** — in the app's copy and in every conversation about it. See the user memory `explain-plainly-always`.
+
+**Changed with Mutalib's approval on 2026-10-03**, when he made the full app "the final build":
+
+| Rule | Was | Now |
+|---|---|---|
+| 1 | v1 ships one screen and one active vibration score. If a feature does not fit that, it is v2. | One song for calls at a time, and calls come first. v1 is §4 and the final screens. |
+| 3 | No audio, no score, and no file leaves the device. | Nothing leaves the phone unless the user exports it, and an export never contains audio. |
+| 5 | (unchanged in meaning) | Adds that Thrum's own player only plays files on the phone, inside Thrum. |
+
+Rules 2, 4, 6, 7 and 8 are untouched.
 
 ## 7. STACK & ARCHITECTURE
 
@@ -89,7 +113,7 @@ Deliberately mirrors `pixel-routines`, because that stack is already proven to b
 | UI | Jetpack Compose + Material You dynamic colour | Matches Pixel UI; Mutalib's stated preference; follows system light/dark |
 | Build | AGP 9.2.1 **built-in Kotlin** + compose plugin 2.2.20 | ⚠ Do NOT apply `org.jetbrains.kotlin.android` — it collides. See §10 |
 | SDK | compileSdk 36, targetSdk 36, **minSdk 31** | API 31 = Android 12, the floor for the haptics work this depends on |
-| Storage | SharedPreferences + JSON | No Room in v1. Same call as Pixel Routines; one score does not need a database |
+| Storage | SharedPreferences + JSON | No Room for the call settings. Same call as Pixel Routines; one score does not need a database. **The library of haptics is a different question, open below** |
 | Audio decode | `MediaExtractor` + `MediaCodec` → raw PCM | Platform APIs, no third-party library, no NDK |
 | Analysis | Pure Kotlin DSP (low-pass + envelope follower) | **Pure Kotlin = unit-testable on this PC with no emulator.** This is the main verification lever |
 | Vibration out | `VibrationEffect.createWaveform(timings, amplitudes, repeat)` | Amplitude control on an LRA gives real expressiveness; no encoder needed |
@@ -97,24 +121,37 @@ Deliberately mirrors `pixel-routines`, because that stack is already proven to b
 | Network | none | Sacred Rule 3 |
 | Package | `com.mosman.thrum` | Matches `com.mosman.routines` convention |
 
-### Why there is no background audio player
+### Open decisions — Mutalib chooses (added 2026-10-03)
+
+The full app needs three things the one-screen app did not. Each is his choice; nothing below is decided until he picks, and only then does it move into the table above.
+
+| Need | My pick, in plain words | Alternative | What each costs, and what it can't do |
+|---|---|---|---|
+| **Somewhere to keep hundreds of haptics** | **Room**, Android's own database library. Built for exactly this: lists, search, "which songs have a haptic yet". | One file per haptic in the app's private folder, plus a small index file. | Room adds a library and a code-generation step to the build. Plain files are simpler, but searching and sorting get slow and fiddly past a few hundred. The SharedPreferences used today cannot hold this much. |
+| **Making haptics in the background** | **WorkManager**, Android's standard way to run long jobs that survive the app closing. | A background service the app runs itself. | Android can delay WorkManager jobs to save battery, and very long runs may need a visible notification. A hand-made service is more code and easier to get wrong. |
+| **Playing whole songs** | Keep **MediaPlayer**, which the preview already uses. | **Media3 (ExoPlayer)**, Google's newer player library. | MediaPlayer covers play, pause and seek on local files. Media3 is the better base for lock-screen controls and playback with the app closed, at the cost of a large library. |
+
+### Why a call needs no audio player
 
 In vibrate mode the phone produces no sound, so there is nothing to synchronise against. The app only needs to play the right rhythm at the right moment, which the vibrator API does directly. This removes the entire audio-encoding problem from v1.
+
+The Music player is a separate thing: there the user *is* listening, and the score plays alongside the song, kept in step with it (Task 5 already does this for the preview).
 
 ### Flow
 
 ```
-first launch → capability check → (incapable? honest dead-end screen)
-                    ↓ capable
-             pick audio file
-                    ↓
-        decode to PCM → low-pass → envelope → vibration score
-                    ↓
-              preview (feel it)
-                    ↓
-                  arm it
-                    ↓
-   incoming call + ringer == VIBRATE → play score on vibrator
+first launch → phone check → (motor can't change strength? honest stop, no button)
+     → welcome → sound becomes touch → calls, music, videos → calls (call access) → music → you're set
+
+tabs:  Home ⇄ My Haptics ⇄ Music ⇄ Settings
+
+Music:  Scan (asks first) → song list → play → haptic made now, or already made in the background
+        → player: hear and feel / feel only → use for calls · tune · export
+Create: a video or audio file (file chooser) or a Thrum file → haptic → My Haptics
+
+decode to PCM → low-pass → envelope → vibration score   (same engine for every source)
+
+incoming call + ringer on vibrate (or ring, switch on) → first 45 s of the song for calls, repeated
 ```
 
 ## 8. DATA MODEL
@@ -133,11 +170,16 @@ Everything in SharedPreferences. No database.
 1. **`timings` is derived from a uniform `stepMs` rather than stored.** A `timings`/`amplitudes` length mismatch throws inside the vibrator and takes the app down. Deriving one from the other makes that class of bug impossible instead of merely tested for.
 2. **Serialized as a compact single line, not JSON** — `1|stepMs|escapedName|amp,amp,amp`. A score is a few thousand small integers, so JSON's overhead buys nothing, and the `org.json` available inside Android unit tests is a stub that throws on every call. Hand-rolling it keeps the whole score layer testable on the PC. `decode()` returns null rather than throwing, so corrupt stored data degrades to "no score" instead of a crash loop.
 
-**`Settings`**
+**`Settings`** (the first draft's list; as built, `Store.kt` holds `fire_in_ring_mode`, `loop_while_ringing`, `armed_score`, `source_uri`, `punch`, `distance`, `body` and the event log)
 - `armed: Boolean`
 - `onboarded: Boolean`
 - `capabilityVerdict: String` — cached result of the hardware check
 - `repeatScore: Boolean` — loop the score for the length of the call
+
+**Added 2026-10-03 for the full app.** Where these live is an open decision (§7):
+- **`Track`** — a song or audio file found by the scan, or a video or file the user picked: display name, artist, duration, source URI, kind (music / video / file), and whether this phone can read it.
+- **`Haptic`** — the score for the *whole* track, the tuning it was made with, and when it was made. A call uses its first 45 seconds. A whole song can be longer than the vibrator accepts in one go (§11 R10), so playback splits it into pieces.
+- **`Settings`** gains: the song for calls, how haptics get made (in the background / as played), music access, and the last scan.
 
 ## 9. INTEGRATIONS & KEYS
 
@@ -147,16 +189,17 @@ DRY_RUN is not applicable — nothing sends a message and nothing spends money. 
 
 > **The app never changes a system setting on the user's behalf.** Where a system setting must change, the app explains why in plain language and sends the user to the settings screen to do it themselves. Silently editing someone's phone settings is how an app becomes a thing people uninstall angrily.
 
-Permissions v1 will request: notification listener access (with prominent in-app disclosure of why), audio file read via the system picker (no blanket storage permission), `VIBRATE`.
+Permissions, updated 2026-10-03:
+- `VIBRATE`.
+- **Call access**: notification listener access, asked on the calls screen with a plain reason; "Maybe later" is allowed.
+- **Music access**: `READ_MEDIA_AUDIO` on Android 13 and up, `READ_EXTERNAL_STORAGE` on Android 12. Asked only when the user taps "Scan for music". Refusing it still leaves "pick one song at a time".
+- **Nothing for videos or photos.** Videos come through the phone's file chooser, one at a time.
+- Whatever background work and playback need (foreground-service permissions, possibly notifications) gets settled in the build tasks and listed here then.
+- Still **no `INTERNET`**, now or ever.
 
 ## 10. CONSTRAINTS
 
-**Build machine** (see memory `mutal-machine-build-env`):
-- Weak Windows 10 PC. **Android Studio crashes — never launch it. No emulator. Command-line Gradle only.**
-- Avast MITMs HTTPS → needs the JKS truststore approach from `pixel-routines`.
-- Avast also locks Gradle transform outputs mid-build → build with `--max-workers=1`, or just re-run.
-- Builds take ~4 minutes. Budget accordingly; do not plan a task that needs ten build cycles.
-- ~10 GB free disk.
+**Build machine:** replaced on 2026-07-29. The notes that used to be here (a weak Windows 10 PC, Avast breaking HTTPS, four-minute builds) describe the old laptop and no longer apply. `CLAUDE.md` holds the current setup: command-line Gradle through `check.ps1`, `JAVA_HOME` set in the shell, and no Avast. An emulator changes nothing for this app, because emulators cannot vibrate.
 
 **Testing:**
 - Vibration cannot be tested on an emulator, and there is no emulator anyway. Every haptic claim needs Mutalib's physical Pixel 6 Pro.
@@ -166,7 +209,7 @@ Permissions v1 will request: notification listener access (with prominent in-app
 - Needs an actuator with amplitude control. Budget phones (most Tecno, Infinix, itel, low-end Samsung) have a spinning-weight motor that can only buzz. **The app will do nothing useful on those, by physics.**
 - This is why the audience is worldwide flagship owners, not Mutalib's local circle.
 
-**Distribution:** Google Play. Notification-listener access requires a clear disclosure in the listing and in-app. Budget for review friction.
+**Distribution:** Google Play. Notification-listener access requires a clear disclosure in the listing and in-app. Budget for review friction. The full app adds music access and background work, so the store listing and its data-safety answers (`docs/store/listing.md`, written for the one-screen app) must be redone before release.
 
 ## 11. RISKS & OPEN QUESTIONS
 
@@ -246,7 +289,17 @@ Measured on the Pixel 6 Pro by walking a ladder of step counts and reading `dump
 
 **The probe that found this is kept** on the debug screen, because the limit is per-device and Task 6 will meet other phones.
 
-**Open question — the name.** "Thrum" is provisional. Decide before the Play Store listing exists.
+**R9 — The feel is still a hum. ⚠ The first thing to fix.** Measured 2026-09-28 (`docs/device/2026-09-28-vibration-measurement.md`): the motor really does shake the phone, peaking at 1.75 g sideways. But the armed score kept it running 89.6 % of the time at a near-constant 0.84 of full strength, and a hand reads that as a flat hum rather than a beat. Every new feature plays the same kind of score, so a hum in calls becomes a hum in music too. Direction from the measurement: more silence and contrast, not more strength.
+
+**R10 — Whole songs are longer than the vibrator accepts in one go.** The whole AIZO track is 8,862 steps at 20 ms. Android silently drops a waveform somewhere between 10,500 and 11,000 steps on this phone, and Thrum caps at 8,000 (R8). So the player must play a song in pieces and keep each piece in step with the audio. Nothing about that is proven yet.
+
+**R11 — Vibration with the screen off.** Nobody has tested whether the haptic keeps going while music plays with the screen off, or with Thrum in the background. Android may limit it. Test it on the phone before building the player around it (Sacred Rule 6).
+
+**R12 — Background work costs battery, and Android may hold it back.** Reading a song took 7.4 s for a 3:58 MP3 and 10.1 s for a 4:32 M4A on the Pixel 6 Pro (Task 3), so a few hundred songs is tens of minutes of work. Mutalib chose "in the background" over "only while charging" (2026-10-03), so the battery cost has to be honest in the app, and the job has to survive Android pausing it.
+
+**R13 — Play Store review.** Music access, background work and call access each need a plain reason in the listing and in the app. Video access is avoided on purpose: videos are picked one at a time.
+
+**The name — settled.** Thrum, decided in Task 13. It matches the permanent `applicationId`, `com.mosman.thrum`.
 
 ## 12. VERIFICATION
 
@@ -261,6 +314,12 @@ Measured on the Pixel 6 Pro by walking a ladder of step counts and reading `dump
 3. `timings` and `amplitudes` are always the same length (a mismatch throws at the vibrator and crashes the app).
 4. Amplitudes are always within 0–255.
 5. A score round-trips through JSON unchanged.
+
+**Added for the full app (2026-10-03).** New pure-Kotlin tests, so the arithmetic is proved on the PC before any phone is involved:
+- the call window is exactly the first 45 seconds of a whole-song haptic;
+- a whole-song score split into pieces under `Haptics.MAX_STEPS` keeps every step once: none dropped, none doubled;
+- the haptic queue lets a song that is played jump ahead, and never makes the same song twice;
+- export, then import, gives back an identical score.
 
 **Before any release build:** the capability check must be verified against at least one incapable device, not just Mutalib's Pixel. Borrow a budget phone.
 
