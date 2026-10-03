@@ -918,6 +918,15 @@ uses-permission: name='android.permission.VIBRATE'
 - **Confirm `mutalibusman713@gmail.com` may appear publicly** as the policy's contact address — it is in the written page and has not been signed off
 - The Console forms — data safety, notification-access declaration, content rating. Paste-ready text for the first two is in `docs/store/listing.md`, but read the form wording on the day: Play changes labels without changing what they mean
 
+### [ ] Task 30: Review the public repo with Mutalib, before launch
+
+The repo is public on purpose; Mutalib made it so. He asked (2026-10-03) to go through it together once everything else is done and correct what needs correcting. Known so far:
+- his phone's serial number in `docs/device/2026-09-26-first-real-data.md`;
+- his Gmail address in `docs/store/privacy-policy.html`, never signed off for public use (Task 13);
+- anything else personal the review turns up: song names, call times, names in commit history.
+
+**Proof:** the list reviewed with Mutalib, each item either kept on purpose or corrected, and his decisions written here.
+
 ### [ ] Task 14 — Launch
 
 Phase 6 of the pipeline: smoke-test the real journeys on a release build, tag `v1.0.0`, publish.
