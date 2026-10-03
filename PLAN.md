@@ -739,17 +739,21 @@ A rough test, not product UI. Play the whole AIZO track (2:57, 8,862 steps) with
 
 **Proof:** `dumpsys vibrator_manager` entries for every piece, the gap between pieces measured, the screen-off result written down whichever way it goes, and Mutalib's verdict.
 
-### [ ] Task 17: Mutalib chooses the first three open stack items, then the data layer
+### [x] Task 17: Mutalib chooses the first three open stack items, then the data layer — **DONE 2026-10-03**
 
 `PROFILE.md` §7 lists five open choices. This task needs the first three: where hundreds of haptics live, how background work runs, which player plays whole songs. The other two (how to clean up the sound, where the catalog comes from) wait for Tasks 28 and 29. He picks; the choices move into the §7 table. Then build `Track` and `Haptic` (§8) on his choice, in pure Kotlin where the logic allows.
 
+**Result: done the same day.** The picks — Room, WorkManager, Media3 — were recorded in PROFILE §7 on 2026-10-03. `Track`, `Haptic` and `HapticQueue` are pure Kotlin; `Score.pieces` splits a whole song under the vibrator's cap, cutting at silence; `LibraryDb` is the one Room-aware file. **21 data-layer tests green on the PC**, carrying the four §12 checks: the call window is exactly the first 45 seconds; splitting keeps every step once; a played song jumps the queue; no song is ever made twice. One toolchain discovery recorded in CLAUDE.md: the Kotlin-matched KSP rejects AGP 9's built-in Kotlin at configuration time, and KSP **2.3.12** is the line that works. The Room database itself needs a device to verify; nothing clever lives in it.
+
 **Proof:** §7 updated with his picks in his words; QA tests for the data layer green on the PC.
 
-### [ ] Task 18: The app shell and first launch [1–7]
+### [~] Task 18: The app shell and first launch [1–7] — **BUILT 2026-10-03, proof needs the phone**
 
 Bottom tabs in this order: Home, My Haptics, Music, Settings. The seven first-launch screens in order, calls before music, with the phone check before everything. The existing calls screen moves into Home.
 
-**Proof:** a fresh install on the Pixel walks screens 1–7 in order, every tab opens, and the uiautomator dump shows 48 dp touch targets. The "can't do it" path stays unproven until Task 6 finds a budget phone.
+**Built:** `ThrumRoot` gates on onboarding, `OnboardingFlow` carries screens 1–7 with the splash as the capability check (an incapable phone sees the dead end and never reaches screen 2), and the tabs hold Home (the calls screen, unmoved) plus three one-line stubs that say honestly what is not built yet. Copy verbatim from the screens doc except the two places this build lacks the thing described (the collection's stand-in note, and screen 7's Original promise). Store gained `onboarded`. `check.ps1` green; gate.py/humanizer not on this machine, recorded not run.
+
+**Proof still owed:** a fresh install on the Pixel walks screens 1–7 in order, every tab opens, and the uiautomator dump shows 48 dp touch targets. The "can't do it" path stays unproven until Task 6 finds a budget phone.
 
 ### [ ] Task 19: Home and calls [18, 23, 24, 27]
 
