@@ -31,6 +31,28 @@ Thrum reads the song and finds where the beats land. Then it writes down how har
 - **The open problem:** on the Pixel the rhythm still feels too much like a steady hum and not enough like a beat. That is the next task.
 - Not on the Play Store yet.
 
+## The plan
+
+Built in this order, one task at a time, each one proven on a real phone before the next starts. The task numbers match [PLAN.md](PLAN.md).
+
+| Step | Tasks | What gets built |
+|---|---|---|
+| 1 | 15 | Fix the feel: a beat you notice, not a hum |
+| 2 | 16 | Test a whole song's vibration on the phone, including with the screen off |
+| 3 | 17 | Choose how haptics are stored, how background work runs, and which player plays songs |
+| 4 | 18–19 | The new app: first launch, Home and calls |
+| 5 | 20–22 | Music: scanning, the player, making haptics |
+| 6 | 23–26 | Videos and files, My Haptics, tuning, export, settings |
+| 7 | 27–29 | Thrum Originals, the music catalog and Clean up |
+| 8 | 10, 6, 13, 14 | A day-long reliability test, a cheap-phone test, the store listing, launch |
+
+## Still to decide
+
+- **Whether Thrum may use the internet**, which the music catalog needs. Thrum has none today and promises it never will, so this is a real change.
+- **Where the catalog's music comes from.** It has to be licensed: nothing gets ripped from YouTube or Spotify.
+- **Who makes the Thrum Originals.**
+- **Five building choices**, each written up with a suggestion and an alternative in [PROFILE.md](PROFILE.md) §7.
+
 ## What you need
 
 - **A phone whose vibration motor can change strength:** Pixels, Samsung flagships and similar phones. Phones with the older one-speed motor can only buzz, so Thrum checks your phone first and tells you plainly if it can't help.
@@ -40,14 +62,20 @@ Thrum reads the song and finds where the beats land. Then it writes down how har
 
 Thrum has no internet permission. Your music, your haptics and your calls stay on your phone, unless you export a haptic yourself, and an export holds only the vibration. Thrum asks before it looks at your music, and it only reads music and audio files. To notice a call, it checks one thing in your notifications: is this a call? It ignores the rest. If the planned catalog gets built, it will be the one part of Thrum that uses the internet, and this section will say exactly what it sends.
 
-[docs/features-explained.md](docs/features-explained.md) explains every feature in plain words and how each one gets built.
-
 ## What it can't do
 
 - **Make Spotify, YouTube Music, TikTok or WhatsApp calls vibrate.** Android doesn't let one app reach another app's audio. Thrum plays the files on your phone, inside Thrum.
 - **Vibrate in Silent mode.** Android throws the vibration away there before it reaches the motor. Use Vibrate.
 - **Change your phone's call screen.** That belongs to your phone. Thrum only moves the motor.
 - **Skip Android's own buzz at the very start of a call.** Android starts its flat buzz first, and Thrum's rhythm takes over about half a second later.
+
+## More detail
+
+- [docs/features-explained.md](docs/features-explained.md): every feature in plain words, and how each one gets built.
+- [docs/design/screens](docs/design/screens/thrum-screens.png): all 33 screens, first launch to the end.
+- [PROFILE.md](PROFILE.md): the full description of the app, its rules, and everything measured so far.
+- [PLAN.md](PLAN.md): every task, with the proof each one needs.
+- [docs/device](docs/device): measurements taken on the phone itself.
 
 ## Building it
 
@@ -56,8 +84,6 @@ Thrum has no internet permission. Your music, your haptics and your calls stay o
 ```powershell
 powershell -File check.ps1
 ```
-
-[PROFILE.md](PROFILE.md) is the full description of the app, its rules and everything measured so far.
 
 ## Licence
 
