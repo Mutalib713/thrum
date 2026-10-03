@@ -13,6 +13,9 @@ iPhones can do this. Android phones have the hardware for it and leave it switch
 - **Calls come first.** Pick one song for your calls. When the phone rings, you feel the first 45 seconds of it, repeated until you answer. It works in vibrate mode, and in ring mode too if you leave that switch on.
 - **Music.** Tap "Scan for music", say yes when Thrum asks, and it lists the songs and audio files on your phone. Play any of them and feel the beat from start to finish. Thrum can make every song's haptic in the background, or one at a time as you play them.
 - **Videos and audio files.** Pick a video or a recording and Thrum turns its sound into a haptic as well.
+- **Thrum Originals.** A few pieces made for Thrum and built into the app, so you can feel it the moment you open it, before giving any permission.
+- **A music catalog (planned).** Search and play music that isn't on your phone, with its vibration. It needs the internet, which Thrum doesn't use today, so it waits on that decision.
+- **Clean up the sound.** When a song is a squashed, low-quality copy, Thrum can make it sound clearer, on the phone.
 - **My Haptics.** Everything you make, in one list. Use any of it for calls, tune how it feels, or export it.
 - **Tune the feel.** Three presets (Crisp, Full and Strong) and three dials: Intensity, Focus and Duration.
 - **Export.** Save one haptic or all of them as Thrum files, to back them up or open them in Thrum on another phone. Only the vibration goes in the file, never the song.
@@ -35,7 +38,9 @@ Thrum reads the song and finds where the beats land. Then it writes down how har
 
 ## Privacy
 
-Thrum has no internet permission. Your music, your haptics and your calls stay on your phone, unless you export a haptic yourself, and an export holds only the vibration. Thrum asks before it looks at your music, and it only reads music and audio files. To notice a call, it checks one thing in your notifications: is this a call? It ignores the rest.
+Thrum has no internet permission. Your music, your haptics and your calls stay on your phone, unless you export a haptic yourself, and an export holds only the vibration. Thrum asks before it looks at your music, and it only reads music and audio files. To notice a call, it checks one thing in your notifications: is this a call? It ignores the rest. If the planned catalog gets built, it will be the one part of Thrum that uses the internet, and this section will say exactly what it sends.
+
+[docs/features-explained.md](docs/features-explained.md) explains every feature in plain words and how each one gets built.
 
 ## What it can't do
 
