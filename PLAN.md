@@ -9,6 +9,8 @@ Read `PROFILE.md` first. It is canonical; this file only sequences the work.
 - Nothing is ticked on a claim. Test output, a logcat measurement, or a hand on the phone.
 - The app runs on the real Pixel 6 Pro from **Task 1 onward**. There is no emulator and no other way to verify vibration.
 
+**Where this plan stands on 2026-10-03.** Mutalib turned Thrum into the full app (calls, music, videos, My Haptics, export); `PROFILE.md` §4 and `docs/design/screens/` describe it. Milestones 0–2 below are the record of how the calls feature got built, and they stay as written. **The next work is Milestone 4, from Task 15.** Milestone 3 (ship it) now comes after it: Tasks 11 and 12 are mostly done, but Tasks 13 and 14 have to be redone for the full app.
+
 ---
 
 ## Milestone 0 — Prove it's possible
@@ -717,6 +719,86 @@ Reliability soak. Arm it, leave the phone alone for 24 hours, call it. Reboot th
 
 ---
 
+## Milestone 4: the full app (added 2026-10-03)
+
+Built against the final screens in `docs/design/screens/thrum-screens.png`; the numbers in brackets are its screen numbers. Same rules as the rest of this plan: one sitting per task, proof from the phone, nothing ticked on a claim. **Liquid glass gets discussed after Task 26**, before the store screenshots are retaken in Task 13.
+
+### [ ] Task 15: ⚠ Fix the feel (R9)
+
+The 28 Sep measurement says the armed score drives the motor 89.6 % of the time at a near-constant 0.84, which reads as a hum. Every feature in this milestone plays the same kind of score, so this comes first.
+
+First fix the comparison button it needs: "Stop the buzz" restarts the buzz, because `playStockBuzz()` clears `stockPlaying` in `stopEverything()` before checking it. Then play the phone's own buzz against Thrum, and move the score toward more silence and contrast rather than more strength. The three presets (Crisp, Full, Strong) come out of this task as measured settings, not guesses.
+
+**Proof:** `dumpsys vibrator_manager` shows the armed score running well under 89.6 % of the time; the accelerometer method from `docs/device/2026-09-28-vibration-measurement.md` shows the phone still moves; Mutalib's hand says it feels like the beat.
+
+### [ ] Task 16: ⚠⚠ Spike: a whole song's haptic on the phone (R10, R11)
+
+A rough test, not product UI. Play the whole AIZO track (2:57, 8,862 steps) with its score split into pieces under `Haptics.MAX_STEPS`, and check that the pieces stay in step with the audio and leave no gap a hand notices. Then turn the screen off mid-song and see whether the vibration carries on.
+
+**⚠⚠ Why risky:** the Music tab is built on this. If the vibration stops with the screen off, the player has to be designed differently, and that has to be known before Task 21, not after it.
+
+**Proof:** `dumpsys vibrator_manager` entries for every piece, the gap between pieces measured, the screen-off result written down whichever way it goes, and Mutalib's verdict.
+
+### [ ] Task 17: Mutalib chooses the three open stack items, then the data layer
+
+`PROFILE.md` §7 lists them: where hundreds of haptics live, how background work runs, which player plays whole songs. He picks; the choices move into the §7 table. Then build `Track` and `Haptic` (§8) on his choice, in pure Kotlin where the logic allows.
+
+**Proof:** §7 updated with his picks in his words; QA tests for the data layer green on the PC.
+
+### [ ] Task 18: The app shell and first launch [1–7]
+
+Bottom tabs in this order: Home, My Haptics, Music, Settings. The seven first-launch screens in order, calls before music, with the phone check before everything. The existing calls screen moves into Home.
+
+**Proof:** a fresh install on the Pixel walks screens 1–7 in order, every tab opens, and the uiautomator dump shows 48 dp touch targets. The "can't do it" path stays unproven until Task 6 finds a budget phone.
+
+### [ ] Task 19: Home and calls [18, 23, 24, 27]
+
+The song for calls: first 45 seconds, repeated until answered. "Feel a test call", the last call line, the Silent warning, and the "no song for calls" state. **Remove the demo-pattern fallback** from `NotifService`, so a call with nothing chosen gets Android's own buzz.
+
+**Proof:** a real call plays the chosen song's opening; with nothing chosen, `dumpsys vibrator_manager` shows no `com.mosman.thrum` entry for that call.
+
+### [ ] Task 20: ⚠ Music scan [8, 9, 12]
+
+"Scan for music" asks for music access (`READ_MEDIA_AUDIO`, or `READ_EXTERNAL_STORAGE` on Android 12), then lists every song and audio file, with search. Refused access shows screen 12 and "pick one song" still works. Check Google Play's current policy for music access before writing the listing copy.
+
+**Proof:** the scan lists Mutalib's real songs with durations that match what Android itself reports (the Task 3 method); refusing access shows screen 12; the Play policy check is written into PROFILE §11 R13.
+
+### [ ] Task 21: The player [11, 14]
+
+Whole songs, played in pieces the way Task 16 proved works. "Hear and feel" and "feel only", previous and next, the mini player, and "use for calls".
+
+**Proof:** AIZO plays start to finish in step, by hand and in `dumpsys`; changing song stops the old haptic with no leftover buzz.
+
+### [ ] Task 22: ⚠ Making haptics: on first play, or all in the background [10, 11, 13]
+
+The question after a scan, the queue, songs that are played jumping ahead, progress ("2 of 5 done"), the setting to change the choice, and work that survives Thrum being closed.
+
+**Proof:** the queue tests from PROFILE §12 green; on the phone, a scan of Mutalib's library finishes in the background with Thrum closed, and the battery used is written down.
+
+### [ ] Task 23: Videos, audio files and My Haptics [16, 19, 26]
+
+Pick a video or a file through the phone's chooser; My Haptics with All, Music, Videos and Files; delete.
+
+**Proof:** a real video from the phone becomes a haptic; an unreadable file shows the decoder's real sentence.
+
+### [ ] Task 24: Tune the feel [15]
+
+The presets from Task 15, plus Intensity, Focus and Duration (the old Punch, Distance and Body, renamed).
+
+**Proof:** QA tests pin each preset's shape; Mutalib can tell the three apart by hand.
+
+### [ ] Task 25: Export and import [16, 17]
+
+One haptic or all of them, as Thrum pattern files saved on the phone; songs without a haptic get one first. Import opens a Thrum file. Never any audio.
+
+**Proof:** the export-then-import test is green; an exported file brings a haptic back after a reinstall; the exported file holds no audio.
+
+### [ ] Task 26: Settings, About and Phone check [20–22]
+
+**Proof:** every setting changes what it says it changes, read back from storage or `dumpsys`; About carries the agreed text.
+
+---
+
 ## Milestone 3 — Ship it
 
 ### [~] Task 11 — Hardening pass — **BUILT 2026-09-26, three of seven attacks need the phone**
@@ -770,6 +852,8 @@ Real release key generated: 4096-bit RSA, SHA384withRSA, valid until 2056. `thru
 
 ### [~] Task 13 — Play Store listing — **ALL ASSETS DONE 2026-09-28, hosting and the Console still to do**
 
+> **2026-10-03: to be redone for the full app.** Everything below describes the one-screen calls app. Music access, background work, My Haptics and export all need their own words in the listing and in the data-safety answers, and the screenshots get retaken from the built app (after the liquid-glass discussion).
+
 **Name settled: Thrum.** It already matches `applicationId` (`com.mosman.thrum`), which is permanent on Play once published, so keeping it costs nothing — and renaming later would leave a store name that does not match the identity underneath it. Mutalib's call, made explicitly rather than assumed.
 
 Everything is in `docs/store/listing.md`. Limits confirmed against Play's current rules rather than recalled: **title 30 · short description 80 · full description 4000.**
@@ -822,9 +906,9 @@ Phase 6 of the pipeline: smoke-test the real journeys on a release build, tag `v
 
 ## Deliberately not in this plan
 
-From `PROFILE.md` §5. Do not add them because a sitting went quickly:
+From `PROFILE.md` §5, as rewritten on 2026-10-03. Do not add them because a sitting went quickly:
 
-per-contact vibration scores (Mutalib's own v2 pick) · the OGG haptic-channel encoder · ring-mode support for imported files · notification and alarm sounds · a score library · a pattern editor · widgets · any server, account, or paid tier.
+per-contact vibration (Mutalib's own v2 pick) · ringtone files with the vibration built in (the OGG haptic-channel encoder) · music from other apps · scanning videos or photos · a pattern editor · notification and alarm sounds · widgets · any server, account, sync or paid tier.
 
 ## Wildcard, not blocking anything
 
