@@ -799,13 +799,17 @@ One haptic or all of them, as Thrum pattern files saved on the phone; songs with
 
 ### [ ] Task 27: Thrum Originals [3, 7, 8, 11, 27]
 
+**2026-10-03: reshaped by Mutalib's decision.** The Originals and the old online catalog merge into one **built-in offline collection** of open-licence sounds, each with a ready-made haptic (PROFILE §4 item 15). Candidate sources, licence tiers and the curation criteria — including measuring every candidate through the analyser — are in `docs/research/open-collections.md`. "Who makes them" becomes "who curates them": curation plus licence verification, with a commissioned piece still open as a later addition.
+
 The pieces come first, and that part is Mutalib's: he decides who makes them (PROFILE §11 R14) and gets them made, owned outright. Then the build: put them inside the app, ship each with a ready-made haptic made by the same analyser on the PC so it plays instantly, add the Originals row at the top of Music, make first launch play one with sound on screen 3, and allow one to be the song for calls on day one. Until the pieces exist, first launch keeps the made-up demo rhythm it has today.
 
 **Proof:** a fresh install plays an Original with sound on screen 3 before any permission is asked; `aapt2 dump badging` still shows no `INTERNET`; the APK size is written down; an Original set for calls plays on a real incoming call.
 
 ### [ ] Task 28: ⚠ The online catalog [28–31] (blocked)
 
-**Blocked until two things are decided:** Mutalib's answer on Sacred Rule 3, because the catalog needs the internet, and a licensed source of music (PROFILE §11 R15). Both are his.
+**2026-10-03: unblocked by redesign, not by a rule change.** Mutalib kept Sacred Rule 3 intact — no internet, ever — and the catalog became built-in content (PROFILE §4 item 15, §6). The catalog side of Music [28–31] becomes the search/browse UI over the bundled collection: search by name, browse by whatever genres the curated sources actually supply (the open-licence world has almost no Afrobeats — see the research doc), and screen 31's offline message becomes "everything here is already on your phone".
+
+**Blocked until two things are decided:** Mutalib's answer on Sacred Rule 3, because the catalog needs the internet, and a licensed source of music (PROFILE §11 R15). Both are his. *(Both were answered on 2026-10-03 — see the note above; the paragraphs below are kept as the record of what the task used to be.)*
 
 The research comes first, from real sources and not from vendor pages alone: which catalogs let an app play their music, on what terms, at what cost. Then, once he chooses: the internet permission, rewritten in the same step as the permission screen, privacy policy, listing and README. After that come search, genres, streaming playback with the haptic made as the song streams, keeping only the vibration on the phone, and the offline screen.
 
@@ -814,6 +818,8 @@ The research comes first, from real sources and not from vendor pages alone: whi
 **Proof:** the licence terms written into PROFILE; a catalog song plays with its haptic on the phone; with the phone offline, screen 31 shows and everything else still works; the phone's storage holds the score but no audio for a catalog song.
 
 ### [ ] Task 29: Clean up the sound [32, 33]
+
+**2026-10-03: method picked** — plain sound processing, recorded in PROFILE §7. What remains of the choosing is done; the build paragraph below stands.
 
 Mutalib picks the method first (PROFILE §7: plain sound processing, or an AI model on the phone). Then: spot a low-quality file from its bitrate, offer to clean it up, let the user compare original and cleaned up, keep their choice, and make the haptic from the original either way (PROFILE §11 R16 says why).
 
