@@ -113,13 +113,22 @@
   .miniplayer .name { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .miniplayer .sub { font-size: 12px; color: var(--ink2); }
   .seg span { padding: 9px 4px; }
+
+  .shelf { display: flex; gap: 10px; overflow: hidden; margin-right: -24px; }
+  .ocard { flex: none; padding: 12px; }
+
+  .genres { display: flex; flex-wrap: wrap; gap: 8px; }
+  .genres span { padding: 9px 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--rule); font-size: 14px; }
+  .compact .list .item { min-height: 44px; padding: 8px 16px; }
+  .compact .sect { margin: 12px 0 6px 2px; }
+  .avatar { width: 64px; height: 64px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--rule); }
 </style>
 
 </head>
 <body>
 <header class="pagehead">
   <h1>Thrum — the final screens</h1>
-  <p>Every screen of the app, first launch to the end, agreed on 3 October 2026. Calls come first everywhere. Music is scanned only after Thrum asks, then any song plays inside Thrum with its haptic, and haptics can be made for every song in the background or one at a time as you play. Calls use the first 45 seconds of a song, repeated until you answer.</p>
+  <p>Every screen of the app, first launch to the end, agreed on 3 October 2026. Calls come first everywhere. Thrum Originals let people feel Thrum before giving any permission. Music is scanned only after Thrum asks; any song plays inside Thrum with its haptic. An online catalog adds music that isn't on the phone, and "Clean up" makes low-quality songs sound clearer. Calls use the first 45 seconds of a song, repeated until you answer.</p>
 </header>
 <section>
   <h2>First launch</h2>
@@ -139,6 +148,8 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>2.</b> Welcome</div>
       <div class="phone"><div class="scr">
         <div class="status"></div>
@@ -152,6 +163,8 @@
         <div class="textbtn" style="color:var(--ink2)">Skip</div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -173,12 +186,15 @@
         <div class="card pad" style="margin-top:12px">
           <div class="caps">Feel the difference</div>
           <div class="row-c gap12" style="margin-top:12px"><div style="flex:1"><div class="help">Android today</div><canvas class="ribbon" data-pattern="buzz" data-h="24" data-bar="2" data-gap="1"></canvas></div><span class="playc" data-ic="play" data-size="14"></span></div>
-          <div class="row-c gap12" style="margin-top:12px"><div style="flex:1"><div class="help">With Thrum</div><canvas class="ribbon" data-score="crisp" data-limit="300" data-h="24" data-bar="2" data-gap="1"></canvas></div><span class="playc" data-ic="play" data-size="14"></span></div>
+          <div class="row-c gap12" style="margin-top:12px"><div style="flex:1"><div class="help">With Thrum: Afro Groove, with sound</div><canvas class="ribbon" data-pattern="afro" data-limit="300" data-h="24" data-bar="2" data-gap="1"></canvas></div><span class="playc" data-ic="play" data-size="14"></span></div>
         </div>
+        <p class="help" style="margin-top:10px">Afro Groove is a Thrum Original, built into the app, so this needs no permission at all.</p>
         <div class="grow"></div>
         <div class="btn primary">Next</div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -197,6 +213,8 @@
         <div class="btn primary">Next</div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -220,6 +238,8 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>6.</b> Play and feel your music</div>
       <div class="phone"><div class="scr">
         <div class="status"></div>
@@ -236,18 +256,22 @@
       </div><div class="homebar"></div></div>
     </div>
 
+
+
     <div class="cell"><div class="title"><b>7.</b> You're set</div>
       <div class="phone"><div class="scr">
         <div class="status"></div>
         <div class="grow"></div>
         <div class="card pad"><canvas class="ribbon" data-pattern="flat" data-h="96"></canvas><div class="help" style="margin-top:10px">Your first haptic goes here.</div></div>
         <div class="statement" style="margin-top:28px">You're set</div>
-        <p class="body" style="margin-top:14px">Pick a song for your calls. Then scan your music in the Music tab to play and feel any song.</p>
+        <p class="body" style="margin-top:14px">Pick a song for your calls. Start with a Thrum Original now, and scan your own music whenever you like.</p>
         <div class="grow"></div>
         <div class="btn primary">Choose a song for calls</div>
         <div class="textbtn" style="color:var(--ink2)">Look around first</div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -262,16 +286,14 @@
       <div class="phone"><div class="scr withnav">
         <div class="status"></div>
         <div class="statement s31" style="margin-top:18px">Music</div>
-        <div class="grow"></div>
-        <span class="icircle" style="width:64px;height:64px;border-radius:18px;align-self:flex-start" data-ic="music" data-size="28"></span>
-        <div class="track" style="font-size:25px;margin-top:18px">Your music isn't here yet</div>
-        <p class="body" style="margin-top:10px">Scan your phone to find your songs. Then play any of them here and feel every beat.</p>
-        <div class="card pad" style="margin-top:18px;display:flex;flex-direction:column;gap:10px">
-          <div class="row-c gap8 help" style="color:var(--ink);align-items:flex-start"><span data-ic="check" class="accent"></span>Thrum reads music and audio files only. Not your photos, not your videos.</div>
-          <div class="row-c gap8 help" style="color:var(--ink);align-items:flex-start"><span data-ic="check" class="accent"></span>Nothing leaves your phone.</div>
+        <div class="sect" style="margin-top:16px">Thrum Originals</div>
+        <div class="shelf"><div class="card ocard" style="width:150px"><canvas class="ribbon" data-pattern="afro" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Afro Groove</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:150px"><canvas class="ribbon" data-pattern="heart" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Heartbeat</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:150px"><canvas class="ribbon" data-pattern="pulse" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Pulse</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:150px"><canvas class="ribbon" data-pattern="energy" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Energy</div><div class="help">Thrum Original</div></div></div>
+        <div class="card pad20" style="margin-top:18px">
+          <div class="row-c gap12"><span class="icircle" data-ic="music"></span><div class="track" style="font-size:20px">Your music isn't here yet</div></div>
+          <p class="body" style="margin-top:10px">Scan your phone to find your songs, then play any of them here and feel every beat.</p>
+          <div class="row-c gap8 help" style="color:var(--ink);align-items:flex-start;margin-top:10px"><span data-ic="check" class="accent"></span>Thrum reads music and audio files only. Nothing leaves your phone.</div>
         </div>
         <div class="grow"></div>
-        <div class="note" style="margin-bottom:12px">Sketch note: tapping Scan first shows Android's own pop-up, Allow or Don't allow.</div>
         <div class="btn primary"><span data-ic="search" data-size="18"></span>Scan for music</div>
         <div class="textbtn">Pick one song instead</div>
       </div>
@@ -302,6 +324,8 @@
     </div>
 
 
+
+
     <div class="cell"><div class="title"><b>10.</b> Found your music: make haptics?</div>
       <div class="phone"><div class="scr withnav">
         <div class="status"></div>
@@ -327,24 +351,27 @@
     </div>
 
 
+
+
     <div class="cell"><div class="title"><b>11.</b> Music</div>
       <div class="phone"><div class="scr withnav" style="padding-bottom:160px">
         <div class="status"></div>
         <div class="row-c between" style="margin-top:14px"><span class="statement s31">Music</span><span class="textbtn" style="font-size:14px"><span data-ic="export" data-size="18"></span>Export all</span></div>
-        <div class="input" style="margin-top:12px;color:var(--ink2);gap:10px;height:46px"><span data-ic="search" data-size="18"></span>Search your music</div>
+        <div class="input" style="margin-top:12px;margin-bottom:12px;color:var(--ink2);gap:10px;height:46px"><span data-ic="search" data-size="18"></span>Search your music</div>
+        <div class="shelf"><div class="card ocard" style="width:128px"><canvas class="ribbon" data-pattern="afro" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Afro Groove</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:128px"><canvas class="ribbon" data-pattern="heart" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Heartbeat</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:128px"><canvas class="ribbon" data-pattern="pulse" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Pulse</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:128px"><canvas class="ribbon" data-pattern="energy" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Energy</div><div class="help">Thrum Original</div></div></div>
         <div class="card" style="margin-top:12px;padding:12px 14px"><div class="row-c gap12"><span class="spinner"></span><div style="flex:1;min-width:0"><div style="font-size:14.5px">Making haptics · 2 of 5 done</div><div class="help">Carries on in the background. Songs you play go first.</div></div></div></div>
         <div class="card list" style="margin-top:12px">
           <div class="item"><canvas class="mini" data-score="crisp" data-h="26" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">AIZO, but it's lofi hiphop</div><div class="sub">Jujutsu Kaisen · 2:57</div></div><span class="chip"><span class="dot"></span>Calls</span></div>
           <div class="item"><canvas class="mini" data-score="full" data-h="26" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">Active</div><div class="sub">Asake, Travis Scott · 3:04</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
           <div class="item"><span class="minipend"></span><div class="txt"><div class="name">No Dulling</div><div class="sub">Keche · 3:58 · next in line</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
-          <div class="item"><span class="minipend"></span><div class="txt"><div class="name">Eid Mubarak</div><div class="sub">Harris J · 4:32</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
-          <div class="item"><span class="minipend"></span><div class="txt"><div class="name">Antassalam</div><div class="sub">Maher Zain</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
           <div class="item"><span class="minipend warnline"></span><div class="txt"><div class="name">Over the Horizon</div><div class="sub" style="color:var(--warn)">This phone can't read this file (Dolby Atmos)</div></div></div>
         </div>
       </div>
       <div class="miniplayer"><canvas class="mini" data-score="song" data-h="26" data-bar="2" data-gap="1" data-progress=".096"></canvas><div class="txt"><div class="name">AIZO, but it's lofi hiphop</div><div class="sub">Hear and feel · 0:17</div></div><span class="iconbtn" data-ic="pause" data-size="20"></span></div>
       <nav class="bnav" data-active="music"></nav></div>
     </div>
+
+
 
 
 
@@ -364,6 +391,19 @@
     </div>
 
 
+
+
+
+    <div class="sticky">
+      <h3>Thrum Originals (added 3 Oct)</h3>
+      <ul>
+        <li><b>A few pieces built into the app</b>, owned outright, each with a ready-made haptic. No store, no downloads, no internet.</li>
+        <li><b>Feel before any permission:</b> first launch plays one with sound (3).</li>
+        <li><b>Music is never empty:</b> the Originals sit at the top of the tab, before and after a scan (8, 11).</li>
+        <li><b>A song for calls on day one</b> (7, 27).</li>
+        <li><b>Not real yet:</b> the names are working titles and the little rhythm pictures are designed patterns. Who makes the pieces is still open.</li>
+      </ul>
+    </div>
 
   </div>
 </section>
@@ -388,6 +428,8 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>14.</b> Player — hear it, feel it</div>
       <div class="phone"><div class="scr">
         <div class="status"></div>
@@ -402,6 +444,8 @@
         <div class="row-c gap8"><div class="btn second" style="flex:1"><span data-ic="tune" data-size="18"></span>Tune</div><div class="btn primary" style="flex:1.4"><span data-ic="phone" data-size="18"></span>Use for calls</div></div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -427,6 +471,8 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>16.</b> Make a haptic from</div>
       <div class="phone"><div class="scr">
         <div class="status"></div>
@@ -441,6 +487,8 @@
         <p class="help" style="margin-top:16px">Videos and files open your phone's own file chooser. Thrum reads only the one you pick.</p>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -462,6 +510,8 @@
         <div class="btn primary">Save to my phone</div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -498,6 +548,8 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>19.</b> My Haptics</div>
       <div class="phone"><div class="scr withnav">
         <div class="status"></div>
@@ -517,8 +569,10 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>20.</b> Settings</div>
-      <div class="phone"><div class="scr withnav">
+      <div class="phone"><div class="scr withnav compact">
         <div class="status"></div>
         <div class="statement s31" style="margin-top:18px">Settings</div>
         <div class="sect">Calls</div>
@@ -532,10 +586,12 @@
           <div class="item"><div class="txt"><div class="name">Music access</div></div><span class="val">On</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
           <div class="item"><div class="txt"><div class="name">Scan for new music</div><div class="sub">Last scanned today</div></div><span data-ic="chev" style="color:var(--ink2)"></span></div>
           <div class="item"><div class="txt"><div class="name">Make haptics</div></div><span class="val">In the background</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
+          <div class="item"><div class="txt"><div class="name">Online catalog</div></div><span class="val">On</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
         </div>
         <div class="sect">Haptics</div>
         <div class="card list">
           <div class="item"><div class="txt"><div class="name">Default feel</div></div><span class="val">Crisp</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
+          <div class="item"><div class="txt"><div class="name">Clean up low-quality songs</div></div><span class="val">Ask first</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
         </div>
         <div class="sect">This phone and Thrum</div>
         <div class="card list">
@@ -545,6 +601,8 @@
       </div>
       <nav class="bnav" data-active="settings"></nav></div>
     </div>
+
+
 
 
 
@@ -558,6 +616,9 @@
         <p class="body">I wanted my phone to do more than play sound. I wanted to feel the music too.</p>
         <p class="body" style="margin-top:12px">I'd seen iPhones sync vibration with music, and I wanted that on Android, made from the songs already on my phone. So I built Thrum.</p>
         <p class="meta" style="margin-top:12px">Mutalib Osman</p>
+        <div class="sect" style="margin-top:24px">Thrum Originals</div>
+        <p class="body">Made for Thrum by …</p>
+        <div class="note" style="margin-top:8px">Sketch note: who makes the Originals is still open.</div>
         <div class="grow"></div>
         <div class="card list">
           <div class="item"><div class="txt"><div class="name">Version</div></div><span class="val">0.1</span></div>
@@ -565,6 +626,8 @@
         </div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -587,6 +650,8 @@
         </div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -618,6 +683,8 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>24.</b> Home — won't work yet (Silent)</div>
       <div class="phone"><div class="scr withnav">
         <div class="status"></div>
@@ -639,6 +706,8 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>25.</b> This phone can't do it</div>
       <div class="phone"><div class="scr">
         <div class="status"></div>
@@ -651,6 +720,8 @@
         <div class="note">Sketch note: once a cheap phone is tested (Task 6), this might become an honest "you'll feel the timing, not the strength". Not before.</div>
       </div><div class="homebar"></div></div>
     </div>
+
+
 
 
 
@@ -668,6 +739,8 @@
 
 
 
+
+
     <div class="cell"><div class="title"><b>27.</b> Home — nothing set for calls</div>
       <div class="phone"><div class="scr withnav">
         <div class="status"></div>
@@ -676,8 +749,9 @@
           <div class="row-c between"><span class="caps">For calls</span><span class="chip grey">Off</span></div>
           <div class="track" style="margin-top:10px">No song for calls</div>
           <p class="body" style="margin-top:8px">Calls use Android's normal buzz until you pick one.</p>
-          <div style="margin-top:12px"><canvas class="ribbon" data-pattern="flat" data-h="48"></canvas></div>
-          <div class="btn primary small" style="margin-top:14px">Choose a song for calls</div>
+          <div class="card list" style="margin-top:14px;background:var(--surface2)"><div class="item"><canvas class="mini" data-pattern="afro" data-limit="160" data-h="26" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">Afro Groove</div><div class="sub">Thrum Original · ready now</div></div></div></div>
+          <div class="btn primary small" style="margin-top:14px">Use Afro Groove for calls</div>
+          <div class="textbtn" style="min-height:40px">Choose another song</div>
         </div>
         <div class="row-c gap12" style="margin-top:16px">
           <div class="card pad" style="flex:1"><span class="accent" data-ic="music"></span><div class="name" style="margin-top:8px;font-size:15.5px">Music</div><div class="help">Play and feel your songs</div></div>
@@ -689,13 +763,154 @@
 
 
 
+
+
     <div class="sticky">
       <h3>About this board</h3>
       <ul>
         <li><b>The final design</b>, agreed 3 Oct 2026. It is the reference for the build; the app's code does not match it yet.</li>
         <li><b>Colours</b> are the current app's. Liquid glass gets discussed once everything else is done.</li>
         <li><b>Real data:</b> AIZO's rhythm, every song name and length, the last call (Sun 20 Sep), the 8 taps a second, and the 1 h 49 m error message.</li>
-        <li><b>Borrowed:</b> other songs' little rhythm pictures use AIZO's shape. A real scan will also find more songs than these.</li>
+        <li><b>Borrowed:</b> other songs' little rhythm pictures use AIZO's shape, and the Originals' are designed patterns. A real scan will also find more songs than these.</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>The online catalog</h2>
+  <div class="frames">
+
+    <div class="cell"><div class="title"><b>28.</b> Music — the catalog</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="row-c between" style="margin-top:14px"><span class="statement s31">Music</span><span class="chip" style="background:rgba(89,161,212,.16);color:#8CC4F0"><span data-ic="globe" data-size="14"></span>Online</span></div>
+        <div class="seg" style="margin-top:14px"><span>On this phone</span><span class="on">Catalog</span></div>
+        <div class="input" style="margin-top:12px;color:var(--ink2);gap:10px;height:46px"><span data-ic="search" data-size="18"></span>Search songs, artists or sounds</div>
+        <div class="sect">Browse</div>
+        <div class="genres"><span>Afrobeats</span><span>Amapiano</span><span>Highlife</span><span>Gospel</span><span>Hip-hop</span><span>Electronic</span></div>
+        <div class="sect">Made for feeling</div>
+        <div class="shelf"><div class="card ocard" style="width:128px"><canvas class="ribbon" data-pattern="afro" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Afro Groove</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:128px"><canvas class="ribbon" data-pattern="heart" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Heartbeat</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:128px"><canvas class="ribbon" data-pattern="pulse" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Pulse</div><div class="help">Thrum Original</div></div><div class="card ocard" style="width:128px"><canvas class="ribbon" data-pattern="energy" data-limit="200" data-h="40" data-bar="2" data-gap="1"></canvas><div style="font-size:14.5px;margin-top:10px">Energy</div><div class="help">Thrum Original</div></div></div>
+        <div class="grow"></div>
+        <div class="note">Sketch note: what the catalog can contain depends on which licensed source Thrum uses. Not chosen yet.</div>
+      </div>
+      <nav class="bnav" data-active="music"></nav></div>
+    </div>
+
+    <div class="cell"><div class="title"><b>29.</b> Catalog search</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="back"></span><div class="input" style="flex:1;height:46px;gap:10px"><span data-ic="search" data-size="18" style="color:var(--ink2)"></span>afrobeats</div></div>
+        <div class="sect">Songs</div>
+        <div class="card list">
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name" style="color:var(--ink2)">Sample result</div><div class="sub">Artist · Afrobeats · 3:12</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name" style="color:var(--ink2)">Sample result</div><div class="sub">Artist · Afrobeats · 2:48</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name" style="color:var(--ink2)">Sample result</div><div class="sub">Artist · Afrobeats · 3:35</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name" style="color:var(--ink2)">Sample result</div><div class="sub">Artist · Afrobeats · 4:01</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+        </div>
+        <div class="sect">Artists</div>
+        <div class="row-c gap12"><span class="avatar"></span><span class="avatar"></span><span class="avatar"></span></div>
+        <div class="grow"></div>
+        <div class="note">Sketch note: sample rows. Real names appear only once a catalog is licensed.</div>
+      </div>
+      <nav class="bnav" data-active="music"></nav></div>
+    </div>
+
+    <div class="cell"><div class="title"><b>30.</b> A catalog song</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar between" style="margin-right:-12px"><span class="iconbtn" data-ic="back"></span><span class="chip" style="background:rgba(89,161,212,.16);color:#8CC4F0"><span data-ic="globe" data-size="14"></span>Online</span></div>
+        <div class="track" style="font-size:25px">Sample result</div>
+        <div class="meta">Artist · Afrobeats · from the catalog</div>
+        <div class="card pad" style="margin-top:18px"><canvas class="ribbon" data-score="song" data-h="160" data-bar="2" data-gap="1" data-progress=".2"></canvas></div>
+        <div class="row-c" style="justify-content:center;margin-top:20px"><span class="bigplay" data-ic="pause" data-size="30"></span></div>
+        <div class="seg" style="margin-top:18px"><span class="on">Hear and feel</span><span>Feel only</span></div>
+        <div class="row-c gap8 help" style="margin-top:16px;align-items:flex-start"><span data-ic="check" class="accent"></span>Thrum keeps only the vibration on your phone. The song itself plays from the catalog.</div>
+        <div class="grow"></div>
+        <div class="row-c gap8"><div class="btn second" style="flex:1"><span data-ic="plus" data-size="18"></span>Save haptic</div><div class="btn primary" style="flex:1.3"><span data-ic="phone" data-size="18"></span>Use for calls</div></div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+    <div class="cell"><div class="title"><b>31.</b> Catalog — offline</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="row-c between" style="margin-top:14px"><span class="statement s31">Music</span></div>
+        <div class="seg" style="margin-top:14px"><span>On this phone</span><span class="on">Catalog</span></div>
+        <div class="grow"></div>
+        <span class="icircle" style="width:64px;height:64px;border-radius:18px;color:var(--ink2)" data-ic="globe" data-size="28"></span>
+        <div class="track" style="font-size:25px;margin-top:18px">You're offline</div>
+        <p class="body" style="margin-top:10px">The catalog needs the internet. Your own music, the Thrum Originals, your haptics and your calls all keep working without it.</p>
+        <div class="grow"></div>
+        <div class="btn second">Go to my music</div>
+      </div>
+      <nav class="bnav" data-active="music"></nav></div>
+    </div>
+
+    <div class="sticky">
+      <h3>Before the catalog is built</h3>
+      <ul>
+        <li><b>It needs the internet.</b> Thrum has none today, and Sacred Rule 3 says never. The app's permission screen even promises there never will be. That rule has to change, with your yes.</li>
+        <li><b>It needs a legal source</b> of music: an open-licence catalog or a paid licence. Which one decides what can appear in search.</li>
+        <li><b>Only the vibration stays on the phone</b> (30). The song streams from the catalog, so Thrum never stores anyone else's audio (Sacred Rule 4).</li>
+        <li><b>Offline is honest</b> (31): everything except the catalog keeps working.</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>Clean up the sound</h2>
+  <div class="frames">
+
+    <div class="cell"><div class="title"><b>32.</b> Player — a low-quality song</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar between" style="margin-right:-12px"><span class="iconbtn" data-ic="back"></span><span class="iconbtn" data-ic="export"></span></div>
+        <div class="track" style="font-size:25px">AIZO, but it's lofi hiphop</div>
+        <div class="meta">Jujutsu Kaisen · Music · 64 kbps copy</div>
+        <div class="card" style="margin-top:12px;padding:12px 14px;display:flex;align-items:center;gap:12px"><span class="accent" data-ic="spark" data-size="20"></span><div style="flex:1;min-width:0"><div style="font-size:14.5px">Sound quality: low</div><div class="help">This copy sounds squashed. Make it clearer?</div></div><span class="textbtn" style="min-height:0;font-size:14px">Clean it up</span></div>
+        <div class="card pad" style="margin-top:14px"><canvas class="ribbon" data-score="song" data-h="150" data-bar="2" data-gap="1" data-progress=".096"></canvas></div>
+        <div class="row-c between meta" style="margin-top:8px"><span>0:17</span><span><span data-hits="song"></span> hits · still <span data-still="song"></span>%</span><span>2:57</span></div>
+        <div class="row-c" style="justify-content:center;gap:28px;margin-top:20px"><span class="iconbtn" data-ic="prev"></span><span class="bigplay" data-ic="pause" data-size="30"></span><span class="iconbtn" data-ic="next"></span></div>
+        <div class="seg" style="margin-top:20px"><span class="on">Hear and feel</span><span>Feel only</span></div>
+        <div class="grow"></div>
+        <div class="row-c gap8"><div class="btn second" style="flex:1"><span data-ic="tune" data-size="18"></span>Tune</div><div class="btn primary" style="flex:1.4"><span data-ic="phone" data-size="18"></span>Use for calls</div></div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+
+
+    <div class="cell"><div class="title"><b>33.</b> Clean up the sound</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="back"></span><span class="t">Player</span></div>
+        <div class="track" style="font-size:25px">AIZO, but it's lofi hiphop</div>
+        <div class="card pad" style="margin-top:18px"><canvas class="ribbon" data-score="song" data-h="150" data-bar="2" data-gap="1"></canvas></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grip"></div>
+        <div class="track" style="font-size:25px">Make it sound clearer?</div>
+        <p class="body" style="margin-top:8px">Thrum cleans up the squashed sound on this phone. Nothing is uploaded.</p>
+        <div class="row-c gap12" style="margin-top:16px"><div class="bar" style="flex:1"><i style="width:40%"></i></div><span class="meta">40%</span></div>
+        <div class="caps" style="margin-top:18px">Listen to both</div>
+        <div class="seg" style="margin-top:8px"><span>Original</span><span class="on">Cleaned up</span></div>
+        <p class="help" style="margin-top:12px">The vibration stays almost the same either way. We measured it: squashed copies of AIZO kept about 90% of their beats in place.</p>
+        <div class="row-c gap8" style="margin-top:16px"><div class="textbtn" style="flex:1;color:var(--ink2)">Keep original</div><div class="btn primary" style="flex:1.3">Use cleaned up</div></div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+    <div class="sticky">
+      <h3>What "Clean up" does and doesn't do</h3>
+      <ul>
+        <li><b>It makes a squashed song sound clearer</b>, on the phone. Nothing is uploaded, so no rule changes.</li>
+        <li><b>It barely changes the vibration.</b> Measured on 3 Oct: 64 and 32 kbps copies of AIZO kept 92% and 88% of their beats in place. So the haptic can be made from the original, and cleaning up is for listening.</li>
+        <li><b>Thrum can spot a low-quality file</b> from its bitrate before playing it, and only then offers to clean it up (32).</li>
+        <li><b>How it's done is your choice:</b> simple sound processing (small and fast) or an AI model (bigger app, slower).</li>
       </ul>
     </div>
 
@@ -707,6 +922,8 @@
   const S = window.SCORES;
   const DPR = 2;
   const P = {
+    globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.6 3.6 5.6 3.6 8.5s-1 5.9-3.6 8.5M12 3.5C9.4 6.1 8.4 9.1 8.4 12s1 5.9 3.6 8.5"/>',
+    spark: '<path d="M12 3.5l1.9 5.4 5.6 1.6-5.6 1.6L12 17.5l-1.9-5.4-5.6-1.6 5.6-1.6z" stroke-linejoin="round"/><path d="M18.5 16.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" stroke-linejoin="round"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
     prev: '<path d="M18 5.5v13L8.5 12z" fill="currentColor" stroke="none"/><path d="M6 5.5v13"/>',
     next: '<path d="M6 5.5v13l9.5-6.5z" fill="currentColor" stroke="none"/><path d="M18 5.5v13"/>',
@@ -746,7 +963,22 @@
     return out;
   }
   function pattern(name) {
-    if (name === "buzz") { const a = []; for (let k = 0; k < 3; k++) { for (let i = 0; i < 50; i++) a.push(255); for (let i = 0; i < 50; i++) a.push(0); } return a; }
+    const a = [], push = (v, n) => { for (let i = 0; i < n; i++) a.push(v); };
+    if (name === "buzz") { for (let k = 0; k < 3; k++) { push(255, 50); push(0, 50); } return a; }
+    // Designed shapes for the Thrum Originals. Not analysed audio: the pieces do not exist yet.
+    if (name === "heart") { for (let k = 0; k < 12; k++) { push(255, 5); push(0, 5); push(190, 4); push(0, 36); } return a; }
+    if (name === "pulse") { for (let k = 0; k < 24; k++) { push(255, 6); push(0, 19); } return a; }
+    if (name === "energy") { for (let k = 0; k < 30; k++) { push(255, 4); push(0, 6); push(k % 2 ? 230 : 160, 3); push(0, 7); } return a; }
+    if (name === "afro") {
+      const kick = [0, 3, 6, 10], snare = [4, 12];
+      for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) {
+        if (kick.includes(s)) { push(255, 5); push(0, 3); }
+        else if (snare.includes(s)) { push(220, 4); push(0, 4); }
+        else if (s % 2 === 0) { push(150, 2); push(0, 6); }
+        else push(0, 8);
+      }
+      return a;
+    }
     return new Array(300).fill(0);
   }
   function ribbon(cv) {
