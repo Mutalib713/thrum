@@ -6,6 +6,7 @@ import java.util.Properties
 plugins {
     id("com.android.application") // AGP 9: Kotlin support is built in
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.devtools.ksp") // Room's annotation processor (Task 17)
 }
 
 /**
@@ -98,6 +99,13 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.9.0")
     implementation("androidx.compose.foundation:foundation:1.9.0")
     implementation("androidx.compose.material3:material3:1.4.0")
+
+    // Task 17: the haptic library. Mutalib picked Room over plain files —
+    // hundreds of haptics need lists and search, which is what a database is
+    // for (PROFILE §7). Version read off Google's Maven metadata, not guessed.
+    implementation("androidx.room:room-runtime:2.8.5")
+    implementation("androidx.room:room-ktx:2.8.5")
+    ksp("androidx.room:room-compiler:2.8.5")
 
     // Score and its serialization are pure Kotlin with no Android or JSON
     // dependency, so junit alone is enough to test the whole analysis layer.

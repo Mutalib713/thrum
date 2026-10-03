@@ -77,6 +77,7 @@ A **release** build cannot install over a **debug** install — different keys, 
 ## Machine gotchas
 
 - **AGP 9 has built-in Kotlin.** Do NOT apply `org.jetbrains.kotlin.android` — it collides with "Cannot add extension 'kotlin'". Apply only `com.android.application` + `org.jetbrains.kotlin.plugin.compose`. This is about AGP, not the machine, so it survived the laptop change.
+- **KSP must be 2.3.x, never the Kotlin-versioned line.** The Kotlin-matched KSP (e.g. `2.2.20-2.0.4`, which every tutorial names) throws `KSP is not compatible with Android Gradle Plugin's built-in Kotlin` at configuration time. The newer `2.3.x` scheme works with built-in Kotlin: **`2.3.12` compiles and generates Room code on this project, proven 2026-10-03** (Task 17). When Kotlin is bumped, re-check that the KSP in use still accepts built-in Kotlin before believing a clean build.
 - Builds took about 4 minutes on the old laptop and should be faster here. Still: don't design a task that needs ten build cycles.
 - **R8 renames enum constants.** If anything persists an enum by name via JSON + `valueOf()`, add `-keepclassmembers enum com.mosman.thrum.** { *; }` or saved data silently wipes on upgrade. This exact bug bit `pixel-routines`.
 - Screenshots are flaky on this machine. Prefer logs, measurements, and Mutalib's hand on the phone.

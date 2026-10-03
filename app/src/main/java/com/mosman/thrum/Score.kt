@@ -89,6 +89,46 @@ data class Score(
     }
 
     /**
+     * The score split into consecutive pieces, each within [maxSteps] steps.
+     *
+     * R10: a whole song's score does not fit in one waveform — this phone
+     * silently drops anything over ~10,500 steps, and `Haptics.MAX_STEPS` is
+     * 8,000. The player plays the pieces back to back, re-syncing each join
+     * against the audio's position, which is Task 16's thing to prove. The
+     * splitting itself is pure arithmetic and lives here.
+     *
+     * Two guarantees, in the order a hand would notice them broken:
+     *
+     * 1. **Every step survives exactly once, in order.** The pieces joined end
+     *    to end are the original score — nothing dropped, nothing doubled.
+     * 2. **A cut lands on silence whenever the window holds any.** A hit split
+     *    across two pieces means one vibration ends and another begins in the
+     *    middle of the motor's motion — the join would sit inside the drive
+     *    and read as a stutter. Cutting after a silent step means each piece
+     *    starts on a hit's onset, where a fresh start is what the motor is
+     *    doing anyway. A score with no silence in a window (a solid drive)
+     *    cuts hard rather than failing; Task 16 measures what that join feels
+     *    like, and it cannot be designed around until measured.
+     */
+    fun pieces(maxSteps: Int): List<Score> {
+        require(maxSteps > 0) { "maxSteps must be positive, was $maxSteps" }
+        if (amplitudes.size <= maxSteps) return listOf(this)
+        val out = mutableListOf<Score>()
+        var start = 0
+        while (start < amplitudes.size) {
+            var end = minOf(start + maxSteps, amplitudes.size)
+            if (end < amplitudes.size) {
+                var cut = end
+                while (cut > start + 1 && amplitudes[cut - 1] != 0) cut--
+                if (amplitudes[cut - 1] == 0) end = cut
+            }
+            out.add(Score(stepMs, amplitudes.subList(start, end), sourceName))
+            start = end
+        }
+        return out
+    }
+
+    /**
      * The score from [fromMs] onward, for starting partway through a track.
      *
      * Task 5 needs this because audio does not begin the instant it is asked to:
