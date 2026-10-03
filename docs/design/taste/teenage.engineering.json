@@ -1,0 +1,67 @@
+{
+  "source": "https://teenage.engineering/products/ep-133",
+  "tokens": {
+    "spacing": {
+      "scale": [4.41, 7.35, 8.82, 14.69, 22.04, 33.06, 44.07, 66.12],
+      "base_unit": 4.408
+    },
+    "typography": {
+      "families": ["te-20", "TechnoType"],
+      "scale": [
+        { "role": "statement", "size": "52.898px", "weight": "700", "family": "te-20" },
+        { "role": "title", "size": "26.449px", "weight": "100", "family": "te-20" },
+        { "role": "intermediate", "size": "19.102px", "weight": "400", "family": "te-20" },
+        { "role": "button", "size": "16px", "weight": "100", "family": "te-20" },
+        { "role": "label / sublink / spec caption", "size": "13.2245px", "weight": "400", "family": "te-20 / TechnoType" },
+        { "role": "micro legal", "size": "9px", "weight": "400", "family": "te-20" }
+      ]
+    },
+    "colors": [
+      { "role": "background", "value": "#F9FAF9" },
+      { "role": "panel", "value": "#E5E5E5" },
+      { "role": "dark band", "value": "#000000" },
+      { "role": "text-on-light", "value": "#000000" },
+      { "role": "text-on-dark", "value": "#E5E5E5" },
+      { "role": "text-muted", "value": "#ABB5BA" },
+      { "role": "accent (1.6% of surface)", "value": "#FF5000" }
+    ],
+    "radius": ["4.41px", "7.35px", "8.82px", "14.69px", "22.04px"],
+    "shadows": [],
+    "image_ratios": [
+      { "usage": "hero / feature photo, full-bleed", "ratio": "1:1" },
+      { "usage": "line diagram", "ratio": "2.02:1" },
+      { "usage": "secondary photo", "ratio": "1.14:1" }
+    ],
+    "grid": { "max_width": "none (1425px full-bleed)", "columns": 12, "gutter": "14.69px row gap" }
+  },
+  "taste": [
+    {
+      "name": "Jumps, not ladders",
+      "trigger": "When separating labels, titles and statements on a page with very little text",
+      "decision": "Chose a x2 doubling scale (13.22 -> 26.45 -> 52.90) with one intermediate over a 5-7 step 1.25x ladder",
+      "reason": "With so few words each one has to announce its rank instantly; sizes 25% apart read as an accident, sizes 100% apart read as a decision",
+      "evidence": ["13.2245px x70", "26.449px x18", "52.898px x7", "only 19.102px between (x1.444)"]
+    },
+    {
+      "name": "The accent belongs to the hardware",
+      "trigger": "When choosing where the brand orange could appear on a page selling an orange-keyed instrument",
+      "decision": "Chose to keep orange on the product and one label (#FF5000, 1.6% of background area) over tinting buttons, headings or nav",
+      "reason": "An accent spread across chrome becomes wallpaper; held back, the eye reads orange as 'this is the thing you press'",
+      "evidence": ["#FF5000 1.6% area", "#E5E5E5 30%", "#989FA5 24.1%", "text-only buttons in #ABB5BA / #E5E5E5"]
+    },
+    {
+      "name": "No containers",
+      "trigger": "When grouping specs, captions, diagrams and photos down an 18,000px page",
+      "decision": "Chose full-bleed background bands and ~200px of empty field over cards, borders or drop shadows",
+      "reason": "Boxes make content feel like inventory to compare; bands make it a sequence you walk through, which suits one product told in scenes",
+      "evidence": ["0 cards detected", "0 shadows", "container 1425px, 0 padding", "light -> photo -> black transitions"]
+    },
+    {
+      "name": "Labels vs readouts",
+      "trigger": "When the page had to carry both navigation and hard specifications",
+      "decision": "Chose a thin lowercase house face for places and an all-caps technical face for facts over one family in several weights",
+      "reason": "A front panel prints its labels and its display differently so a glance tells you which is which; specs read as measurements, not marketing",
+      "evidence": ["te-20 884 nodes, weight 100 x51 on nav", "TechnoType 130 nodes on the uppercase spec list"]
+    }
+  ]
+}
