@@ -63,6 +63,9 @@ Rewritten 2026-10-03. The layout reference for every screen is `docs/design/scre
 11. **Home** [18]. The song for calls with its rhythm, "Feel a test call", the last call, shortcuts to Music and Create, and recently played songs.
 12. **Settings, About, Phone check** [20–22]. The founder story lives in About, not in first launch.
 13. **Look.** The current colours (sulphur-concrete), drawn flat. Liquid glass is wanted and gets discussed after everything else (Mutalib, 2026-10-03). Follows system light/dark.
+14. **Thrum Originals** [3, 7, 8, 11, 27]. Added later on 2026-10-03. A few short pieces built into the app, owned outright, each shipped with a ready-made haptic so it plays instantly. First launch lets people hear and feel one *before any permission*. They sit at the top of the Music tab before and after a scan, and one can be the song for calls on day one. Working titles: Afro Groove, Heartbeat, Pulse, Energy. **Who makes them is still open** (§11 R14).
+15. **The online music catalog** [28–31]. Added at Mutalib's request on 2026-10-03. A "Catalog" side of the Music tab: search songs, artists or sounds, browse by genre (Afrobeats, Amapiano, Highlife, Gospel, Hip-hop, Electronic), and play any song from it with its haptic. A catalog song can become a saved haptic or the song for calls. **Only the vibration is kept on the phone**; the song itself streams from the catalog, so Thrum never stores anyone else's audio (Sacred Rule 4). Offline, the Catalog says so plainly and everything else keeps working. **Blocked on two decisions:** it needs the internet, which Sacred Rule 3 forbids (§6), and it needs a licensed source of music (§11 R15).
+16. **Clean up the sound** (audio enhancement) [32, 33]. Added at Mutalib's request on 2026-10-03. When a song is low quality (Thrum can tell from its bitrate), the player offers to clean it up. It runs on the phone with nothing uploaded, lets the user compare original and cleaned up, and keeps whichever they choose. The haptic is made from the original, because the 2026-10-03 measurement shows cleaning up barely changes it (§11 R16): this is a listening feature. The app's wording says "Clean up", not "Enhance", because that says what it does. How it's done is an open choice (§7).
 
 ## 5. NOT IN V1
 
@@ -77,6 +80,7 @@ Rewritten 2026-10-03, when ring mode, a library of haptics, music, videos and ex
 - No notification sounds, alarms or messaging-app vibrations.
 - No widget, no Quick Settings tile.
 - No paid tier, no ads, no in-app purchase.
+- **No ripping or downloading music from YouTube, Spotify or any source Thrum isn't licensed for.** The online catalog (§4, item 15) carries only music Thrum has the right to play, and keeps only the vibration on the phone.
 
 *Moved into v1 on 2026-10-03, so no longer exclusions:* ring mode, a library of saved haptics (My Haptics), sharing scores as exported files, and music beyond the one ringtone.
 
@@ -87,7 +91,7 @@ Decisions no future session may reopen without Mutalib saying so:
 1. **One song for calls at a time, and calls come first.** v1 is the app described in §4 and drawn in `docs/design/screens/`; anything not on those screens is v2.
 2. **Never let a user believe the app works when their hardware cannot do it.** The capability check runs before anything else and its verdict is honest, not hedged. A one-star review saying "does nothing" is worse than a user who never installs.
 3. **Everything runs on the phone. No server, no network, ever.** No audio, score or file leaves the phone unless the user exports it themselves, and an export never contains audio. This keeps running costs at zero regardless of user count, and means there is no privacy story to get wrong.
-4. **Never ship, host, or redistribute audio.** The app converts files that are already on the user's device. Stock ringtones are Google's property; converting one locally for personal use is fine, distributing it is how apps get pulled.
+4. **Never ship audio Thrum doesn't own outright, and never host or redistribute anyone else's.** The app converts files that are already on the user's device, plus the Thrum Originals, which Thrum owns. Stock ringtones are Google's property; converting one locally for personal use is fine, distributing it is how apps get pulled.
 5. **Never claim or attempt system-wide audio haptics.** Android gives no app access to another app's audio. Spotify, YouTube Music, WhatsApp calls and TikTok are permanently out of reach. Thrum's own player only plays files that are on the phone, inside Thrum. Do not design around a workaround for this; there isn't one.
 6. **Prove it on hardware before building around it.** Every assumption about how the system ringer behaves gets tested on a real phone with a real incoming call. Emulators cannot test vibration and this machine has none anyway.
 7. **The feature flag is not a strategy.** `enableRingtoneHapticsCustomization` may be flippable via adb on Mutalib's own phone, but a Play Store app can never flip it. The app must work with that flag OFF.
@@ -100,8 +104,11 @@ Decisions no future session may reopen without Mutalib saying so:
 | 1 | v1 ships one screen and one active vibration score. If a feature does not fit that, it is v2. | One song for calls at a time, and calls come first. v1 is §4 and the final screens. |
 | 3 | No audio, no score, and no file leaves the device. | Nothing leaves the phone unless the user exports it, and an export never contains audio. |
 | 5 | (unchanged in meaning) | Adds that Thrum's own player only plays files on the phone, inside Thrum. |
+| 4 | Never ship, host, or redistribute audio. | Never ship audio Thrum doesn't own outright, and never host or redistribute anyone else's. *(Changed later the same day, when Mutalib said yes to Thrum Originals.)* |
 
-Rules 2, 4, 6, 7 and 8 are untouched.
+Rules 2, 6, 7 and 8 are untouched.
+
+> **⚠ Open: the online catalog against Rule 3.** The catalog (§4, item 15) needs the internet, and Rule 3 says "no network, ever". The app's own permission screen also promises "there is no internet permission in this app and there never will be". **Rule 3 stays exactly as written until Mutalib decides.** Until then the catalog can be designed but not built. If he changes it, the permission screen, the privacy policy, the store listing and the README all have to change in the same step.
 
 ## 7. STACK & ARCHITECTURE
 
@@ -123,13 +130,15 @@ Deliberately mirrors `pixel-routines`, because that stack is already proven to b
 
 ### Open decisions — Mutalib chooses (added 2026-10-03)
 
-The full app needs three things the one-screen app did not. Each is his choice; nothing below is decided until he picks, and only then does it move into the table above.
+The full app needs five things the one-screen app did not. Each is his choice; nothing below is decided until he picks, and only then does it move into the table above.
 
 | Need | My pick, in plain words | Alternative | What each costs, and what it can't do |
 |---|---|---|---|
 | **Somewhere to keep hundreds of haptics** | **Room**, Android's own database library. Built for exactly this: lists, search, "which songs have a haptic yet". | One file per haptic in the app's private folder, plus a small index file. | Room adds a library and a code-generation step to the build. Plain files are simpler, but searching and sorting get slow and fiddly past a few hundred. The SharedPreferences used today cannot hold this much. |
 | **Making haptics in the background** | **WorkManager**, Android's standard way to run long jobs that survive the app closing. | A background service the app runs itself. | Android can delay WorkManager jobs to save battery, and very long runs may need a visible notification. A hand-made service is more code and easier to get wrong. |
-| **Playing whole songs** | Keep **MediaPlayer**, which the preview already uses. | **Media3 (ExoPlayer)**, Google's newer player library. | MediaPlayer covers play, pause and seek on local files. Media3 is the better base for lock-screen controls and playback with the app closed, at the cost of a large library. |
+| **Playing whole songs** | Keep **MediaPlayer**, which the preview already uses. | **Media3 (ExoPlayer)**, Google's newer player library. | MediaPlayer covers play, pause and seek on local files. Media3 is the better base for lock-screen controls, playback with the app closed and streaming from the catalog, at the cost of a large library. |
+| **Cleaning up the sound** | **Plain sound processing**: level the volume, lift the clarity, soften harsh squashed sound. Small, fast and predictable. | **An AI model on the phone** that guesses the missing detail. | Plain processing can't rebuild what a squashed file threw away; it only makes it sound better. An AI model can try, but it makes the app much bigger and slower, and it can invent strange sounds. A model on a server is ruled out: it would upload the user's music. |
+| **Where the catalog comes from** | Decide after research: open-licence catalogs that let apps play their music, or a paid licensing service. | Thrum Originals only, made bigger. | Open-licence catalogs are mostly independent artists, not stars. A paid licence covers famous artists but costs money and needs a contract. Either way it needs the internet (§6). |
 
 ### Why a call needs no audio player
 
@@ -195,7 +204,7 @@ Permissions, updated 2026-10-03:
 - **Music access**: `READ_MEDIA_AUDIO` on Android 13 and up, `READ_EXTERNAL_STORAGE` on Android 12. Asked only when the user taps "Scan for music". Refusing it still leaves "pick one song at a time".
 - **Nothing for videos or photos.** Videos come through the phone's file chooser, one at a time.
 - Whatever background work and playback need (foreground-service permissions, possibly notifications) gets settled in the build tasks and listed here then.
-- Still **no `INTERNET`**, now or ever.
+- Still **no `INTERNET`**. The online catalog would need it, which is the open Rule 3 decision in §6. Thrum Originals ship inside the app rather than being downloaded. At a decent quality a 30-second piece is roughly half a megabyte, so six of them add about 3 MB; the release APK is 1.98 MB today.
 
 ## 10. CONSTRAINTS
 
@@ -298,6 +307,12 @@ Measured on the Pixel 6 Pro by walking a ladder of step counts and reading `dump
 **R12 — Background work costs battery, and Android may hold it back.** Reading a song took 7.4 s for a 3:58 MP3 and 10.1 s for a 4:32 M4A on the Pixel 6 Pro (Task 3), so a few hundred songs is tens of minutes of work. Mutalib chose "in the background" over "only while charging" (2026-10-03), so the battery cost has to be honest in the app, and the job has to survive Android pausing it.
 
 **R13 — Play Store review.** Music access, background work and call access each need a plain reason in the listing and in the app. Video access is avoided on purpose: videos are picked one at a time.
+
+**R14 — The Thrum Originals don't exist yet.** Who makes them is open: Mutalib himself, a producer under a written agreement (a Ghanaian Afrobeats producer would suit the app), or public-domain (CC0) sound. Whoever it is, Thrum must own them outright, because many "royalty-free" licences don't allow handing the track itself to users. They should be made to be felt: a clear kick with gaps between beats. That also makes them the test material for the hum fix (Task 15).
+
+**R15 — The catalog's music has to be legal.** Searching for any song and downloading it would break copyright and Google Play's rules, and Thrum won't do it. A legal catalog means either an open-licence catalog that lets apps play its music (mostly independent artists) or a paid licence (famous artists, but money and a contract). Which services exist, what they allow and what they cost has to be researched from real sources before anything is chosen. Nothing here is settled.
+
+**R16 — Cleaning up the sound doesn't improve the vibration.** Measured on 2026-10-03, so the feature is designed around the result. Copies of AIZO squashed to 64 kbps and 32 kbps gave almost the same haptic as the 256 kbps original: of the original's 582 beats, 92 % and 88 % landed within 20 ms, and 96.5 % and 94.7 % of steps stayed within ±10 of the original strength. The motor works around 150 Hz (measured on 2026-09-28), and the beat finder listens mostly below 200 Hz, while squashing mostly removes high sounds. So the haptic is made from the original file, and cleaning up only changes what the user hears. `tools/measure/quality.py` reproduces the numbers.
 
 **The name — settled.** Thrum, decided in Task 13. It matches the permanent `applicationId`, `com.mosman.thrum`.
 

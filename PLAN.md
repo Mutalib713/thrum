@@ -727,7 +727,7 @@ Built against the final screens in `docs/design/screens/thrum-screens.png`; the 
 
 The 28 Sep measurement says the armed score drives the motor 89.6 % of the time at a near-constant 0.84, which reads as a hum. Every feature in this milestone plays the same kind of score, so this comes first.
 
-First fix the comparison button it needs: "Stop the buzz" restarts the buzz, because `playStockBuzz()` clears `stockPlaying` in `stopEverything()` before checking it. Then play the phone's own buzz against Thrum, and move the score toward more silence and contrast rather than more strength. The three presets (Crisp, Full, Strong) come out of this task as measured settings, not guesses.
+First fix the comparison button it needs: "Stop the buzz" restarts the buzz, because `playStockBuzz()` clears `stockPlaying` in `stopEverything()` before checking it. Then play the phone's own buzz against Thrum, and move the score toward more silence and contrast rather than more strength. The three presets (Crisp, Full, Strong) come out of this task as measured settings, not guesses. If the Thrum Originals (Task 27) exist by then, they are the best test pieces, because they are made to be felt.
 
 **Proof:** `dumpsys vibrator_manager` shows the armed score running well under 89.6 % of the time; the accelerometer method from `docs/device/2026-09-28-vibration-measurement.md` shows the phone still moves; Mutalib's hand says it feels like the beat.
 
@@ -739,9 +739,9 @@ A rough test, not product UI. Play the whole AIZO track (2:57, 8,862 steps) with
 
 **Proof:** `dumpsys vibrator_manager` entries for every piece, the gap between pieces measured, the screen-off result written down whichever way it goes, and Mutalib's verdict.
 
-### [ ] Task 17: Mutalib chooses the three open stack items, then the data layer
+### [ ] Task 17: Mutalib chooses the first three open stack items, then the data layer
 
-`PROFILE.md` §7 lists them: where hundreds of haptics live, how background work runs, which player plays whole songs. He picks; the choices move into the §7 table. Then build `Track` and `Haptic` (§8) on his choice, in pure Kotlin where the logic allows.
+`PROFILE.md` §7 lists five open choices. This task needs the first three: where hundreds of haptics live, how background work runs, which player plays whole songs. The other two (how to clean up the sound, where the catalog comes from) wait for Tasks 28 and 29. He picks; the choices move into the §7 table. Then build `Track` and `Haptic` (§8) on his choice, in pure Kotlin where the logic allows.
 
 **Proof:** §7 updated with his picks in his words; QA tests for the data layer green on the PC.
 
@@ -796,6 +796,28 @@ One haptic or all of them, as Thrum pattern files saved on the phone; songs with
 ### [ ] Task 26: Settings, About and Phone check [20–22]
 
 **Proof:** every setting changes what it says it changes, read back from storage or `dumpsys`; About carries the agreed text.
+
+### [ ] Task 27: Thrum Originals [3, 7, 8, 11, 27]
+
+The pieces come first, and that part is Mutalib's: he decides who makes them (PROFILE §11 R14) and gets them made, owned outright. Then the build: put them inside the app, ship each with a ready-made haptic made by the same analyser on the PC so it plays instantly, add the Originals row at the top of Music, make first launch play one with sound on screen 3, and allow one to be the song for calls on day one. Until the pieces exist, first launch keeps the made-up demo rhythm it has today.
+
+**Proof:** a fresh install plays an Original with sound on screen 3 before any permission is asked; `aapt2 dump badging` still shows no `INTERNET`; the APK size is written down; an Original set for calls plays on a real incoming call.
+
+### [ ] Task 28: ⚠ The online catalog [28–31] (blocked)
+
+**Blocked until two things are decided:** Mutalib's answer on Sacred Rule 3, because the catalog needs the internet, and a licensed source of music (PROFILE §11 R15). Both are his.
+
+The research comes first, from real sources and not from vendor pages alone: which catalogs let an app play their music, on what terms, at what cost. Then, once he chooses: the internet permission, rewritten in the same step as the permission screen, privacy policy, listing and README. After that come search, genres, streaming playback with the haptic made as the song streams, keeping only the vibration on the phone, and the offline screen.
+
+**⚠ Why risky:** it changes Thrum's privacy promise, and the music has to be legal. Getting either wrong is how apps get pulled.
+
+**Proof:** the licence terms written into PROFILE; a catalog song plays with its haptic on the phone; with the phone offline, screen 31 shows and everything else still works; the phone's storage holds the score but no audio for a catalog song.
+
+### [ ] Task 29: Clean up the sound [32, 33]
+
+Mutalib picks the method first (PROFILE §7: plain sound processing, or an AI model on the phone). Then: spot a low-quality file from its bitrate, offer to clean it up, let the user compare original and cleaned up, keep their choice, and make the haptic from the original either way (PROFILE §11 R16 says why).
+
+**Proof:** the 64 kbps copy of AIZO from `tools/measure/quality.py` is flagged as low quality and a 256 kbps file isn't; Mutalib hears a difference between original and cleaned up; the app's size and the time it takes are written down.
 
 ---
 
