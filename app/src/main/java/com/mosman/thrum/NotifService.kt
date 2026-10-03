@@ -92,17 +92,30 @@ class NotifService : NotificationListenerService() {
             return
         }
 
-        // The user's own track if they have armed one. The demo pattern is the
-        // fallback rather than silence: a call that vibrates with the wrong
-        // rhythm is a bug, while a call that does not vibrate at all is
-        // indistinguishable from the app being broken.
-        val armed = store.armedScore
-        val score = armed ?: Demo.rhythm()
+        // Task 19: nothing chosen means Android's own buzz.
+        //
+        // The demo pattern used to stand in here, on the reasoning that "a
+        // call that does not vibrate at all is indistinguishable from the app
+        // being broken". The final design decides the opposite, and it is the
+        // better argument: with no song chosen, the phone rings exactly as
+        // its maker built it to ring — which is what the user has asked for
+        // by not choosing. A made-up rhythm stepping in as if it were theirs
+        // is the louder lie, and it is the one thing on this screen the user
+        // never asked to feel.
+        val armed = store.armedScore ?: run {
+            record(
+                Event.Kind.SKIPPED,
+                ringer,
+                latency,
+                "no song for calls — the phone's own buzz plays",
+            )
+            return
+        }
 
         val loop = store.loopWhileRinging
         activeKey = sbn.key
         lastFireAt = SystemClock.uptimeMillis()
-        val failure = Haptics.play(this, score, loop = loop)
+        val failure = Haptics.play(this, armed, loop = loop)
         if (failure != null) {
             record(Event.Kind.SKIPPED, ringer, latency, failure)
             activeKey = null
@@ -112,8 +125,7 @@ class NotifService : NotificationListenerService() {
             Event.Kind.FIRED,
             ringer,
             latency,
-            (if (armed == null) "demo pattern" else "armed: ${armed.sourceName}") +
-                if (loop) " · looping" else " · once",
+            "armed: ${armed.sourceName}" + if (loop) " · looping" else " · once",
         )
 
         // In ring mode, keep asking.
@@ -134,7 +146,7 @@ class NotifService : NotificationListenerService() {
         // waveform every two seconds for nothing is not free.
         if (ringer == "ring") {
             handler.removeCallbacksAndMessages(REASSERT_TOKEN)
-            scheduleReassert(score, loop, SystemClock.uptimeMillis())
+            scheduleReassert(armed, loop, SystemClock.uptimeMillis())
         }
 
         // Safety cap. A looping waveform runs until something cancels it, and if

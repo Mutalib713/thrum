@@ -37,7 +37,10 @@
     <string name="ready_meta">%1$s · %2$d hits</string>
     <string name="ready_action">Use this when someone calls</string>
     <string name="ready_preview">Play it with the song</string>
-    <string name="ready_feel">Feel it on its own</string>
+    <!-- Renamed in Task 19: "feel it on its own" became the test call, and the
+        name matters — a test call plays exactly what a call plays, through the
+        same route, so on Silent it stays silent and the test never lies. -->
+    <string name="ready_feel">Feel a test call</string>
     <string name="ready_stop">Stop</string>
 
     <!-- The comparison button. "Is it strong enough?" cannot be answered against
@@ -54,6 +57,20 @@
     <!-- Armed -->
     <string name="armed_title">Ready</string>
     <string name="armed_change">Choose a different song</string>
+
+    <!-- Home. Task 19: the song for calls, the test call that never lies
+            (it plays through the same route a call does, so on Silent it
+            stays silent, exactly as a call would), the 45-second window, and
+            the last call line read from the event log. -->
+    <string name="home_for_calls">For calls</string>
+    <string name="home_not_set">not set yet</string>
+    <string name="home_verdict_row">%1$s · %2$s</string>
+    <string name="home_ringer_vibrate">on vibrate</string>
+    <string name="home_ringer_ring">on ring</string>
+    <string name="home_ringer_silent">on silent</string>
+    <string name="home_ringer_unknown">ringer unreadable</string>
+    <string name="home_calls_window">Calls use the first 45 seconds of the song, repeated until you answer.</string>
+    <string name="home_last_call">Last call, %1$s: Thrum started your haptic %2$s after it rang.</string>
 
     <!-- Setup. Task 9, and it is short on purpose: the supersede measurement
          (PROFILE.md §11 R2) removed almost everything this screen was going to

@@ -145,6 +145,16 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         }
     }
 
+    // Task 19: the last call Thrum actually played, for Home's line. Only a
+    // FIRED counts — a skipped call is the app declining, and reporting one
+    // would be a surface reporting an intention. Polled with the rest.
+    val lastCall by produceState<Event?>(initialValue = null) {
+        while (true) {
+            value = Home.lastCall(store.events())
+            delay(POLL_MS)
+        }
+    }
+
     val player = remember { mutableStateOf<MediaPlayer?>(null) }
 
     // The coroutine driving the ribbon's playhead, held so it can be cancelled.
@@ -450,6 +460,7 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     progress = progress,
                     ringer = ringer,
                     ringMode = ringMode,
+                    lastCall = lastCall,
                     onRingMode = { on -> ringMode = on; store.fireInRingMode = on },
                     onSoundSettings = {
                         // The public action for Sound & vibration, which is where
@@ -697,6 +708,7 @@ private fun Ready(
     progress: Float,
     ringer: Setup.Ringer,
     ringMode: Boolean,
+    lastCall: Event?,
     onRingMode: (Boolean) -> Unit,
     onSoundSettings: () -> Unit,
     punch: Int,
@@ -717,6 +729,38 @@ private fun Ready(
     onChange: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Space.S4)) {
+        // The compact status row from the Home design: what this screen is
+        // for, the verdict's own word, and the ringer it was read from. The
+        // full sentence stays below — a headline alone is a word where the
+        // situation sometimes needs a sentence, and Silent is that situation.
+        val verdict = Setup.verdict(ringer, ringMode)
+        val ringerWord = stringResource(
+            when (ringer) {
+                Setup.Ringer.VIBRATE -> R.string.home_ringer_vibrate
+                Setup.Ringer.RING -> R.string.home_ringer_ring
+                Setup.Ringer.SILENT -> R.string.home_ringer_silent
+                Setup.Ringer.UNKNOWN -> R.string.home_ringer_unknown
+            },
+        )
+        Text(
+            stringResource(
+                R.string.home_verdict_row,
+                stringResource(R.string.home_for_calls),
+                if (armed) {
+                    stringResource(if (verdict.blocked) R.string.setup_wont_title else R.string.armed_title) +
+                        " · " + ringerWord
+                } else {
+                    stringResource(R.string.home_not_set)
+                },
+            ),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (armed && verdict.blocked) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+
         PulseRibbon(
             score = score,
             progress = progress,
@@ -752,9 +796,31 @@ private fun Ready(
             // the vibration away, and only a hand on the phone disproved it. A
             // screen must not describe an intention.
             SetupVerdict(
-                verdict = Setup.verdict(ringer, ringMode),
+                verdict = verdict,
                 onSoundSettings = onSoundSettings,
             )
+            // The window, stated as a fact rather than a setting: this is
+            // what a call plays, and the repetition is the caller's side of
+            // it — the app loops until the call is answered or ends.
+            Text(
+                stringResource(R.string.home_calls_window),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // Task 19's last-call line, from the event log. Only a FIRED
+            // reaches it — [Home.lastCall] does the deciding, here it is
+            // only words.
+            lastCall?.let { fired ->
+                Text(
+                    stringResource(
+                        R.string.home_last_call,
+                        Home.callWords(fired.at),
+                        Home.latencyWords(fired.latencyMs),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

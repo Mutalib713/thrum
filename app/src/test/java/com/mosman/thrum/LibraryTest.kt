@@ -243,4 +243,27 @@ class LibraryTest {
     fun `a negative duration is rejected`() {
         Track("uri", "n", durationMs = -1, kind = TrackKind.FILE)
     }
+
+    // --- Home's last-call line (Task 19).
+
+    @Test
+    fun `the last call is the newest one the app actually played`() {
+        // A skipped call is the app declining — silent mode, no song, a
+        // duplicate — and the line must not report a call the app declined.
+        val first = Event(1_000, Event.Kind.FIRED, "vibrate", 243)
+        val declined = Event(2_000, Event.Kind.SKIPPED, "silent", 0)
+        val last = Event(3_000, Event.Kind.FIRED, "vibrate", 250)
+        assertEquals(last, Home.lastCall(listOf(first, declined, last)))
+        assertNull(Home.lastCall(listOf(declined)))
+        assertNull(Home.lastCall(emptyList()))
+    }
+
+    @Test
+    fun `latency reads the way the design wrote it`() {
+        // 273 ms was the Task 2 median; the design's own example is "0.3 s".
+        assertEquals("0.3 s", Home.latencyWords(273))
+        assertEquals("0.0 s", Home.latencyWords(0))
+        assertEquals("9.9 s", Home.latencyWords(9_940))
+        assertEquals("10 s", Home.latencyWords(10_000))
+    }
 }

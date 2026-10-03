@@ -755,11 +755,13 @@ Bottom tabs in this order: Home, My Haptics, Music, Settings. The seven first-la
 
 **Proof still owed:** a fresh install on the Pixel walks screens 1–7 in order, every tab opens, and the uiautomator dump shows 48 dp touch targets. The "can't do it" path stays unproven until Task 6 finds a budget phone.
 
-### [ ] Task 19: Home and calls [18, 23, 24, 27]
+### [~] Task 19: Home and calls [18, 23, 24, 27] — **BUILT 2026-10-03, proof needs the phone**
 
 The song for calls: first 45 seconds, repeated until answered. "Feel a test call", the last call line, the Silent warning, and the "no song for calls" state. **Remove the demo-pattern fallback** from `NotifService`, so a call with nothing chosen gets Android's own buzz.
 
-**Proof:** a real call plays the chosen song's opening; with nothing chosen, `dumpsys vibrator_manager` shows no `com.mosman.thrum` entry for that call.
+**Built:** the fallback is gone — with nothing chosen, the listener records `no song for calls` and stands down, so Android's buzz is the only vibration, exactly as the final design decides. "Feel it on its own" is renamed **Feel a test call**, which is what it always was: the same score down the same ringtone route, so on Silent it stays silent and the test never lies. Home gained the design's compact status row ("For calls · Ready · on vibrate", red when blocked), the 45-second window line, and the **last-call line** — the newest `FIRED` event only, formatted by `Home.kt` (pure Kotlin, tested: a declined call is never reported). The full Home layout's shortcut cards and Recently played arrive with Tasks 21 and 23, and the tune dials move to their own screen in Task 24; both stay where they are until then.
+
+**Proof still owed:** a real call plays the chosen song's opening; with nothing chosen, `dumpsys vibrator_manager` shows no `com.mosman.thrum` entry for that call.
 
 ### [ ] Task 20: ⚠ Music scan [8, 9, 12]
 
