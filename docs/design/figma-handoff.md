@@ -1,5 +1,7 @@
 # Thrum — Figma handoff
 
+> **Superseded for layout on 2026-10-03** by the full-app screens in `docs/design/screens/`. The liquid-glass recipe in §4 still stands for when glass is discussed.
+
 Everything needed to redraw Thrum's one screen in Figma. Written 2026-09-29, for a
 **liquid glass** pass.
 

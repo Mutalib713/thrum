@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thrum final screens</title>
+<!-- The final Thrum screens, 2026-10-03. Reference design for the build; see PROFILE.md section 4. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --field: #1C1C1A; --surface: #242422; --surface2: #2B2B28;
+    --ink: #EFEFEA; --ink2: #A8A8A1; --rule: #3A3A36; --line: #4A4A44;
+    --accent: #D8C513; --warn: #E0691C;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #111110; color: var(--ink); font-family: "IBM Plex Sans", sans-serif; padding: 56px 72px 80px; width: 3260px; }
+  header.pagehead h1 { font: 700 46px "Space Grotesk", sans-serif; letter-spacing: -.01em; }
+  header.pagehead p { margin-top: 12px; font-size: 18px; line-height: 1.55; color: #B5B5AE; max-width: 130ch; }
+
+  section { margin-top: 64px; }
+  section > h2 { font: 600 16px "IBM Plex Sans"; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin-bottom: 22px; }
+  .frames { display: flex; gap: 36px; align-items: flex-start; }
+  .cell { width: 411px; flex: none; }
+  .cell .title { font-size: 17px; color: #CFCFC8; margin-bottom: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cell .title b { color: var(--ink); font-weight: 600; margin-right: 4px; }
+
+  .phone { width: 411px; height: 891px; border-radius: 32px; overflow: hidden; position: relative; background: var(--field); box-shadow: 0 0 0 1px #34342F; }
+  .scr { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0 24px 28px; }
+  .scr.withnav { padding-bottom: 92px; }
+  .status { height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 500; }
+  .grow { flex: 1 1 auto; }
+  .row-c { display: flex; align-items: center; } .gap8 { gap: 8px; } .gap12 { gap: 12px; } .gap16 { gap: 16px; }
+  .between { justify-content: space-between; }
+
+  .wordmark { font: 700 25px "Space Grotesk", sans-serif; letter-spacing: .16em; color: var(--accent); }
+  .statement { font: 500 39px/1.1 "Space Grotesk", sans-serif; letter-spacing: -.015em; }
+  .s31 { font-size: 31px; line-height: 1.15; } .s25 { font-size: 25px; line-height: 1.2; }
+  .track { font: 500 20px/1.3 "Space Grotesk", sans-serif; }
+  .body { font-size: 16px; line-height: 1.5; color: #D6D6CF; }
+  .meta { font-size: 14px; line-height: 1.5; color: var(--ink2); }
+  .help { font-size: 12.5px; line-height: 1.5; color: var(--ink2); }
+  .caps { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; color: var(--ink2); }
+  .accent { color: var(--accent); } .warn { color: var(--warn); }
+  .sect { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; color: var(--ink2); margin: 18px 0 8px 2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; }
+  .pad { padding: 16px; } .pad20 { padding: 20px; }
+  .list .item { display: flex; align-items: center; gap: 14px; padding: 12px 16px; min-height: 56px; }
+  .list .item + .item { border-top: 1px solid var(--rule); }
+  .item .txt { flex: 1; min-width: 0; }
+  .item .name { font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .sub { font-size: 12.5px; color: var(--ink2); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .val { font-size: 13.5px; color: var(--ink2); white-space: nowrap; }
+  .icircle { width: 40px; height: 40px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--rule); display: flex; align-items: center; justify-content: center; flex: none; color: var(--accent); }
+
+  .btn { min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 22px; border-radius: 26px; font-size: 15px; font-weight: 600; }
+  .btn.primary { background: var(--accent); color: #1C1C1A; }
+  .btn.second { border: 1px solid var(--line); color: var(--ink); }
+  .btn.small { min-height: 44px; font-size: 14px; padding: 0 16px; border-radius: 22px; }
+  .textbtn { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 15px; font-weight: 600; color: var(--accent); }
+  .iconbtn { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; color: var(--ink); flex: none; }
+  .topbar { display: flex; align-items: center; gap: 4px; min-height: 60px; margin-left: -12px; }
+  .topbar .t { font: 500 20px "Space Grotesk", sans-serif; }
+  .playc { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex: none; color: var(--ink); }
+  .bigplay { width: 84px; height: 84px; border-radius: 50%; background: var(--accent); color: #1C1C1A; display: flex; align-items: center; justify-content: center; }
+
+  .switch { flex: none; width: 52px; height: 32px; border-radius: 16px; background: var(--accent); position: relative; }
+  .switch::after { content: ""; position: absolute; right: 4px; top: 4px; width: 24px; height: 24px; border-radius: 50%; background: var(--field); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(216,197,19,.14); color: var(--accent); }
+  .chip.warn { background: rgba(224,105,28,.16); color: var(--warn); } .chip.grey { background: var(--surface2); color: var(--ink2); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+  .seg { display: flex; padding: 4px; border-radius: 24px; background: var(--surface); border: 1px solid var(--rule); }
+  .seg span { flex: 1; text-align: center; padding: 9px 8px; border-radius: 20px; font-size: 14px; font-weight: 600; color: var(--ink2); }
+  .seg span.on { background: var(--surface2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+  .dots { display: flex; gap: 6px; margin-top: 10px; } .dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--rule); } .dots i.on { width: 20px; background: var(--accent); }
+  .slider { position: relative; height: 24px; margin-top: 6px; }
+  .slider .tr { position: absolute; left: 0; right: 0; top: 10px; height: 4px; border-radius: 2px; background: var(--rule); }
+  .slider .fi { position: absolute; left: 0; top: 10px; height: 4px; border-radius: 2px; background: var(--accent); }
+  .slider .th { position: absolute; top: 2px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: var(--accent); }
+  .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; }
+  .radio.on { border-color: var(--accent); } .radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .input { height: 52px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--line); display: flex; align-items: center; padding: 0 16px; font-size: 16px; }
+  .bar { height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; } .bar i { display: block; height: 100%; background: var(--accent); }
+  .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--rule); border-top-color: var(--accent); flex: none; }
+  .nobutton { height: 52px; border: 1.5px dashed rgba(255,255,255,.3); border-radius: 26px; display: flex; align-items: center; justify-content: center; font-style: italic; font-size: 13px; color: var(--ink2); }
+  .note { border: 1.5px dashed rgba(216,197,19,.55); color: #E9DF8A; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; background: rgba(0,0,0,.25); }
+
+  .bnav { position: absolute; left: 0; right: 0; bottom: 0; height: 80px; padding: 8px 8px 18px; display: flex; background: #1A1A18; border-top: 1px solid var(--rule); }
+  .bnav a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 500; color: var(--ink2); text-decoration: none; }
+  .bnav a.on { color: var(--accent); }
+  .homebar { position: absolute; bottom: 7px; left: 50%; width: 108px; height: 4px; margin-left: -54px; border-radius: 2px; background: var(--ink2); opacity: .6; }
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 24px 32px; background: var(--surface); border-top: 1px solid var(--line); border-radius: 28px 28px 0 0; }
+  .grip { width: 40px; height: 4px; border-radius: 2px; background: var(--ink2); opacity: .6; margin: 0 auto 18px; }
+  canvas.ribbon { display: block; width: 100%; }
+  canvas.mini { display: block; width: 64px; flex: none; }
+
+  .splash { background: radial-gradient(ellipse 70% 45% at 50% 52%, rgba(216,197,19,.20), transparent 70%), var(--field); }
+  .callbg { background: radial-gradient(ellipse 80% 55% at 50% 40%, rgba(216,197,19,.14), transparent 70%), #151514; }
+  .ring { position: absolute; left: 50%; border-radius: 50%; border: 1.5px solid rgba(216,197,19,.5); transform: translateX(-50%); }
+
+  .sticky { width: 411px; flex: none; padding: 26px 26px 30px; background: #F3E59A; color: #1E1E1E; border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.4); font-size: 15.5px; line-height: 1.5; margin-top: 30px; }
+  .sticky h3 { font: 700 21px "Space Grotesk", sans-serif; margin-bottom: 10px; }
+  .sticky li { margin: 0 0 8px 18px; }
+
+  .chg { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: 3px 7px; border-radius: 4px; background: rgba(216,197,19,.16); color: var(--accent); vertical-align: 2px; }
+  .chg.new { background: #0D99FF; color: #fff; }
+  .minipend { width: 64px; height: 26px; flex: none; border-bottom: 2px dotted var(--line); }
+  .minipend.warnline { border-bottom-color: rgba(224,105,28,.6); }
+  .miniplayer { position: absolute; left: 12px; right: 12px; bottom: 90px; height: 64px; border-radius: 16px; background: var(--surface2); border: 1px solid var(--line); display: flex; align-items: center; gap: 12px; padding: 0 4px 0 14px; }
+  .miniplayer .txt { flex: 1; min-width: 0; }
+  .miniplayer .name { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .miniplayer .sub { font-size: 12px; color: var(--ink2); }
+  .seg span { padding: 9px 4px; }
+</style>
+
+</head>
+<body>
+<header class="pagehead">
+  <h1>Thrum — the final screens</h1>
+  <p>Every screen of the app, first launch to the end, agreed on 3 October 2026. Calls come first everywhere. Music is scanned only after Thrum asks, then any song plays inside Thrum with its haptic, and haptics can be made for every song in the background or one at a time as you play. Calls use the first 45 seconds of a song, repeated until you answer.</p>
+</header>
+<section>
+  <h2>First launch</h2>
+  <div class="frames">
+
+    <div class="cell"><div class="title"><b>1.</b> Splash</div>
+      <div class="phone splash"><div class="scr" style="align-items:center">
+        <div class="status" style="align-self:stretch"></div>
+        <div class="grow"></div>
+        <div style="width:100%"><canvas class="ribbon" data-score="song" data-h="110" data-bar="2" data-gap="2" data-glow="1"></canvas></div>
+        <div class="wordmark" style="font-size:46px;margin-top:28px">THRUM</div>
+        <div class="body" style="margin-top:8px;color:var(--ink)">Hear it. Feel it.</div>
+        <div class="grow"></div>
+        <div class="help">Checking your phone's motor…</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>2.</b> Welcome</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+        <div class="wordmark" style="margin-top:40px">THRUM</div>
+        <div class="statement" style="margin-top:14px">Hear it.<br>Feel it.</div>
+        <p class="body" style="margin-top:16px">Thrum turns your calls, music and videos into vibrations you can feel.</p>
+        <div class="row-c gap8 help" style="margin-top:20px;color:var(--ink)"><span data-ic="check" class="accent"></span>Your phone's motor can change strength, so Thrum works here.</div>
+        <div class="grow"></div>
+        <div class="btn primary">See how it works</div>
+        <div class="textbtn" style="color:var(--ink2)">Skip</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>3.</b> Turn sound into touch</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="statement s31" style="margin-top:28px">Turn sound into touch</div>
+        <p class="body" style="margin-top:12px">Thrum finds the beats in a song and plays them on your phone's vibration motor.</p>
+        <div class="card pad" style="margin-top:20px">
+          <div class="row-c gap8">
+            <div style="flex:1"><canvas class="ribbon" data-score="audio" data-limit="900" data-h="44" data-bar="2" data-gap="1" data-mirror="1"></canvas><div class="help" style="margin-top:6px">The sound</div></div>
+            <span data-ic="chev" style="color:var(--ink2)"></span>
+            <div style="flex:1"><canvas class="ribbon" data-score="song" data-limit="900" data-h="44" data-bar="2" data-gap="1"></canvas><div class="help" style="margin-top:6px">The beats</div></div>
+            <span data-ic="chev" style="color:var(--ink2)"></span>
+            <div style="width:52px;text-align:center"><span data-ic="vib" data-size="34" class="accent"></span><div class="help" style="margin-top:2px">Your phone</div></div>
+          </div>
+        </div>
+        <div class="card pad" style="margin-top:12px">
+          <div class="caps">Feel the difference</div>
+          <div class="row-c gap12" style="margin-top:12px"><div style="flex:1"><div class="help">Android today</div><canvas class="ribbon" data-pattern="buzz" data-h="24" data-bar="2" data-gap="1"></canvas></div><span class="playc" data-ic="play" data-size="14"></span></div>
+          <div class="row-c gap12" style="margin-top:12px"><div style="flex:1"><div class="help">With Thrum</div><canvas class="ribbon" data-score="crisp" data-limit="300" data-h="24" data-bar="2" data-gap="1"></canvas></div><span class="playc" data-ic="play" data-size="14"></span></div>
+        </div>
+        <div class="grow"></div>
+        <div class="btn primary">Next</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>4.</b> Calls, music and videos</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="dots"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+        <div class="statement s31" style="margin-top:28px">Calls, music and videos</div>
+        <p class="body" style="margin-top:12px">Anything with a beat can become something you feel.</p>
+        <div class="card list" style="margin-top:22px">
+          <div class="item" style="min-height:84px"><span class="icircle" data-ic="phone"></span><div class="txt"><div class="name">Calls</div><div class="sub" style="white-space:normal">Feel your song when someone calls, even with the ringer on.</div></div></div>
+          <div class="item" style="min-height:84px"><span class="icircle" data-ic="music"></span><div class="txt"><div class="name">Music</div><div class="sub" style="white-space:normal">Play the songs on your phone and feel every beat.</div></div></div>
+          <div class="item" style="min-height:84px"><span class="icircle" data-ic="video"></span><div class="txt"><div class="name">Videos</div><div class="sub" style="white-space:normal">Feel the sound from a video.</div></div></div>
+        </div>
+        <div class="grow"></div>
+        <div class="btn primary">Next</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>5.</b> Feel your calls</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="dots"><i></i><i></i><i></i><i class="on"></i><i></i></div>
+        <div class="card pad20" style="margin-top:24px">
+          <div class="row-c between"><span class="caps">Incoming call</span><span data-ic="phone" class="accent"></span></div>
+          <div style="margin-top:12px"><canvas class="ribbon" data-score="now" data-limit="700" data-h="56" data-bar="3" data-gap="1"></canvas></div>
+          <div class="help" style="margin-top:8px">AIZO, but it's lofi hiphop · on the motor</div>
+        </div>
+        <div class="statement s31" style="margin-top:24px">Feel your calls</div>
+        <p class="body" style="margin-top:12px">Pick one song for calls. When your phone rings, Thrum plays its beat on the motor, with the ringer on or on vibrate.</p>
+        <p class="help" style="margin-top:12px">To know a call has started, Thrum needs to see call notifications. It checks one thing: is this a call? Nothing leaves your phone.</p>
+        <div class="grow"></div>
+        <div class="btn primary">Turn on call access</div>
+        <div class="textbtn" style="color:var(--ink2)">Maybe later</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>6.</b> Play and feel your music</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i></div>
+        <div class="card pad" style="margin-top:24px">
+          <div class="row-c gap12"><canvas class="mini" data-score="song" data-h="30" data-bar="2" data-gap="1" data-progress=".3"></canvas><div style="flex:1;min-width:0"><div style="font-size:15px">AIZO, but it's lofi hiphop</div><div class="help">Hear and feel · 0:53 / 2:57</div></div><span class="playc" data-ic="pause" data-size="14"></span></div>
+          <div style="margin-top:14px"><canvas class="ribbon" data-score="song" data-h="64" data-bar="2" data-gap="1" data-progress=".3"></canvas></div>
+        </div>
+        <div class="statement s31" style="margin-top:24px">Play and feel your music</div>
+        <p class="body" style="margin-top:12px">Scan your phone's music in the Music tab. Then play any song in Thrum and feel every beat, from the first second to the last.</p>
+        <p class="help" style="margin-top:12px">Thrum asks before it looks at your music, and it only reads music and audio files.</p>
+        <div class="grow"></div>
+        <div class="btn primary">Next</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+    <div class="cell"><div class="title"><b>7.</b> You're set</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="grow"></div>
+        <div class="card pad"><canvas class="ribbon" data-pattern="flat" data-h="96"></canvas><div class="help" style="margin-top:10px">Your first haptic goes here.</div></div>
+        <div class="statement" style="margin-top:28px">You're set</div>
+        <p class="body" style="margin-top:14px">Pick a song for your calls. Then scan your music in the Music tab to play and feel any song.</p>
+        <div class="grow"></div>
+        <div class="btn primary">Choose a song for calls</div>
+        <div class="textbtn" style="color:var(--ink2)">Look around first</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+  </div>
+</section>
+
+<section>
+  <h2>Music</h2>
+  <div class="frames">
+
+    <div class="cell"><div class="title"><b>8.</b> Music — first time</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="statement s31" style="margin-top:18px">Music</div>
+        <div class="grow"></div>
+        <span class="icircle" style="width:64px;height:64px;border-radius:18px;align-self:flex-start" data-ic="music" data-size="28"></span>
+        <div class="track" style="font-size:25px;margin-top:18px">Your music isn't here yet</div>
+        <p class="body" style="margin-top:10px">Scan your phone to find your songs. Then play any of them here and feel every beat.</p>
+        <div class="card pad" style="margin-top:18px;display:flex;flex-direction:column;gap:10px">
+          <div class="row-c gap8 help" style="color:var(--ink);align-items:flex-start"><span data-ic="check" class="accent"></span>Thrum reads music and audio files only. Not your photos, not your videos.</div>
+          <div class="row-c gap8 help" style="color:var(--ink);align-items:flex-start"><span data-ic="check" class="accent"></span>Nothing leaves your phone.</div>
+        </div>
+        <div class="grow"></div>
+        <div class="note" style="margin-bottom:12px">Sketch note: tapping Scan first shows Android's own pop-up, Allow or Don't allow.</div>
+        <div class="btn primary"><span data-ic="search" data-size="18"></span>Scan for music</div>
+        <div class="textbtn">Pick one song instead</div>
+      </div>
+      <nav class="bnav" data-active="music"></nav></div>
+    </div>
+
+
+    <div class="cell"><div class="title"><b>9.</b> Scanning</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="statement s31" style="margin-top:18px">Music</div>
+        <div class="card pad" style="margin-top:16px">
+          <div class="row-c gap12"><span class="spinner"></span><div class="body" style="color:var(--ink)">Scanning your phone…</div></div>
+          <div class="bar" style="margin-top:12px"><i style="width:55%"></i></div>
+        </div>
+        <div class="sect">Found so far</div>
+        <div class="card list">
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name">AIZO, but it's lofi hiphop</div><div class="sub">Jujutsu Kaisen · 2:57</div></div></div>
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name">Active</div><div class="sub">Asake, Travis Scott · 3:04</div></div></div>
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name">No Dulling</div><div class="sub">Keche · 3:58</div></div></div>
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name">Eid Mubarak</div><div class="sub">Harris J · 4:32</div></div></div>
+          <div class="item"><span class="icircle" data-ic="music" data-size="18"></span><div class="txt"><div class="name">Antassalam</div><div class="sub">Maher Zain</div></div></div>
+        </div>
+        <div class="grow"></div>
+        <div class="textbtn" style="color:var(--ink2)">Stop scanning</div>
+      </div>
+      <nav class="bnav" data-active="music"></nav></div>
+    </div>
+
+
+    <div class="cell"><div class="title"><b>10.</b> Found your music: make haptics?</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="statement s31" style="margin-top:18px">Music</div>
+        <div class="card list" style="margin-top:16px">
+          <div class="item"><span class="minipend"></span><div class="txt"><div class="name">AIZO, but it's lofi hiphop</div><div class="sub">Jujutsu Kaisen · 2:57</div></div></div>
+          <div class="item"><span class="minipend"></span><div class="txt"><div class="name">Active</div><div class="sub">Asake, Travis Scott · 3:04</div></div></div>
+        </div>
+      </div>
+      <nav class="bnav" data-active="music"></nav>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grip"></div>
+        <div class="track" style="font-size:25px">Found 6 songs</div>
+        <p class="body" style="margin-top:8px">Make their haptics now? Each song takes about 8 seconds on your phone.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+          <div class="card list" style="border-color:var(--accent)"><div class="item" style="align-items:flex-start;padding:14px 16px"><span class="radio on" style="margin-top:2px"></span><div class="txt"><div class="name">All of them, in the background</div><div class="sub" style="white-space:normal">Thrum works through them while you use your phone. It uses some battery while it does.</div></div></div></div>
+          <div class="card list"><div class="item" style="align-items:flex-start;padding:14px 16px"><span class="radio" style="margin-top:2px"></span><div class="txt"><div class="name">One at a time, as I play them</div><div class="sub" style="white-space:normal">Each song waits about 8 seconds the first time you play it.</div></div></div></div>
+        </div>
+        <p class="help" style="margin-top:12px">You can change this later in Settings.</p>
+        <div class="btn primary" style="margin-top:14px">Continue</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+    <div class="cell"><div class="title"><b>11.</b> Music</div>
+      <div class="phone"><div class="scr withnav" style="padding-bottom:160px">
+        <div class="status"></div>
+        <div class="row-c between" style="margin-top:14px"><span class="statement s31">Music</span><span class="textbtn" style="font-size:14px"><span data-ic="export" data-size="18"></span>Export all</span></div>
+        <div class="input" style="margin-top:12px;color:var(--ink2);gap:10px;height:46px"><span data-ic="search" data-size="18"></span>Search your music</div>
+        <div class="card" style="margin-top:12px;padding:12px 14px"><div class="row-c gap12"><span class="spinner"></span><div style="flex:1;min-width:0"><div style="font-size:14.5px">Making haptics · 2 of 5 done</div><div class="help">Carries on in the background. Songs you play go first.</div></div></div></div>
+        <div class="card list" style="margin-top:12px">
+          <div class="item"><canvas class="mini" data-score="crisp" data-h="26" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">AIZO, but it's lofi hiphop</div><div class="sub">Jujutsu Kaisen · 2:57</div></div><span class="chip"><span class="dot"></span>Calls</span></div>
+          <div class="item"><canvas class="mini" data-score="full" data-h="26" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">Active</div><div class="sub">Asake, Travis Scott · 3:04</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+          <div class="item"><span class="minipend"></span><div class="txt"><div class="name">No Dulling</div><div class="sub">Keche · 3:58 · next in line</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+          <div class="item"><span class="minipend"></span><div class="txt"><div class="name">Eid Mubarak</div><div class="sub">Harris J · 4:32</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+          <div class="item"><span class="minipend"></span><div class="txt"><div class="name">Antassalam</div><div class="sub">Maher Zain</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+          <div class="item"><span class="minipend warnline"></span><div class="txt"><div class="name">Over the Horizon</div><div class="sub" style="color:var(--warn)">This phone can't read this file (Dolby Atmos)</div></div></div>
+        </div>
+      </div>
+      <div class="miniplayer"><canvas class="mini" data-score="song" data-h="26" data-bar="2" data-gap="1" data-progress=".096"></canvas><div class="txt"><div class="name">AIZO, but it's lofi hiphop</div><div class="sub">Hear and feel · 0:17</div></div><span class="iconbtn" data-ic="pause" data-size="20"></span></div>
+      <nav class="bnav" data-active="music"></nav></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>12.</b> Music — no access</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="statement s31" style="margin-top:18px">Music</div>
+        <div class="grow"></div>
+        <span class="icircle" style="width:64px;height:64px;border-radius:18px;align-self:flex-start;color:var(--ink2)" data-ic="music" data-size="28"></span>
+        <div class="track" style="font-size:25px;margin-top:18px">Thrum can't see your music</div>
+        <p class="body" style="margin-top:10px">You chose not to give music access. You can still pick one song at a time, or turn access on in Settings.</p>
+        <div class="grow"></div>
+        <div class="btn primary">Turn on music access</div>
+        <div class="textbtn">Pick one song</div>
+      </div>
+      <nav class="bnav" data-active="music"></nav></div>
+    </div>
+
+
+
+  </div>
+</section>
+
+<section>
+  <h2>Playing and making</h2>
+  <div class="frames">
+
+    <div class="cell"><div class="title"><b>13.</b> First play: making its haptic</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="back"></span></div>
+        <div class="track" style="font-size:25px">No Dulling</div>
+        <div class="meta">Keche · 3:58</div>
+        <div class="card pad" style="margin-top:18px"><canvas class="ribbon" data-score="song" data-h="180" data-bar="2" data-gap="1" data-fill=".4"></canvas></div>
+        <div class="row-c gap12" style="margin-top:22px"><span class="spinner"></span><div><div class="body" style="color:var(--ink)">Making its haptic</div><div class="help">About 8 seconds, the first time only.</div></div></div>
+        <div class="row-c gap12" style="margin-top:18px"><div class="bar" style="flex:1"><i style="width:40%"></i></div><span class="meta">40%</span></div>
+        <div class="grow"></div>
+        <div class="note">Sketch note: the rhythm here is AIZO's shape. Thrum hasn't heard No Dulling yet on this laptop.</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>14.</b> Player — hear it, feel it</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar between" style="margin-right:-12px"><span class="iconbtn" data-ic="back"></span><span class="iconbtn" data-ic="export"></span></div>
+        <div class="track" style="font-size:25px">AIZO, but it's lofi hiphop</div>
+        <div class="meta">Jujutsu Kaisen · Music</div>
+        <div class="card pad" style="margin-top:18px"><canvas class="ribbon" data-score="song" data-h="180" data-bar="2" data-gap="1" data-progress=".096"></canvas></div>
+        <div class="row-c between meta" style="margin-top:8px"><span>0:17</span><span><span data-hits="song"></span> hits · still <span data-still="song"></span>%</span><span>2:57</span></div>
+        <div class="row-c" style="justify-content:center;gap:28px;margin-top:20px"><span class="iconbtn" data-ic="prev"></span><span class="bigplay" data-ic="pause" data-size="30"></span><span class="iconbtn" data-ic="next"></span></div>
+        <div class="seg" style="margin-top:20px"><span class="on">Hear and feel</span><span>Feel only</span></div>
+        <div class="grow"></div>
+        <div class="row-c gap8"><div class="btn second" style="flex:1"><span data-ic="tune" data-size="18"></span>Tune</div><div class="btn primary" style="flex:1.4"><span data-ic="phone" data-size="18"></span>Use for calls</div></div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>15.</b> Tune the feel</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="back"></span><span class="t">Tune the feel</span></div>
+        <div class="card list">
+          <div class="item"><span class="radio on"></span><div class="txt"><div class="name">Crisp</div><div class="sub">Short taps with gaps</div></div><canvas class="mini" data-score="crisp" data-limit="700" data-h="26" data-bar="2" data-gap="1"></canvas></div>
+          <div class="item"><span class="radio"></span><div class="txt"><div class="name">Full</div><div class="sub">Longer beats</div></div><canvas class="mini" data-score="full" data-limit="700" data-h="26" data-bar="2" data-gap="1"></canvas></div>
+          <div class="item"><span class="radio"></span><div class="txt"><div class="name">Strong</div><div class="sub">Closest to a buzz</div></div><canvas class="mini" data-score="strong" data-limit="700" data-h="26" data-bar="2" data-gap="1"></canvas></div>
+        </div>
+        <div class="sect">Fine-tune</div>
+        <div class="card pad" style="display:flex;flex-direction:column;gap:16px">
+          <div><div class="row-c between"><span class="body" style="color:var(--ink)">Intensity</span><span class="meta">Max</span></div><div class="slider"><span class="tr"></span><span class="fi" style="width:100%"></span><span class="th" style="left:100%"></span></div><div class="help">How hard each beat lands.</div></div>
+          <div><div class="row-c between"><span class="body" style="color:var(--ink)">Focus</span><span class="meta">Mostly the beat</span></div><div class="slider"><span class="tr"></span><span class="fi" style="width:61%"></span><span class="th" style="left:61%"></span></div><div class="help">Left lets the snare and hats through. Right keeps only the beat.</div></div>
+          <div><div class="row-c between"><span class="body" style="color:var(--ink)">Duration</span><span class="meta">Short · 102 ms</span></div><div class="slider"><span class="tr"></span><span class="fi" style="width:2%"></span><span class="th" style="left:2%"></span></div><div class="help">Longer beats push harder. Shorter ones stay crisp.</div></div>
+        </div>
+        <div class="grow"></div>
+        <div class="row-c gap8"><div class="textbtn" style="flex:1;color:var(--ink2)">Reset to balanced</div><div class="btn primary" style="flex:1">Done</div></div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>16.</b> Make a haptic from</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="x"></span><span class="t">Create</span></div>
+        <div class="statement s31" style="margin-top:12px">Make a haptic from</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px">
+          <div class="card list"><div class="item" style="min-height:76px"><span class="icircle" data-ic="video"></span><div class="txt"><div class="name">A video</div><div class="sub">Feel the sound from any video</div></div><span data-ic="chev" style="color:var(--ink2)"></span></div></div>
+          <div class="card list"><div class="item" style="min-height:76px"><span class="icircle" data-ic="file"></span><div class="txt"><div class="name">An audio file</div><div class="sub">A voice note, ringtone or recording</div></div><span data-ic="chev" style="color:var(--ink2)"></span></div></div>
+          <div class="card list"><div class="item" style="min-height:76px"><span class="icircle" data-ic="music"></span><div class="txt"><div class="name">A song</div><div class="sub">Your music is already in the Music tab</div></div><span data-ic="chev" style="color:var(--ink2)"></span></div></div>
+          <div class="card list"><div class="item" style="min-height:76px"><span class="icircle" data-ic="export"></span><div class="txt"><div class="name">A Thrum file</div><div class="sub">Open a haptic you exported</div></div><span data-ic="chev" style="color:var(--ink2)"></span></div></div>
+        </div>
+        <p class="help" style="margin-top:16px">Videos and files open your phone's own file chooser. Thrum reads only the one you pick.</p>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>17.</b> Export</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="back"></span><span class="t">Export</span></div>
+        <div class="statement s31" style="margin-top:8px">Take it with you</div>
+        <div class="sect">What to export</div>
+        <div class="seg"><span>This song</span><span class="on">All 5 songs</span></div>
+        <p class="help" style="margin:8px 4px 0">3 songs don't have a haptic yet. Thrum makes them first, then exports.</p>
+        <div class="sect">As</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="card list" style="border-color:var(--accent)"><div class="item" style="align-items:flex-start;padding:16px"><span class="radio on" style="margin-top:2px"></span><div class="txt"><div class="name">Thrum pattern files</div><div class="sub" style="white-space:normal">Back them up, or open them in Thrum on another phone.</div></div></div></div>
+          <div class="card list" style="opacity:.55"><div class="item" style="align-items:flex-start;padding:16px"><span class="radio" style="margin-top:2px"></span><div class="txt"><div class="name">Ringtones with the vibration inside</div><div class="sub" style="white-space:normal">Not built yet. It's the hardest part of Thrum, planned for later.</div></div></div></div>
+        </div>
+        <div class="row-c gap8 help" style="margin-top:16px;align-items:flex-start"><span data-ic="check" class="accent"></span>Only the vibration is exported. Your songs stay where they are.</div>
+        <div class="grow"></div>
+        <div class="btn primary">Save to my phone</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+  </div>
+</section>
+
+<section>
+  <h2>Every day</h2>
+  <div class="frames">
+
+    <div class="cell"><div class="title"><b>18.</b> Home</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="row-c between" style="padding:10px 0 14px"><span class="wordmark">THRUM</span><span class="iconbtn" data-ic="gear" style="margin-right:-12px"></span></div>
+        <div class="card pad20">
+          <div class="row-c between"><span class="caps accent">For calls</span><span class="chip"><span class="dot"></span>Ready · on vibrate</span></div>
+          <div class="track" style="margin-top:10px">AIZO, but it's lofi hiphop</div>
+          <div style="margin-top:12px"><canvas class="ribbon" data-score="now" data-h="72" data-bar="3" data-gap="1"></canvas></div>
+          <div class="row-c gap8" style="margin-top:14px"><div class="btn second small" style="flex:1"><span data-ic="play" data-size="14"></span>Feel a test call</div><div class="textbtn" style="padding:0 10px">Change</div></div>
+          <p class="help" style="margin-top:10px">Calls use the first 45 seconds of the song, repeated until you answer.</p>
+        </div>
+        <p class="help" style="margin:10px 4px 0">Last call, Sun 20 Sep at 20:27: Thrum started your haptic 0.3 s after it rang.</p>
+        <div class="row-c gap12" style="margin-top:16px">
+          <div class="card pad" style="flex:1"><span class="accent" data-ic="music"></span><div class="name" style="margin-top:8px;font-size:15.5px">Music</div><div class="help">Play and feel your songs</div></div>
+          <div class="card pad" style="flex:1"><span class="accent" data-ic="plus"></span><div class="name" style="margin-top:8px;font-size:15.5px">Create</div><div class="help">From a video or file</div></div>
+        </div>
+        <div class="sect">Recently played</div>
+        <div class="card list">
+          <div class="item"><canvas class="mini" data-score="full" data-h="26" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">Active</div><div class="sub">Asake, Travis Scott · 3:04</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+        </div>
+      </div>
+      <nav class="bnav" data-active="home"></nav></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>19.</b> My Haptics</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="row-c between" style="margin-top:14px"><span class="statement s31">My Haptics</span><span class="iconbtn" data-ic="export" style="margin-right:-12px"></span></div>
+        <div class="seg" style="margin-top:14px"><span class="on">All</span><span>Music</span><span>Videos</span><span>Files</span></div>
+        <div class="card list" style="margin-top:16px">
+          <div class="item"><canvas class="mini" data-score="crisp" data-h="28" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">AIZO, but it's lofi hiphop</div><div class="sub">Music · 2:57</div></div><span class="chip"><span class="dot"></span>Calls</span></div>
+          <div class="item"><canvas class="mini" data-score="full" data-h="28" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">Active</div><div class="sub">Music · Asake, Travis Scott · 3:04</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+          <div class="item"><canvas class="mini" data-score="strong" data-limit="600" data-h="28" data-bar="2" data-gap="1"></canvas><div class="txt"><div class="name">thrum-test-ringtone</div><div class="sub">File · 0:12</div></div><span class="playc" data-ic="play" data-size="13"></span></div>
+        </div>
+        <p class="help" style="margin:12px 4px 0">Every song you play gets a haptic, and so does every video or file you turn into one. They all live here.</p>
+        <div class="grow"></div>
+        <div class="btn primary"><span data-ic="plus" data-size="18"></span>Make one from a video or file</div>
+      </div>
+      <nav class="bnav" data-active="library"></nav></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>20.</b> Settings</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="statement s31" style="margin-top:18px">Settings</div>
+        <div class="sect">Calls</div>
+        <div class="card list">
+          <div class="item"><div class="txt"><div class="name">Song for calls</div></div><span class="val">AIZO</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
+          <div class="item"><div class="txt"><div class="name">Call access</div></div><span class="val">On</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
+          <div class="item"><div class="txt"><div class="name">Also when the ringer is on</div></div><span class="switch"></span></div>
+        </div>
+        <div class="sect">Music</div>
+        <div class="card list">
+          <div class="item"><div class="txt"><div class="name">Music access</div></div><span class="val">On</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
+          <div class="item"><div class="txt"><div class="name">Scan for new music</div><div class="sub">Last scanned today</div></div><span data-ic="chev" style="color:var(--ink2)"></span></div>
+          <div class="item"><div class="txt"><div class="name">Make haptics</div></div><span class="val">In the background</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
+        </div>
+        <div class="sect">Haptics</div>
+        <div class="card list">
+          <div class="item"><div class="txt"><div class="name">Default feel</div></div><span class="val">Crisp</span><span data-ic="chev" style="color:var(--ink2)"></span></div>
+        </div>
+        <div class="sect">This phone and Thrum</div>
+        <div class="card list">
+          <div class="item"><div class="txt"><div class="name">Phone check</div></div><span data-ic="chev" style="color:var(--ink2)"></span></div>
+          <div class="item"><div class="txt"><div class="name">About Thrum</div></div><span data-ic="chev" style="color:var(--ink2)"></span></div>
+        </div>
+      </div>
+      <nav class="bnav" data-active="settings"></nav></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>21.</b> About Thrum</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="back"></span><span class="t">About Thrum</span></div>
+        <div class="wordmark" style="margin-top:20px;font-size:31px">THRUM</div>
+        <div class="body" style="margin-top:6px;color:var(--ink)">Hear it. Feel it.</div>
+        <div class="sect" style="margin-top:28px">Why Thrum</div>
+        <p class="body">I wanted my phone to do more than play sound. I wanted to feel the music too.</p>
+        <p class="body" style="margin-top:12px">I'd seen iPhones sync vibration with music, and I wanted that on Android, made from the songs already on my phone. So I built Thrum.</p>
+        <p class="meta" style="margin-top:12px">Mutalib Osman</p>
+        <div class="grow"></div>
+        <div class="card list">
+          <div class="item"><div class="txt"><div class="name">Version</div></div><span class="val">0.1</span></div>
+          <div class="item"><div class="txt"><div class="name">No internet permission</div><div class="sub">Your songs never leave this phone.</div></div></div>
+        </div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>22.</b> Phone check</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="back"></span><span class="t">Phone check</span></div>
+        <div class="statement s31" style="margin-top:8px">Your phone can do it</div>
+        <div class="card list" style="margin-top:20px">
+          <div class="item"><span data-ic="check" class="accent"></span><div class="txt"><div class="name">Vibration motor</div></div><span class="val">Yes</span></div>
+          <div class="item"><span data-ic="check" class="accent"></span><div class="txt"><div class="name">Strength control</div><div class="sub">The part rhythm needs</div></div><span class="val">Yes</span></div>
+          <div class="item"><span data-ic="check" class="accent"></span><div class="txt"><div class="name">Call access</div></div><span class="val">On</span></div>
+          <div class="item"><span data-ic="check" class="accent"></span><div class="txt"><div class="name">Music access</div></div><span class="val">On</span></div>
+        </div>
+        <div class="sect">How fast can it tap?</div>
+        <div class="card pad">
+          <p class="body" style="color:var(--ink)">Separate taps up to 8 a second</p>
+          <p class="help" style="margin-top:4px">Measured on this phone. Faster than that, the taps blur into one buzz.</p>
+          <div class="btn second small" style="margin-top:14px">Run the tap test again</div>
+        </div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+  </div>
+</section>
+
+<section>
+  <h2>Calls, warnings and dead ends</h2>
+  <div class="frames">
+
+    <div class="cell"><div class="title"><b>23.</b> A call comes in</div>
+      <div class="phone callbg"><div class="scr" style="align-items:center">
+        <div class="status" style="align-self:stretch"></div>
+        <div class="note" style="margin-top:10px;align-self:stretch">Sketch note: this is your phone's own call screen. Thrum doesn't draw it; it only plays your song's beat on the motor.</div>
+        <div class="meta" style="margin-top:40px">Incoming call</div>
+        <div class="track" style="font-size:25px;margin-top:6px">+233 24 123 4567</div>
+        <div style="position:relative;width:100%;height:300px;margin-top:20px">
+          <span class="ring" style="top:20px;width:260px;height:260px"></span>
+          <span class="ring" style="top:55px;width:190px;height:190px;border-color:rgba(216,197,19,.7)"></span>
+          <span style="position:absolute;left:50%;top:90px;width:120px;height:120px;margin-left:-60px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--ink2)" data-ic="user" data-size="48"></span>
+        </div>
+        <div class="grow"></div>
+        <div class="row-c" style="justify-content:space-around;align-self:stretch;margin-bottom:24px">
+          <div style="text-align:center"><span style="width:68px;height:68px;border-radius:50%;background:#D93025;display:flex;align-items:center;justify-content:center;color:#fff" data-ic="phonedown" data-size="28"></span><div class="help" style="margin-top:6px">Decline</div></div>
+          <div style="text-align:center"><span style="width:68px;height:68px;border-radius:50%;background:#1E8E3E;display:flex;align-items:center;justify-content:center;color:#fff" data-ic="phone" data-size="26"></span><div class="help" style="margin-top:6px">Answer</div></div>
+        </div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>24.</b> Home — won't work yet (Silent)</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="row-c between" style="padding:10px 0 14px"><span class="wordmark">THRUM</span><span class="iconbtn" data-ic="gear" style="margin-right:-12px"></span></div>
+        <div class="card pad20" style="border-color:rgba(224,105,28,.5)">
+          <div class="row-c between"><span class="caps accent">For calls</span><span class="chip warn"><span data-ic="warn" data-size="14"></span>Won't work yet</span></div>
+          <div class="track" style="margin-top:10px">Your phone is on Silent</div>
+          <p class="body" style="margin-top:8px">Android throws the vibration away before it reaches the motor. No app can get around that.</p>
+          <p class="help" style="margin-top:8px">It has to be Vibrate, not Silent. Both look like "no sound", but Silent means nothing vibrates at all.</p>
+          <div class="btn second small" style="margin-top:14px">Open sound settings</div>
+        </div>
+        <div class="row-c gap12" style="margin-top:16px">
+          <div class="card pad" style="flex:1"><span class="accent" data-ic="music"></span><div class="name" style="margin-top:8px;font-size:15.5px">Music</div><div class="help">Play and feel your songs</div></div>
+          <div class="card pad" style="flex:1"><span class="accent" data-ic="plus"></span><div class="name" style="margin-top:8px;font-size:15.5px">Create</div><div class="help">From a video or file</div></div>
+        </div>
+      </div>
+      <nav class="bnav" data-active="home"></nav></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>25.</b> This phone can't do it</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="wordmark" style="margin-top:28px">THRUM</div>
+        <div class="statement s31 warn" style="margin-top:28px">This phone can't do it</div>
+        <p class="body" style="margin-top:14px">Thrum needs a motor that can change strength. Yours has one speed. Every rhythm would reach you as the same flat buzz your phone already makes, and no setting, update, or future version of this app will change that.</p>
+        <p class="help" style="margin-top:12px">Motor: yes. Strength control: no.</p>
+        <div class="nobutton" style="margin-top:28px">No button here, on purpose</div>
+        <div class="grow"></div>
+        <div class="note">Sketch note: once a cheap phone is tested (Task 6), this might become an honest "you'll feel the timing, not the strength". Not before.</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>26.</b> That one didn't work</div>
+      <div class="phone"><div class="scr">
+        <div class="status"></div>
+        <div class="topbar"><span class="iconbtn" data-ic="x"></span><span class="t">Create</span></div>
+        <div class="statement s31 warn" style="margin-top:12px">That one didn't work</div>
+        <p class="body" style="margin-top:14px">That file is 1:49:42 long. Thrum reads up to 30 minutes — pick a ringtone rather than an album.</p>
+        <p class="help" style="margin-top:10px">The app's real message for one of your 1 h 49 m recordings.</p>
+        <div class="grow"></div>
+        <div class="btn primary">Choose a different file</div>
+      </div><div class="homebar"></div></div>
+    </div>
+
+
+
+    <div class="cell"><div class="title"><b>27.</b> Home — nothing set for calls</div>
+      <div class="phone"><div class="scr withnav">
+        <div class="status"></div>
+        <div class="row-c between" style="padding:10px 0 14px"><span class="wordmark">THRUM</span><span class="iconbtn" data-ic="gear" style="margin-right:-12px"></span></div>
+        <div class="card pad20">
+          <div class="row-c between"><span class="caps">For calls</span><span class="chip grey">Off</span></div>
+          <div class="track" style="margin-top:10px">No song for calls</div>
+          <p class="body" style="margin-top:8px">Calls use Android's normal buzz until you pick one.</p>
+          <div style="margin-top:12px"><canvas class="ribbon" data-pattern="flat" data-h="48"></canvas></div>
+          <div class="btn primary small" style="margin-top:14px">Choose a song for calls</div>
+        </div>
+        <div class="row-c gap12" style="margin-top:16px">
+          <div class="card pad" style="flex:1"><span class="accent" data-ic="music"></span><div class="name" style="margin-top:8px;font-size:15.5px">Music</div><div class="help">Play and feel your songs</div></div>
+          <div class="card pad" style="flex:1"><span class="accent" data-ic="plus"></span><div class="name" style="margin-top:8px;font-size:15.5px">Create</div><div class="help">From a video or file</div></div>
+        </div>
+      </div>
+      <nav class="bnav" data-active="home"></nav></div>
+    </div>
+
+
+
+    <div class="sticky">
+      <h3>About this board</h3>
+      <ul>
+        <li><b>The final design</b>, agreed 3 Oct 2026. It is the reference for the build; the app's code does not match it yet.</li>
+        <li><b>Colours</b> are the current app's. Liquid glass gets discussed once everything else is done.</li>
+        <li><b>Real data:</b> AIZO's rhythm, every song name and length, the last call (Sun 20 Sep), the 8 taps a second, and the 1 h 49 m error message.</li>
+        <li><b>Borrowed:</b> other songs' little rhythm pictures use AIZO's shape. A real scan will also find more songs than these.</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<script src="scores.js"></script>
+<script>
+  const S = window.SCORES;
+  const DPR = 2;
+  const P = {
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+    prev: '<path d="M18 5.5v13L8.5 12z" fill="currentColor" stroke="none"/><path d="M6 5.5v13"/>',
+    next: '<path d="M6 5.5v13l9.5-6.5z" fill="currentColor" stroke="none"/><path d="M18 5.5v13"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    chev: '<path d="M9 5l7 7-7 7"/>',
+    back: '<path d="M15 5l-7 7 7 7"/>',
+    x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+    video: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2l5 2.8-5 2.8z"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
+    phone: '<path d="M21 16.4v2.8a1.9 1.9 0 0 1-2.1 1.9 18.7 18.7 0 0 1-8.2-2.9 18.4 18.4 0 0 1-5.7-5.7A18.7 18.7 0 0 1 2.1 4.2 1.9 1.9 0 0 1 4 2.1h2.8a1.9 1.9 0 0 1 1.9 1.6c.1.9.4 1.8.7 2.6a1.9 1.9 0 0 1-.4 2L7.8 9.5a15.2 15.2 0 0 0 5.7 5.7l1.2-1.2a1.9 1.9 0 0 1 2-.4c.8.3 1.7.6 2.6.7a1.9 1.9 0 0 1 1.7 2.1z"/>',
+    phonedown: '<path d="M3 14.5c4.9-4.4 13.1-4.4 18 0l-2.2 2.7-3.4-1.3-.4-2.7a10.6 10.6 0 0 0-6 0l-.4 2.7-3.4 1.3z"/>',
+    gear: '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5l1.6 1.2-1.8 3.1-1.9-.7a7 7 0 0 1-1.9 1.1l-.3 2h-3.6l-.3-2a7 7 0 0 1-1.9-1.1l-1.9.7-1.8-3.1 1.6-1.2a7 7 0 0 1 0-3l-1.6-1.2 1.8-3.1 1.9.7a7 7 0 0 1 1.9-1.1l.3-2h3.6l.3 2a7 7 0 0 1 1.9 1.1l1.9-.7 1.8 3.1-1.6 1.2a7 7 0 0 1 0 3z" stroke-linejoin="round"/>',
+    home: '<path d="M3.5 10.5L12 3.5l8.5 7V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z" stroke-linejoin="round"/>',
+    library: '<path d="M12 3.5l8.5 4.6L12 12.7 3.5 8.1z" stroke-linejoin="round"/><path d="M3.5 12.4L12 17l8.5-4.6M3.5 16.4L12 21l8.5-4.6" stroke-linejoin="round"/>',
+    export: '<path d="M12 3v12M7.5 7.5L12 3l4.5 4.5"/><path d="M5 13.5V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5.5"/>',
+    trash: '<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+    tune: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+    vib: '<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M4.5 8.5v7M19.5 8.5v7M1.5 10.5v3M22.5 10.5v3"/>',
+    warn: '<path d="M12 3.5l9.5 16.5h-19z" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.2v.3"/>',
+    user: '<circle cx="12" cy="8.5" r="4"/><path d="M4 21c1.2-4 4.3-6 8-6s6.8 2 8 6"/>',
+    play: '<path d="M7 4.5l13 7.5-13 7.5z" fill="currentColor" stroke="none"/>',
+    pause: '<rect x="6" y="4.5" width="4.2" height="15" rx="1" fill="currentColor" stroke="none"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1" fill="currentColor" stroke="none"/>',
+  };
+  const icon = (name, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">${P[name]}</svg>`;
+  const STATUS = '<span>9:41</span><svg width="64" height="14" viewBox="0 0 64 14"><path d="M2 12h3v-3H2zM7 12h3V7H7zM12 12h3V4h-3zM17 12h3V1h-3z" fill="#EFEFEA"/><rect x="38" y="2" width="22" height="10" rx="2.5" stroke="#EFEFEA" fill="none"/><rect x="40" y="4" width="14" height="6" rx="1" fill="#EFEFEA"/><rect x="61" y="5" width="2" height="4" rx="1" fill="#EFEFEA"/></svg>';
+  const NAV = [["home", "home", "Home"], ["library", "library", "My Haptics"], ["music", "music", "Music"], ["gear", "settings", "Settings"]];
+
+  function peaks(amps, n) {
+    const out = [], per = amps.length / n;
+    for (let c = 0; c < n; c++) {
+      let p = 0;
+      for (let i = Math.floor(c * per); i < Math.floor((c + 1) * per); i++) p = Math.max(p, amps[i] || 0);
+      out.push(p);
+    }
+    return out;
+  }
+  function pattern(name) {
+    if (name === "buzz") { const a = []; for (let k = 0; k < 3; k++) { for (let i = 0; i < 50; i++) a.push(255); for (let i = 0; i < 50; i++) a.push(0); } return a; }
+    return new Array(300).fill(0);
+  }
+  function ribbon(cv) {
+    let amps = cv.dataset.score ? S[cv.dataset.score].amps : pattern(cv.dataset.pattern);
+    if (cv.dataset.limit) amps = amps.slice(0, +cv.dataset.limit);
+    const w = cv.clientWidth, h = +cv.dataset.h, bar = +(cv.dataset.bar || 3), gap = +(cv.dataset.gap || 1);
+    cv.style.height = h + "px"; cv.width = w * DPR; cv.height = h * DPR;
+    const g = cv.getContext("2d"); g.scale(DPR, DPR);
+    const cols = Math.max(1, Math.floor(w / (bar + gap))), fill = cv.dataset.fill ? +cv.dataset.fill : 1;
+    const prog = cv.dataset.progress ? +cv.dataset.progress : -1, mirror = !!cv.dataset.mirror;
+    if (cv.dataset.glow) { g.shadowColor = "rgba(216,197,19,.75)"; g.shadowBlur = 12; }
+    peaks(amps, cols).forEach((p, c) => {
+      const drawn = c / cols <= fill ? p : 0;
+      const bh = Math.max(2, (mirror ? h * .9 : h) * drawn / 255);
+      g.fillStyle = mirror ? "#6E6E68" : drawn === 0 ? "#3A3A36" : (prog >= 0 && c / cols <= prog ? "#EFEFEA" : "#D8C513");
+      g.fillRect(c * (bar + gap), mirror ? (h - bh) / 2 : h - bh, bar, bh);
+    });
+    if (prog >= 0) { g.shadowBlur = 0; g.fillStyle = "#EFEFEA"; g.fillRect(Math.round(prog * cols * (bar + gap)), 0, 1.5, h); }
+  }
+
+  document.fonts.ready.then(() => {
+    document.querySelectorAll(".status").forEach(e => e.innerHTML = STATUS);
+    document.querySelectorAll(".bnav").forEach(n => n.innerHTML = NAV.map(([ic, key, label]) =>
+      `<a class="${n.dataset.active === key ? "on" : ""}">${icon(ic, 22)}<span>${label}</span></a>`).join(""));
+    document.querySelectorAll("[data-ic]").forEach(e => e.innerHTML = icon(e.dataset.ic, +(e.dataset.size || 22)));
+    document.querySelectorAll("[data-hits]").forEach(e => e.textContent = S[e.dataset.hits].hits);
+    document.querySelectorAll("[data-still]").forEach(e => e.textContent = S[e.dataset.still].still);
+    document.querySelectorAll("canvas.ribbon, canvas.mini").forEach(ribbon);
+  });
+</script>
+</body>
+</html>

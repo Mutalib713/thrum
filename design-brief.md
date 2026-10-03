@@ -160,3 +160,18 @@ its real shape — flat, full-contrast, square-cornered bars on a glass card, ne
 under glass.
 
 Full spec, copy deck, and the Figma prompt: `docs/design/`.
+
+### 2026-10-03 — the full app, final screens
+
+Thrum stopped being one screen. Mutalib redefined it as the full app (calls, music, videos, My Haptics, export), and the screens were sketched over three rounds the same day. **The final board is `docs/design/screens/thrum-screens.png`** (27 screens, first launch to the end; the `.html` beside it is the source and draws the real AIZO rhythm from `scores.js`). It is the layout reference for the build. `PROFILE.md` §4 lists what each screen does.
+
+Decided along the way, in his words or with his yes:
+
+- **Calls come first** everywhere: in the feature list, in the first-launch order, and on Home.
+- **Colours stay** as the current app's (sulphur-concrete). His instruction: build it "based on this [the test screen] and so the colour".
+- **Liquid glass is still wanted, but discussed last.** The board is drawn flat. The glass recipe in `figma-handoff.md` §4 still stands for that conversation.
+- **The founder story lives in About**, not onboarding. He rejected it as an onboarding screen: onboarding says what the app does and how to use it.
+- **Tabs:** Home, My Haptics, Music, Settings.
+- **Tuning words:** Intensity, Focus, Duration (were Punch, Distance, Body), plus three presets: Crisp, Full, Strong.
+
+`figma-handoff.md` and `figma-prompt.md` describe the old one-screen app and are superseded for layout.
