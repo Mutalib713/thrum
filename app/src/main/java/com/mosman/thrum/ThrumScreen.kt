@@ -1020,7 +1020,7 @@ private fun Dial(
 }
 
 @Composable
-private fun Primary(label: String, onClick: () -> Unit) {
+internal fun Primary(label: String, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = Modifier
@@ -1032,7 +1032,7 @@ private fun Primary(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Secondary(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun Secondary(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
         modifier = modifier.heightIn(min = Touch.min),

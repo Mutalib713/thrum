@@ -117,6 +117,59 @@
     <string name="ring_mode_help">Your phone plays its own ringtone and Thrum vibrates your track
         over it. Unless they are the same file, you hear one song and feel another.</string>
 
+    <!-- First launch. Task 18: seven screens, calls before music, the phone
+         check before everything. The copy follows docs/design/screens
+         verbatim, except where a screen described something this build does
+         not have yet — the built-in collection (Task 27) is the one such
+         thing, and its button says what is actually here instead. -->
+    <string name="onboarding_tagline">Hear it. Feel it.</string>
+    <string name="onboarding_checking">Checking your phone\'s motor…</string>
+    <string name="onboarding_welcome_body">Thrum turns your calls, music and videos into vibrations you can feel.</string>
+    <string name="onboarding_welcome_capable">Your phone\'s motor can change strength, so Thrum works here.</string>
+    <string name="onboarding_see_how">See how it works</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_touch_title">Turn sound into touch</string>
+    <string name="onboarding_touch_body">Thrum finds the beats in a song and plays them on your phone\'s vibration motor.</string>
+    <string name="onboarding_feel_android">Android today</string>
+    <string name="onboarding_feel_thrum">With Thrum</string>
+    <string name="onboarding_feel_note">This needs no permission at all.</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_sources_title">Calls, music and videos</string>
+    <string name="onboarding_sources_body">Anything with a beat can become something you feel.</string>
+    <string name="onboarding_calls_row">Calls</string>
+    <string name="onboarding_calls_row_help">Feel your song when someone calls, even with the ringer on.</string>
+    <string name="onboarding_music_row">Music</string>
+    <string name="onboarding_music_row_help">Play the songs on your phone and feel every beat.</string>
+    <string name="onboarding_videos_row">Videos</string>
+    <string name="onboarding_videos_row_help">Feel the sound from a video.</string>
+    <string name="onboarding_calls_title">Feel your calls</string>
+    <string name="onboarding_calls_body">Pick one song for calls. When your phone rings, Thrum plays its beat on the motor, with the ringer on or on vibrate.</string>
+    <string name="onboarding_calls_permission">To know a call has started, Thrum needs to see call notifications. It checks one thing: is this a call? Nothing leaves your phone.</string>
+    <string name="onboarding_calls_action">Turn on call access</string>
+    <string name="onboarding_calls_later">Maybe later</string>
+    <string name="onboarding_calls_example_head">Incoming call</string>
+    <string name="onboarding_calls_example_line">Your song · on the motor</string>
+    <string name="onboarding_music_title">Play and feel your music</string>
+    <string name="onboarding_music_body">Scan your phone\'s music in the Music tab. Then play any song in Thrum and feel every beat, from the first second to the last.</string>
+    <string name="onboarding_music_privacy">Thrum asks before it looks at your music, and it only reads music and audio files.</string>
+    <string name="onboarding_done_hint">Your first haptic goes here.</string>
+    <string name="onboarding_done_title">You\'re set</string>
+    <string name="onboarding_done_body">Pick a song for your calls, and scan your own music whenever you like.</string>
+    <string name="onboarding_done_action">Choose a song for calls</string>
+    <string name="onboarding_done_look">Look around first</string>
+
+    <!-- The tabs. Home carries the calls screen; the other three are honest
+         about what this build does not have yet — their screens arrive with
+         Tasks 20, 23 and 26, and a stub that pretends otherwise would be a
+         screen reporting an intention. -->
+    <string name="tab_home">Home</string>
+    <string name="tab_haptics">My Haptics</string>
+    <string name="tab_music">Music</string>
+    <string name="tab_settings">Settings</string>
+    <string name="stub_haptics_body">Every haptic you make will live here, one per song, video or file. This build starts with calls.</string>
+    <string name="stub_music_body">Scanning your music arrives with the library. This build starts with calls.</string>
+    <string name="stub_settings_body">Everything you can change lives on the Home tab for now.</string>
+
     <!-- Debug builds only -->
     <string name="diagnostics">Diagnostics</string>
 </resources>

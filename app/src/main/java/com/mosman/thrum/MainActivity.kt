@@ -74,10 +74,12 @@ class MainActivity : ComponentActivity() {
                         ProbeScreen()
                     }
                 } else {
-                    // The probe stays reachable in debug builds — Task 10's soak
-                    // needs its event log, and the R8 ladder has to run again on
-                    // every new phone. It is not product surface.
-                    ThrumApp(onDiagnostics = if (BuildConfig.DEBUG) ({ diagnostics = true }) else null)
+                    // Task 18's frame: phone check, seven first-launch screens,
+                    // then the tabs with Home carrying the calls screen. The
+                    // probe stays reachable from Home in debug builds — Task
+                    // 10's soak needs its event log, and the R8 ladder has to
+                    // run again on every new phone. It is not product surface.
+                    ThrumRoot(onDiagnostics = if (BuildConfig.DEBUG) ({ diagnostics = true }) else null)
                 }
             }
         }

@@ -142,6 +142,18 @@ class Store(ctx: Context) {
             .apply()
     }
 
+    /**
+     * Whether first launch has finished — the seven screens of Task 18.
+     *
+     * Defaults to false, which means the one install that already exists
+     * (Mutalib's phone) sees the flow once more on update. That is not an
+     * accident: walking those screens on a fresh install is exactly the proof
+     * the task asks for, and the flow is short.
+     */
+    var onboarded: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDED, false)
+        set(v) = prefs.edit().putBoolean(KEY_ONBOARDED, v).apply()
+
     fun events(): List<Event> = Event.decodeAll(prefs.getString(KEY_EVENTS, "") ?: "")
 
     fun addEvent(event: Event) {
@@ -160,5 +172,6 @@ class Store(ctx: Context) {
         const val KEY_PUNCH = "punch"
         const val KEY_DISTANCE = "distance"
         const val KEY_BODY = "body"
+        const val KEY_ONBOARDED = "onboarded"
     }
 }
