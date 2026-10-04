@@ -215,6 +215,10 @@ object Player {
         if (queue.isEmpty()) return
         val target = (index + delta).coerceIn(0, queue.size - 1)
         if (target == index) return
+        // Where the player now is. Without this, next worked once and then
+        // kept landing on the same song, and the buttons' enabled state
+        // answered for a song that had stopped playing.
+        index = target
         start(ctx, queue[target], now?.hearAndFeel ?: true)
     }
 

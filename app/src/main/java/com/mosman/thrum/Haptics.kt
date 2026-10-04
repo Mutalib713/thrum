@@ -31,8 +31,18 @@ object Haptics {
         val usable: Boolean get() = hasVibrator && amplitudeControl
     }
 
+    /**
+     * Always the application's vibrator, whoever asks. Android cancels a
+     * vibration only for the vibrator object that started it, and every
+     * screen hands out its own. The player started its pieces through the
+     * app's vibrator and the pause button cancelled through the screen's, so
+     * Android ignored the pause and the motor ran on to the end of the piece:
+     * `dumpsys vibrator_manager` still said `status: running` two seconds
+     * after a pause (2026-10-04). One vibrator for the app, so any stop stops
+     * any start.
+     */
     fun vibrator(ctx: Context): Vibrator =
-        (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        (ctx.applicationContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
 
     fun capability(ctx: Context): Capability {
         val v = vibrator(ctx)
