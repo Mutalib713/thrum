@@ -114,6 +114,23 @@ fun MyHapticsTab(onGoToMusic: () -> Unit) {
         }
         insertPicked(uri, TrackKind.FILE)
     }
+    val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }
+                    .getOrNull()
+            }
+            val imported = text?.let { ThrumFile.decode(it) }.orEmpty()
+            if (imported.isEmpty()) {
+                errorLine = ctx.getString(R.string.import_failed)
+            } else {
+                withContext(Dispatchers.IO) {
+                    imported.forEach { db.dao().upsertHaptic(it.toEntity()) }
+                }
+            }
+        }
+    }
 
     val rows = MyHaptics.rows(haptics, tracks, store.sourceUri, filter)
 
@@ -168,7 +185,14 @@ fun MyHapticsTab(onGoToMusic: () -> Unit) {
                                 onClick = {
                                     if (row.hasHaptic && row.readable) {
                                         val track = tracks.firstOrNull { it.sourceUri == row.uri }
-                                        Player.play(ctx, track ?: row.asTrack(), listOf(row.asTrack()), hearAndFeel = true)
+                                        Player.play(
+                                            ctx,
+                                            track ?: row.asTrack(),
+                                            listOf(row.asTrack()),
+                                            // An imported haptic has no song behind
+                                            // it — it opens feel-only, by nature.
+                                            hearAndFeel = !ThrumFile.isImported(row.uri),
+                                        )
                                         Player.open = true
                                     }
                                 },
@@ -229,8 +253,7 @@ fun MyHapticsTab(onGoToMusic: () -> Unit) {
         }
 
         if (choosing) {
-            // Screen 16's options, minus "A Thrum file": import is Task 25,
-            // and an option that did nothing would be a lie with a tap target.
+            // Screen 16's four options, all live: import went real in Task 25.
             Text(
                 stringResource(R.string.create_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -246,6 +269,10 @@ fun MyHapticsTab(onGoToMusic: () -> Unit) {
             Secondary(stringResource(R.string.create_song)) {
                 choosing = false
                 onGoToMusic()
+            }
+            Secondary(stringResource(R.string.import_option)) {
+                choosing = false
+                importPicker.launch(arrayOf("application/octet-stream", "text/plain"))
             }
             Text(
                 stringResource(R.string.create_privacy),

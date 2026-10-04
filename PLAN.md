@@ -805,11 +805,13 @@ The presets from Task 15, plus Intensity, Focus and Duration (the old Punch, Dis
 
 **Proof still owed:** Mutalib can tell the three apart by hand, and confirms or adjusts the preset values — Task 15's second half and this task's hand proof are the same sitting.
 
-### [ ] Task 25: Export and import [16, 17]
+### [~] Task 25: Export and import [16, 17] — **BUILT 2026-10-04, reinstall proof needs the phone**
 
 One haptic or all of them, as Thrum pattern files saved on the phone; songs without a haptic get one first. Import opens a Thrum file. Never any audio.
 
-**Proof:** the export-then-import test is green; an exported file brings a haptic back after a reinstall; the exported file holds no audio.
+**Built:** the **Thrum pattern file** is a small text format — the score in the app's own proven pipe line, plus the tuning it was made with, one block per haptic so "all songs" is one bundle file — pure Kotlin, with the §12 round-trip test green: export, then import, gives back an identical score. **No audio and no URI is asserted, not promised**: a test fails if a `content://` leaks into the export, and checks the file is hundreds of characters, not megabytes. The Export screen (17) offers This song (when the player has one) / All songs, carries the design's not-built ringtone line verbatim, and saves through the phone's own save screen. **One recorded deviation:** the design's "Thrum makes them first, then exports" would hold the screen for minutes on a big library; instead the missing songs are counted, shown, and queued into Task 22's background walk — the line says to export again after. Import is live as screen 16's fourth option: a file with no valid blocks says so; imported haptics are **feel-only by nature** (the song was never in the file), opening without audio, and switching to "hear and feel" is refused with a sentence instead of a player error. Re-importing the same file overwrites its own row rather than piling up duplicates.
+
+**Proof still owed:** an exported file brings a haptic back after a reinstall (uninstall-wipe then import), on the phone.
 
 ### [ ] Task 26: Settings, About and Phone check [20–22]
 

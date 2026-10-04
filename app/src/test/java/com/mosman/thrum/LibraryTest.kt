@@ -364,6 +364,73 @@ class LibraryTest {
         assertEquals(0, Tuning.RESET_DISTANCE)
     }
 
+    // --- The Thrum pattern file (Task 25). §12: export, then import, gives
+    // --- back an identical score — and the file holds no audio.
+
+    private fun exportHaptic(uri: String, name: String) = Haptic(
+        trackUri = uri,
+        score = Score(20, List(120) { (it * 11) % 256 }, name),
+        punch = 208,
+        distance = 61,
+        bodyMs = 400,
+        madeAtMs = 1_785_000_000_000,
+    )
+
+    @Test
+    fun `export then import gives back an identical score`() {
+        val original = exportHaptic("content://media/external/audio/7", "No Dulling")
+        val back = ThrumFile.decode(ThrumFile.encode(listOf(original)))
+        assertEquals(1, back.size)
+        // The score is byte-identical; the tuning rides with it. The track URI
+        // does NOT — it is phone-specific and the file is not.
+        assertEquals(original.score, back[0].score)
+        assertEquals(208, back[0].punch)
+        assertEquals(61, back[0].distance)
+        assertEquals(400, back[0].bodyMs)
+        assertTrue(ThrumFile.isImported(back[0].trackUri))
+    }
+
+    @Test
+    fun `a bundle of several haptics survives the round trip`() {
+        val all = listOf(
+            exportHaptic("a", "No Dulling"),
+            exportHaptic("b", "Active"),
+            exportHaptic("c", "Eid Mubarak"),
+        )
+        val back = ThrumFile.decode(ThrumFile.encode(all))
+        assertEquals(all.map { it.score }, back.map { it.score })
+        assertEquals(all.map { it.punch }, back.map { it.punch })
+    }
+
+    @Test
+    fun `the exported file holds no audio and no source uri`() {
+        // Sacred Rule 3's export exception, drawn narrowly: vibration only.
+        val original = exportHaptic("content://media/external/audio/secret-uri", "My Song")
+        val text = ThrumFile.encode(listOf(original))
+        assertTrue("a source URI leaked into the export", !text.contains("content://"))
+        // The score line is a few hundred small integers against the megabytes
+        // the song came from — a number that cannot lie about holding audio.
+        assertTrue("the export is suspiciously large: ${text.length} chars", text.length < 5_000)
+    }
+
+    @Test
+    fun `a corrupt or foreign file imports as nothing rather than crashing`() {
+        assertEquals(emptyList<Haptic>(), ThrumFile.decode(""))
+        assertEquals(emptyList<Haptic>(), ThrumFile.decode("nonsense"))
+        assertEquals(emptyList<Haptic>(), ThrumFile.decode("THRUM 1\ngarbage\n1 2 3"))
+        // A block whose score is empty decodes as a Score but is not a haptic.
+        assertEquals(emptyList<Haptic>(), ThrumFile.decode("THRUM 1\n1|20|name|\n208 61 400"))
+    }
+
+    @Test
+    fun `imported haptics are feel-only by nature`() {
+        // The player recognises the scheme and refuses "hear and feel" with a
+        // sentence, because the song was never in the file.
+        val back = ThrumFile.decode(ThrumFile.encode(listOf(exportHaptic("x", "My Song"))))
+        assertTrue(ThrumFile.isImported(back[0].trackUri))
+        assertTrue(ThrumFile.fileNameFor("My Song: Act II?").endsWith(".thrum"))
+    }
+
     // --- The My Haptics list (Task 23).
 
     private fun hapticOf(uri: String, name: String, madeAt: Long) = Haptic(

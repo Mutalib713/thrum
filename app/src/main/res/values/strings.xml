@@ -267,6 +267,27 @@
     <string name="create_song">A song</string>
     <string name="create_privacy">Videos and files open your phone\'s own file chooser. Thrum reads only the one you pick.</string>
 
+    <!-- Export and import. Task 25, screen 17. The file holds the score and
+            the tuning, never audio and never a URI — Rule 3's export
+            exception, drawn narrowly and asserted in a test. -->
+    <string name="export_all_action">Export all</string>
+    <string name="export_title">Export</string>
+    <string name="export_take">Take it with you</string>
+    <string name="export_what">What to export</string>
+    <string name="export_this_song">This song</string>
+    <string name="export_all_songs">All songs</string>
+    <string name="export_missing">%1$d songs don\'t have a haptic yet. They\'re being made in the background — export again after, or play them to jump the queue.</string>
+    <string name="export_format_files">Thrum pattern files</string>
+    <string name="export_format_files_help">Back them up, or open them in Thrum on another phone.</string>
+    <string name="export_format_ringtone">Ringtones with the vibration inside</string>
+    <string name="export_format_ringtone_help">Not built yet. It\'s the hardest part of Thrum, planned for later.</string>
+    <string name="export_privacy">Only the vibration is exported. Your songs stay where they are.</string>
+    <string name="export_save">Save to my phone</string>
+    <string name="export_saved">Saved.</string>
+    <string name="import_option">A Thrum file</string>
+    <string name="import_failed">That file didn\'t open. It may not be a Thrum file.</string>
+    <string name="player_imported_no_audio">The song isn\'t in a Thrum file — only the vibration is. Feel it on its own.</string>
+
     <!-- Debug builds only -->
     <string name="diagnostics">Diagnostics</string>
 </resources>

@@ -132,6 +132,12 @@ object Player {
 
     fun setHearAndFeel(ctx: Context, hearAndFeel: Boolean) {
         val current = now ?: return
+        if (hearAndFeel && ThrumFile.isImported(current.track.sourceUri)) {
+            // The song was never in the file — only the vibration is. Say so
+            // rather than fail inside a player error.
+            now = current.copy(error = ctx.getString(R.string.player_imported_no_audio))
+            return
+        }
         if (current.hearAndFeel == hearAndFeel) return
         now = current.copy(hearAndFeel = hearAndFeel, error = null)
         val playing = current.playing

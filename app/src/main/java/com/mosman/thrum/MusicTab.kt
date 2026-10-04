@@ -26,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,7 +62,7 @@ import kotlinx.coroutines.withContext
  * row that looks like a button today would be a dead control.
  */
 @Composable
-fun MusicTab() {
+fun MusicTab(onExport: () -> Unit) {
     val ctx = LocalContext.current
     val db = remember { LibraryDb.get(ctx) }
     val scope = rememberCoroutineScope()
@@ -179,11 +180,22 @@ fun MusicTab() {
             .padding(horizontal = Space.S5, vertical = Space.S6),
         verticalArrangement = Arrangement.spacedBy(Space.S4),
     ) {
-        Text(
-            stringResource(R.string.tab_music),
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.tab_music),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            // Screen 11's header action. The export screen decides what
+            // exists; this is only the way in.
+            TextButton(onClick = onExport, modifier = Modifier.heightIn(min = Touch.min)) {
+                Text(stringResource(R.string.export_all_action))
+            }
+        }
 
         when {
             // Screen 12. Reached only by refusing the request; granting in

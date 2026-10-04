@@ -63,12 +63,17 @@ private enum class Tab { HOME, HAPTICS, MUSIC, SETTINGS }
 @Composable
 private fun Tabs(onDiagnostics: (() -> Unit)?) {
     var tab by remember { mutableStateOf(Tab.HOME) }
+    var showExport by remember { mutableStateOf(false) }
 
     if (Player.open) {
         // The player screen overlays the tabs; closing it keeps the song
         // playing, which is what the mini player above the tab bar is for.
         // Tune routes to Home, where the tune section lives in this build.
         PlayerScreen(onTune = { Player.open = false; tab = Tab.HOME })
+        return
+    }
+    if (showExport) {
+        ExportScreen(onClose = { showExport = false })
         return
     }
 
@@ -79,7 +84,7 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
             when (tab) {
                 Tab.HOME -> ThrumApp(onDiagnostics = onDiagnostics)
                 Tab.HAPTICS -> MyHapticsTab(onGoToMusic = { tab = Tab.MUSIC })
-                Tab.MUSIC -> MusicTab()
+                Tab.MUSIC -> MusicTab(onExport = { showExport = true })
                 Tab.SETTINGS -> Stub(stringResource(R.string.tab_settings), stringResource(R.string.stub_settings_body))
             }
         }
