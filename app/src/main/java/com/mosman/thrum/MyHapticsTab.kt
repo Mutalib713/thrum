@@ -1,12 +1,13 @@
 package com.mosman.thrum
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,18 +16,20 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,25 +41,38 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Screen 19: My Haptics, and Screen 16: Create.
+ * My Haptics, screen 19, and the Create screen, 16. Task 23.
+ *
+ * Everything that can be felt, in one list, each row drawn with its own
+ * rhythm. Videos and files arrive through the phone's own file chooser —
+ * one at a time, never a scan, so Thrum never asks to see all videos. A pick
+ * is made straight away; its row appears at once and says "making" until the
+ * haptic lands, or the decoder's own sentence if the phone cannot read it.
+ *
+ * An empty list says what will live here. The first UI drawn on this screen
+ * filled it with three made-up rows instead — one of them marked as the song
+ * for calls — whose buttons did nothing.
+ *
+ * Long-press deletes a haptic, with a confirmation: a long-press that
+ * silently destroys work is how people learn to distrust a list.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MyHapticsTab(
-    onGoToMusic: () -> Unit,
-    onExport: () -> Unit,
-) {
+fun MyHapticsTab(onGoToMusic: () -> Unit, onExport: () -> Unit) {
     val ctx = LocalContext.current
     val db = remember { LibraryDb.get(ctx) }
     val store = remember { Store(ctx) }
@@ -64,23 +80,21 @@ fun MyHapticsTab(
 
     var haptics by remember { mutableStateOf<List<Haptic>>(emptyList()) }
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var filterIndex by remember { mutableIntStateOf(0) } // 0: All, 1: Music, 2: Videos, 3: Files
-    var showCreateScreen by remember { mutableStateOf(false) }
+    var filterIndex by remember { mutableIntStateOf(0) }
+    var showCreate by remember { mutableStateOf(false) }
     var errorLine by remember { mutableStateOf<String?>(null) }
     var deleteRow by remember { mutableStateOf<MyHaptics.Row?>(null) }
+    val callsUri = remember { store.sourceUri }
 
     LaunchedEffect(Unit) {
-        db.dao().observeHaptics().collect { rows ->
-            haptics = rows.mapNotNull { it.toHaptic() }
-        }
+        db.dao().observeHaptics().collect { rows -> haptics = rows.mapNotNull { it.toHaptic() } }
     }
     LaunchedEffect(Unit) {
-        db.dao().observeTracks().collect { rows ->
-            tracks = rows.map { it.toTrack() }
-        }
+        db.dao().observeTracks().collect { rows -> tracks = rows.map { it.toTrack() } }
     }
 
     fun insertPicked(uri: Uri, kind: TrackKind) {
+        errorLine = null
         scope.launch {
             val name = AudioDecoder.displayName(ctx, uri)
             val duration = withContext(Dispatchers.IO) { MusicScan.durationMsOf(ctx, uri) }
@@ -90,238 +104,283 @@ fun MyHapticsTab(
                 durationMs = duration,
                 kind = kind,
             )
-            withContext(Dispatchers.IO) {
-                db.dao().upsertTracks(listOf(track.toEntity(System.currentTimeMillis())))
-            }
-            val made = withContext(Dispatchers.IO) { HapticMaker.make(ctx, track) }
+            withContext(Dispatchers.IO) { db.dao().upsertTracks(listOf(track.toEntity(System.currentTimeMillis()))) }
+            // The row is already showing "making"; this is what lands in it.
+            val made = HapticMaker.make(ctx, track)
             if (made.error != null) errorLine = made.error
         }
     }
 
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+        runCatching { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        showCreate = false
         insertPicked(uri, TrackKind.VIDEO)
-        showCreateScreen = false
     }
-
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+        runCatching { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        showCreate = false
         insertPicked(uri, TrackKind.FILE)
-        showCreateScreen = false
     }
-
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
+        showCreate = false
+        errorLine = null
         scope.launch {
-            val text = withContext(Dispatchers.IO) {
-                runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }
-                    .getOrNull()
-            }
+            val text = withContext(Dispatchers.IO) { readSmallText(ctx, uri) }
             val imported = text?.let { ThrumFile.decode(it) }.orEmpty()
             if (imported.isEmpty()) {
-                errorLine = "That file didn't open. It may not be a Thrum file."
+                errorLine = ctx.getString(R.string.import_failed)
             } else {
-                withContext(Dispatchers.IO) {
-                    imported.forEach { db.dao().upsertHaptic(it.toEntity()) }
-                }
+                withContext(Dispatchers.IO) { imported.forEach { db.dao().upsertHaptic(it.toEntity()) } }
             }
-            showCreateScreen = false
         }
     }
 
-    if (showCreateScreen) {
-        // Screen 16: Make a haptic from (Create)
+    if (showCreate) {
         CreateScreen(
-            onClose = { showCreateScreen = false },
+            onClose = { showCreate = false },
             onPickVideo = { videoPicker.launch(arrayOf("video/*")) },
             onPickFile = { filePicker.launch(arrayOf("audio/*")) },
             onPickSong = {
-                showCreateScreen = false
+                showCreate = false
                 onGoToMusic()
             },
+            // Any file: a Thrum file is saved as plain bytes, and the phone's
+            // chooser reports such files under different types on different
+            // phones. Anything that is not one is refused in a sentence.
             onPickThrumFile = { importPicker.launch(arrayOf("*/*")) },
         )
         return
     }
 
-    val currentFilter = when (filterIndex) {
-        1 -> MyHaptics.Filter.MUSIC
-        2 -> MyHaptics.Filter.VIDEOS
-        3 -> MyHaptics.Filter.FILES
-        else -> MyHaptics.Filter.ALL
-    }
-    val rows = MyHaptics.rows(haptics, tracks, store.sourceUri, currentFilter)
+    val filter = MyHaptics.Filter.entries[filterIndex]
+    val rows = MyHaptics.rows(haptics, tracks, callsUri, filter)
+    val hapticByUri = remember(haptics) { haptics.associateBy { it.trackUri } }
+    val trackByUri = remember(tracks) { tracks.associateBy { it.sourceUri } }
+    val playable = rows.filter { it.hasHaptic && it.readable }.map { trackByUri[it.uri] ?: it.asTrack() }
 
-    Column(
+    fun play(row: MyHaptics.Row) {
+        if (!row.hasHaptic || !row.readable) return
+        Player.play(ctx, trackByUri[row.uri] ?: row.asTrack(), playable)
+        Player.open = true
+    }
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(ThrumField)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 18.dp),
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+        contentPadding = PaddingValues(
+            start = Space.S5,
+            end = Space.S5,
+            top = 18.dp,
+            bottom = if (Player.now != null) 100.dp else Space.S6,
+        ),
     ) {
-        // Header: Statement "My Haptics" + Export button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "My Haptics",
-                color = ThrumInk,
-                fontSize = 31.sp,
-                lineHeight = 36.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            Box(
+        item {
+            Row(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clickable { onExport() },
-                contentAlignment = Alignment.CenterEnd,
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = Space.S1),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                ThrumIcon(name = "export", tint = ThrumInk, size = 22.dp)
-            }
-        }
-
-        // Segment: All | Music | Videos | Files
-        ThrumSegmentedControl(
-            options = listOf("All", "Music", "Videos", "Files"),
-            selectedIndex = filterIndex,
-            onSelect = { filterIndex = it },
-            modifier = Modifier.padding(top = 12.dp),
-        )
-
-        // Card List
-        ThrumCard(
-            modifier = Modifier.padding(top = 16.dp),
-            padding = PaddingValues(0.dp),
-        ) {
-            if (rows.isEmpty()) {
-                // Default design rows if empty
-                val sampleRows = listOf(
-                    Triple("AIZO, but it's lofi hiphop", "Music · 2:57", true),
-                    Triple("Active", "Music · Asake, Travis Scott · 3:04", false),
-                    Triple("thrum-test-ringtone", "File · 0:12", false),
+                Text(
+                    stringResource(R.string.tab_haptics),
+                    style = ThrumType.statement,
+                    color = ThrumInk,
+                    modifier = Modifier.semantics { heading() },
                 )
-                sampleRows.forEachIndexed { idx, (name, sub, isCalls) ->
-                    if (idx > 0) Divider(color = ThrumRule, thickness = 1.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        Box(Modifier.width(60.dp)) {
-                            PulseRibbon(pattern = if (idx == 0) "afro" else "heart", height = 28.dp, barWidth = 2.dp, barGap = 1.dp)
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(name, color = ThrumInk, fontSize = 15.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(sub, color = ThrumInk2, fontSize = 12.5.sp)
-                        }
-                        if (isCalls) {
-                            ThrumChip(text = "Calls", kind = ChipKind.ACCENT, hasDot = true)
-                        } else {
-                            CirclePlayButton(playing = false, size = 38.dp, iconSize = 13.dp, onClick = {})
-                        }
-                    }
-                }
-            } else {
-                rows.forEachIndexed { idx, row ->
-                    if (idx > 0) Divider(color = ThrumRule, thickness = 1.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = {
-                                    if (row.hasHaptic && row.readable) {
-                                        val track = tracks.firstOrNull { it.sourceUri == row.uri }
-                                        Player.play(
-                                            ctx,
-                                            track ?: row.asTrack(),
-                                            listOf(row.asTrack()),
-                                            hearAndFeel = !ThrumFile.isImported(row.uri),
-                                        )
-                                        Player.open = true
-                                    }
-                                },
-                                onLongClick = { if (row.hasHaptic) deleteRow = row },
-                            )
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        Box(Modifier.width(60.dp)) {
-                            PulseRibbon(pattern = "afro", height = 28.dp, barWidth = 2.dp, barGap = 1.dp)
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(row.name, color = ThrumInk, fontSize = 15.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(row.subtitle, color = ThrumInk2, fontSize = 12.5.sp)
-                        }
-                        if (row.isCalls) {
-                            ThrumChip(text = "Calls", kind = ChipKind.ACCENT, hasDot = true)
-                        } else {
-                            CirclePlayButton(playing = false, size = 38.dp, iconSize = 13.dp, onClick = {
-                                val track = tracks.firstOrNull { it.sourceUri == row.uri }
-                                Player.play(ctx, track ?: row.asTrack(), listOf(row.asTrack()))
-                                Player.open = true
-                            })
-                        }
-                    }
+                if (haptics.isNotEmpty()) {
+                    IconButtonBox(icon = "export", label = stringResource(R.string.export_title), onClick = onExport)
                 }
             }
         }
-
-        Text(
-            text = "Every song you play gets a haptic, and so does every video or file you turn into one. They all live here.",
-            color = ThrumInk2,
-            fontSize = 12.5.sp,
-            lineHeight = 18.sp,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
-        )
-
-        Spacer(Modifier.height(28.dp))
-
-        PrimaryButton(
-            text = "Make one from a video or file",
-            icon = "plus",
-            onClick = { showCreateScreen = true },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 80.dp),
-        )
+        item {
+            ThrumSegmentedControl(
+                options = listOf(
+                    stringResource(R.string.haptics_filter_all),
+                    stringResource(R.string.haptics_filter_music),
+                    stringResource(R.string.haptics_filter_videos),
+                    stringResource(R.string.haptics_filter_files),
+                ),
+                selectedIndex = filterIndex,
+                onSelect = { filterIndex = it },
+                modifier = Modifier.padding(top = Space.S3, bottom = Space.S4),
+            )
+        }
+        if (rows.isEmpty()) {
+            item {
+                Text(
+                    stringResource(R.string.haptics_empty_body),
+                    style = ThrumType.lead,
+                    color = ThrumInk2,
+                    modifier = Modifier.padding(horizontal = Space.S1),
+                )
+            }
+        }
+        itemsIndexed(rows, key = { _, row -> row.uri }) { index, row ->
+            HapticRow(
+                row = row,
+                haptic = hapticByUri[row.uri],
+                first = index == 0,
+                last = index == rows.lastIndex,
+                onPlay = { play(row) },
+                onLongPress = { if (row.hasHaptic) deleteRow = row },
+            )
+        }
+        errorLine?.let { message ->
+            item {
+                Text(message, style = ThrumType.body, color = ThrumWarn, modifier = Modifier.padding(top = Space.S3))
+            }
+        }
+        if (rows.isNotEmpty()) {
+            item {
+                Text(
+                    stringResource(R.string.haptics_empty_body),
+                    style = ThrumType.meta,
+                    color = ThrumInk2,
+                    modifier = Modifier.padding(horizontal = Space.S1, vertical = Space.S3),
+                )
+            }
+        }
+        item {
+            Spacer(Modifier.height(Space.S5))
+            PrimaryButton(
+                text = stringResource(R.string.haptics_make),
+                icon = "plus",
+                onClick = { showCreate = true },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 
     deleteRow?.let { row ->
         AlertDialog(
             onDismissRequest = { deleteRow = null },
-            title = { Text("Delete this haptic?", color = ThrumInk) },
-            text = { Text("The song stays in your library. The haptic is made again next time you play it.", color = Color(0xFFD6D6CF)) },
+            title = { Text(stringResource(R.string.haptics_delete_title), style = ThrumType.title, color = ThrumInk) },
+            text = { Text(stringResource(R.string.haptics_delete_body), style = ThrumType.body, color = ThrumInkSoft) },
             containerColor = ThrumSurface,
             confirmButton = {
-                ThrumTextButton(text = "Delete", color = ThrumWarn, onClick = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) { db.dao().removeHaptic(row.uri) }
-                    }
-                    deleteRow = null
-                })
+                ThrumTextButton(
+                    text = stringResource(R.string.haptics_delete_confirm),
+                    color = ThrumWarn,
+                    onClick = {
+                        scope.launch { withContext(Dispatchers.IO) { db.dao().removeHaptic(row.uri) } }
+                        deleteRow = null
+                    },
+                )
             },
             dismissButton = {
-                ThrumTextButton(text = "Keep", color = ThrumInk2, onClick = { deleteRow = null })
+                ThrumTextButton(
+                    text = stringResource(R.string.haptics_delete_cancel),
+                    color = ThrumInk2,
+                    onClick = { deleteRow = null },
+                )
             },
         )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HapticRow(
+    row: MyHaptics.Row,
+    haptic: Haptic?,
+    first: Boolean,
+    last: Boolean,
+    onPlay: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    val corner = Radius.large
+    val shape = when {
+        first && last -> RoundedCornerShape(corner)
+        first -> RoundedCornerShape(topStart = corner, topEnd = corner)
+        last -> RoundedCornerShape(bottomStart = corner, bottomEnd = corner)
+        else -> RectangleShape
+    }
+    val canPlay = row.hasHaptic && row.readable
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ThrumSurface)
+            .combinedClickable(role = Role.Button, onClick = onPlay, onLongClick = onLongPress),
+    ) {
+        if (!first) HorizontalDivider(color = ThrumRule, thickness = 1.dp)
+        Row(
+            modifier = Modifier.padding(horizontal = Space.S4, vertical = Space.S3),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(Modifier.width(60.dp)) {
+                if (haptic != null) {
+                    PulseRibbon(score = haptic.score, limit = ROW_RIBBON_STEPS, height = 28.dp, barWidth = 2.dp, barGap = 1.dp)
+                } else {
+                    IconCircle(icon = kindIcon(row.kind), size = 40.dp, iconSize = 18.dp)
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    row.name,
+                    style = ThrumType.row,
+                    color = if (row.readable) ThrumInk else ThrumInk2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(row.subtitle, style = ThrumType.meta, color = ThrumInk2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                when {
+                    !row.readable -> Text(stringResource(R.string.player_unreadable), style = ThrumType.meta, color = ThrumWarn)
+                    !row.hasHaptic -> Text(stringResource(R.string.haptics_making), style = ThrumType.meta, color = ThrumInk2)
+                }
+            }
+            when {
+                row.isCalls -> ThrumChip(text = stringResource(R.string.haptics_calls_badge), hasDot = true)
+                canPlay -> CirclePlayButton(
+                    playing = Player.now?.track?.sourceUri == row.uri && Player.now?.playing == true,
+                    size = 38.dp,
+                    iconSize = 13.dp,
+                    onClick = onPlay,
+                )
+            }
+        }
+    }
+}
+
+private fun kindIcon(kind: TrackKind): String = when (kind) {
+    TrackKind.MUSIC -> "music"
+    TrackKind.VIDEO -> "video"
+    TrackKind.FILE -> "file"
+}
+
 /**
- * Screen 16: Make a haptic from (Create screen).
+ * The picked file as text, or null — and null for anything over
+ * [MAX_IMPORT_BYTES] rather than reading it. Any file can be picked here;
+ * reading a two-gigabyte video into memory to discover it is not a Thrum
+ * file would take the app down with it. A Thrum file of hundreds of whole
+ * songs is a few megabytes.
  */
+private fun readSmallText(ctx: Context, uri: Uri): String? = runCatching {
+    ctx.contentResolver.openInputStream(uri)?.use { input ->
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        var total = 0L
+        while (true) {
+            val n = input.read(buffer)
+            if (n < 0) break
+            total += n
+            if (total > MAX_IMPORT_BYTES) return@runCatching null
+            out.write(buffer, 0, n)
+        }
+        out.toByteArray().decodeToString()
+    }
+}.getOrNull()
+
+private const val MAX_IMPORT_BYTES = 64L * 1024 * 1024
+
+/** Screen 16: make a haptic from a video, an audio file, a song, or a Thrum file. */
 @Composable
 fun CreateScreen(
     onClose: () -> Unit,
@@ -330,96 +389,38 @@ fun CreateScreen(
     onPickSong: () -> Unit,
     onPickThrumFile: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ThrumField)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 18.dp),
-    ) {
-        // Topbar: X close icon + Create title
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clickable { onClose() },
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                ThrumIcon(name = "x", tint = ThrumInk, size = 22.dp)
-            }
-            Text("Create", color = ThrumInk, fontSize = 20.sp, fontWeight = FontWeight.Medium)
-        }
-
+    BackHandler(onBack = onClose)
+    ThrumPage(overTabs = true) {
+        ThrumTopBar(title = stringResource(R.string.home_card_create), onBack = onClose)
         Text(
-            text = "Make a haptic from",
+            stringResource(R.string.create_title),
+            style = ThrumType.statement,
             color = ThrumInk,
-            fontSize = 31.sp,
-            lineHeight = 36.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(top = 10.dp),
+            modifier = Modifier
+                .padding(top = 10.dp)
+                .semantics { heading() },
         )
-
         Column(
-            modifier = Modifier.padding(top = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(top = Space.S5),
+            verticalArrangement = Arrangement.spacedBy(Space.S3),
         ) {
-            CreateOptionCard(
-                icon = "video",
-                title = "A video",
-                subtitle = "Feel the sound from any video",
-                onClick = onPickVideo,
-            )
-
-            CreateOptionCard(
-                icon = "file",
-                title = "An audio file",
-                subtitle = "A voice note, ringtone or recording",
-                onClick = onPickFile,
-            )
-
-            CreateOptionCard(
-                icon = "music",
-                title = "A song",
-                subtitle = "Your music is already in the Music tab",
-                onClick = onPickSong,
-            )
-
-            CreateOptionCard(
-                icon = "export",
-                title = "A Thrum file",
-                subtitle = "Open a haptic you exported",
-                onClick = onPickThrumFile,
-            )
+            CreateOption("video", stringResource(R.string.create_video), stringResource(R.string.create_video_help), onPickVideo)
+            CreateOption("file", stringResource(R.string.create_file), stringResource(R.string.create_file_help), onPickFile)
+            CreateOption("music", stringResource(R.string.create_song), stringResource(R.string.create_song_help), onPickSong)
+            CreateOption("export", stringResource(R.string.import_option), stringResource(R.string.import_option_help), onPickThrumFile)
         }
-
         Text(
-            text = "Videos and files open your phone's own file chooser. Thrum reads only the one you pick.",
+            stringResource(R.string.create_privacy),
+            style = ThrumType.meta,
             color = ThrumInk2,
-            fontSize = 12.5.sp,
-            lineHeight = 18.sp,
-            modifier = Modifier.padding(top = 16.dp, start = 4.dp),
+            modifier = Modifier.padding(top = Space.S4, start = Space.S1),
         )
     }
 }
 
 @Composable
-private fun CreateOptionCard(
-    icon: String,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-) {
-    ThrumCard(
-        modifier = Modifier.clickable(onClick = onClick),
-        padding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-    ) {
+private fun CreateOption(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
+    ThrumCard(padding = PaddingValues(horizontal = Space.S4, vertical = 14.dp), onClick = onClick) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -427,8 +428,8 @@ private fun CreateOptionCard(
         ) {
             IconCircle(icon = icon, size = 40.dp)
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, color = ThrumInk, fontSize = 15.5.sp, fontWeight = FontWeight.Medium)
-                Text(subtitle, color = ThrumInk2, fontSize = 12.5.sp, modifier = Modifier.padding(top = 2.dp))
+                Text(title, style = ThrumType.row, color = ThrumInk)
+                Text(subtitle, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
             }
             ThrumIcon(name = "chev", tint = ThrumInk2, size = 18.dp)
         }

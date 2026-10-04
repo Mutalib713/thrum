@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -67,6 +68,8 @@ class MainActivity : ComponentActivity() {
             var diagnostics by remember { mutableStateOf(false) }
             ThrumTheme {
                 if (diagnostics) {
+                    // Back returns to the app rather than closing it.
+                    BackHandler { diagnostics = false }
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background,
@@ -362,7 +365,7 @@ private fun ProbeScreen() {
             enabled = !decoding,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (decoding) "Reading”¦" else "Pick an audio file")
+            Text(if (decoding) "Reading…" else "Pick an audio file")
         }
         when (val result = decoded) {
             null -> Unit
@@ -521,7 +524,7 @@ private fun ProbeScreen() {
                     enabled = pickedUri != null,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(if (playingTogether) "Playing”¦" else "Play with song")
+                    Text(if (playingTogether) "Playing…" else "Play with song")
                 }
                 OutlinedButton(
                     onClick = {
@@ -577,7 +580,7 @@ private fun ProbeScreen() {
             enabled = !probing,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (probing) "Probing”¦" else "Run the step-limit probe (~15s)")
+            Text(if (probing) "Probing…" else "Run the step-limit probe (~15s)")
         }
 
         HorizontalDivider()
@@ -641,7 +644,7 @@ private val R8_LADDER = listOf(8000, 9000, 9500, 10000, 10500, 11000, 11500, 120
 
 /** One line describing a built score, for the event log. */
 private fun summarise(score: Score): String =
-    "${score.pulseCount()} hits · ${score.amplitudes.size} steps Ã— ${score.stepMs}ms · " +
+    "${score.pulseCount()} hits · ${score.amplitudes.size} steps × ${score.stepMs}ms · " +
         "${clock(score.durationMs)} · strongest ${score.amplitudes.maxOrNull() ?: 0}/255"
 
 /** `3:01`, so the length can be compared against a music player at a glance. */

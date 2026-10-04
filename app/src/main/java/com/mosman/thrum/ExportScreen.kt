@@ -1,27 +1,16 @@
 package com.mosman.thrum
 
-import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,33 +22,45 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Screen 17: Export.
+ * Screen 17: Export. Task 25.
  *
- * "Take it with you"
- * Allows exporting this song or all songs as Thrum pattern files.
- * Only the vibration is exported — songs remain untouched on device.
+ * Saves Thrum pattern files through the phone's own save screen. **Only the
+ * vibration goes in the file, never the song** — Sacred Rule 3's export
+ * exception, asserted in a test, not just promised.
+ *
+ * One recorded deviation, kept honest on screen: PROFILE §4 item 10 has
+ * songs without a haptic made first, but on a big library that would hold
+ * this screen for minutes. They are counted, said, and left to the background
+ * walk (or to being played), and the line says to export again after. The
+ * first UI drawn here promised "Thrum makes them first, then exports", which
+ * it did not do.
  */
 @Composable
-fun ExportScreen(onClose: () -> Unit) {
+fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val db = remember { LibraryDb.get(ctx) }
     val store = remember { Store(ctx) }
     val scope = rememberCoroutineScope()
 
+    BackHandler(onBack = onClose)
+
     var haptics by remember { mutableStateOf<List<Haptic>>(emptyList()) }
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var exportAll by remember { mutableStateOf(true) }
+    // "This song" exists only when a song with a haptic is open. Opened from
+    // its page it starts there; from "Export all", on all of them.
+    val thisSong = Player.haptic
+    var exportAll by remember { mutableStateOf(!thisSongFirst || thisSong == null) }
     var saved by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
 
@@ -70,21 +71,21 @@ fun ExportScreen(onClose: () -> Unit) {
         db.dao().observeTracks().collect { rows -> tracks = rows.map { it.toTrack() } }
     }
 
-    val missing = tracks.count { track -> haptics.none { it.trackUri == track.sourceUri } }
-    val thisSong = Player.haptic
+    val madeUris = haptics.map { it.trackUri }.toSet()
+    val missing = tracks.count { it.readable && it.sourceUri !in madeUris }
     val chosen: List<Haptic> = if (exportAll) haptics else listOfNotNull(thisSong)
+    val background = store.hapticsMode == HapticsWorker.MODE_BACKGROUND
 
-    val saver = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/octet-stream"),
-    ) { uri ->
+    val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
+        val toWrite = chosen
         scope.launch {
             // A save can fail for reasons outside the app — storage full, the
             // chosen place gone. That used to crash the app; now it is said.
             val wrote = withContext(Dispatchers.IO) {
                 runCatching {
                     ctx.contentResolver.openOutputStream(uri)?.use { out ->
-                        out.write(ThrumFile.encode(chosen).toByteArray())
+                        out.write(ThrumFile.encode(toWrite).toByteArray())
                     } != null
                 }.getOrDefault(false)
             }
@@ -96,207 +97,116 @@ fun ExportScreen(onClose: () -> Unit) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF131312))
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 22.dp, vertical = 12.dp)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        // Topbar
-        Row(
+    ThrumPage {
+        ThrumTopBar(title = stringResource(R.string.export_title), onBack = onClose)
+
+        Text(
+            stringResource(R.string.export_take),
+            style = ThrumType.statement,
+            color = ThrumInk,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable(onClick = onClose),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                ThrumIcon.Back(tint = Color(0xFFF5F5F0), size = 20.dp)
-            }
-            Text(
-                "Export",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFF5F5F0),
+                .padding(top = Space.S2, bottom = 20.dp)
+                .semantics { heading() },
+        )
+
+        Overline(stringResource(R.string.export_what), modifier = Modifier.padding(bottom = Space.S2))
+        if (thisSong != null) {
+            ThrumSegmentedControl(
+                options = listOf(stringResource(R.string.export_this_song), stringResource(R.string.export_all_songs)),
+                selectedIndex = if (exportAll) 1 else 0,
+                onSelect = {
+                    exportAll = it == 1
+                    saved = false
+                    failed = false
+                },
             )
         }
-
-        Spacer(Modifier.height(8.dp))
-
-        // Statement
         Text(
-            "Take it with you",
-            fontSize = 31.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFFD8C513),
-            lineHeight = 36.sp,
+            if (exportAll) {
+                pluralStringResource(R.plurals.export_count_all, haptics.size, haptics.size)
+            } else {
+                thisSong?.score?.sourceName.orEmpty()
+            },
+            style = ThrumType.body,
+            color = ThrumInk2,
+            modifier = Modifier.padding(top = Space.S2, start = Space.S1),
         )
-
-        Spacer(Modifier.height(20.dp))
-
-        // Sect: What to export
-        Text(
-            "What to export",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF8E8E86),
-            letterSpacing = 0.5.sp,
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        val allCount = tracks.size.coerceAtLeast(1)
-        ThrumSegmentedControl(
-            items = listOf("This song", "All $allCount songs"),
-            selectedIndex = if (exportAll) 1 else 0,
-            onSelect = { exportAll = (it == 1) },
-        )
-
         if (exportAll && missing > 0) {
-            Spacer(Modifier.height(8.dp))
             Text(
-                "$missing songs don't have a haptic yet. Thrum makes them first, then exports.",
-                fontSize = 12.sp,
-                color = Color(0xFF8E8E86),
-                lineHeight = 16.sp,
-                modifier = Modifier.padding(horizontal = 4.dp),
+                pluralStringResource(
+                    if (background) R.plurals.export_missing else R.plurals.export_missing_as_played,
+                    missing,
+                    missing,
+                ),
+                style = ThrumType.meta,
+                color = ThrumInk2,
+                modifier = Modifier.padding(top = Space.S2, start = Space.S1),
             )
         }
 
-        Spacer(Modifier.height(20.dp))
-
-        // Sect: As
-        Text(
-            "As",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF8E8E86),
-            letterSpacing = 0.5.sp,
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        // Format 1: Thrum pattern files (Active)
-        ThrumCard(
-            borderColor = Color(0xFFD8C513),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
+        Overline(stringResource(R.string.export_as), modifier = Modifier.padding(top = 22.dp, bottom = Space.S2))
+        ThrumCard(borderColor = ThrumAccentInk) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 ThrumRadio(selected = true, modifier = Modifier.padding(top = 2.dp))
                 Column {
+                    Text(stringResource(R.string.export_format_files), style = ThrumType.row, color = ThrumInk)
                     Text(
-                        "Thrum pattern files",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFF5F5F0),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Back them up, or open them in Thrum on another phone.",
-                        fontSize = 13.sp,
-                        color = Color(0xFF8E8E86),
-                        lineHeight = 18.sp,
+                        stringResource(R.string.export_format_files_help),
+                        style = ThrumType.meta,
+                        color = ThrumInk2,
+                        modifier = Modifier.padding(top = Space.S1),
                     )
                 }
             }
         }
-
-        Spacer(Modifier.height(12.dp))
-
-        // Format 2: Ringtones (Disabled)
-        ThrumCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .alpha(0.55f),
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
+        Spacer(Modifier.height(Space.S3))
+        // The v2 encoder, shown as what it is: not built yet. Not a choice.
+        ThrumCard(modifier = Modifier.alpha(0.55f)) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 ThrumRadio(selected = false, modifier = Modifier.padding(top = 2.dp))
                 Column {
+                    Text(stringResource(R.string.export_format_ringtone), style = ThrumType.row, color = ThrumInk)
                     Text(
-                        "Ringtones with the vibration inside",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFF5F5F0),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Not built yet. It's the hardest part of Thrum, planned for later.",
-                        fontSize = 13.sp,
-                        color = Color(0xFF8E8E86),
-                        lineHeight = 18.sp,
+                        stringResource(R.string.export_format_ringtone_help),
+                        style = ThrumType.meta,
+                        color = ThrumInk2,
+                        modifier = Modifier.padding(top = Space.S1),
                     )
                 }
             }
         }
 
-        Spacer(Modifier.height(18.dp))
-
-        // Check note
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.padding(top = 18.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            ThrumIcon.Check(tint = Color(0xFFD8C513), size = 16.dp)
-            Text(
-                "Only the vibration is exported. Your songs stay where they are.",
-                fontSize = 13.sp,
-                color = Color(0xFF8E8E86),
-                lineHeight = 18.sp,
-            )
+            ThrumIcon(name = "check", tint = ThrumAccentInk, size = 16.dp)
+            Text(stringResource(R.string.export_privacy), style = ThrumType.meta, color = ThrumInk2)
         }
 
-        Spacer(Modifier.weight(1f))
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Space.S6))
 
-        if (saved) {
-            Text(
-                "Saved to your phone",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFD8C513),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(bottom = 12.dp),
-            )
-        }
-        if (failed) {
-            Text(
-                stringResource(R.string.export_failed),
-                fontSize = 14.sp,
-                color = ThrumWarn,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
+        when {
+            saved -> Text(stringResource(R.string.export_saved), style = ThrumType.row, color = ThrumAccentInk, modifier = Modifier.padding(bottom = Space.S3))
+            failed -> Text(stringResource(R.string.export_failed), style = ThrumType.body, color = ThrumWarn, modifier = Modifier.padding(bottom = Space.S3))
+            chosen.isEmpty() -> Text(stringResource(R.string.export_nothing), style = ThrumType.body, color = ThrumInk2, modifier = Modifier.padding(bottom = Space.S3))
         }
 
         PrimaryButton(
-            text = "Save to my phone",
+            text = stringResource(R.string.export_save),
+            enabled = chosen.isNotEmpty(),
             onClick = {
                 saved = false
                 failed = false
                 val suggested = if (exportAll) {
-                    ThrumFile.fileNameFor("Thrum haptics")
+                    ThrumFile.fileNameFor(ctx.getString(R.string.export_file_name))
                 } else {
                     ThrumFile.fileNameFor(thisSong?.score?.sourceName.orEmpty())
                 }
                 saver.launch(suggested)
             },
+            modifier = Modifier.fillMaxWidth(),
         )
-
-        Spacer(Modifier.height(16.dp))
     }
 }

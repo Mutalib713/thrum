@@ -143,6 +143,40 @@ class Store(ctx: Context) {
     }
 
     /**
+     * The dials with no call song to carry them — "Default feel" in Settings
+     * when nothing is armed.
+     *
+     * [arm] stays the only writer while a song is armed, because the armed
+     * score and its dials must never disagree (the 2026-09-21 bug above).
+     * With nothing armed there is no score to disagree with, and the default
+     * feel still has to be settable: it is what every new haptic starts
+     * from. Refused, returning false, while a song is armed.
+     */
+    fun setDefaultTuning(punch: Int, distance: Int, body: Int): Boolean {
+        if (prefs.contains(KEY_SCORE)) return false
+        prefs.edit()
+            .putInt(KEY_PUNCH, punch)
+            .putInt(KEY_DISTANCE, distance.coerceIn(0, 100))
+            .putInt(KEY_BODY, body.coerceIn(ScoreBuilder.BODY_MIN_MS, ScoreBuilder.BODY_MAX_MS))
+            .apply()
+        return true
+    }
+
+    /**
+     * Songs played, newest first — Home's "Recently played" (PROFILE §4 item
+     * 11). Only the identities: names and haptics come from the library, so
+     * a song deleted since simply drops out. The first UI drew a hard-coded
+     * song here; this is the history it was standing in for.
+     */
+    val recentlyPlayed: List<String>
+        get() = HapticQueue.decodePending(prefs.getString(KEY_RECENT, null))
+
+    fun addRecent(uri: String) {
+        val next = (listOf(uri) + recentlyPlayed.filter { it != uri }).take(RECENT_MAX)
+        prefs.edit().putString(KEY_RECENT, HapticQueue.encodePending(next)).apply()
+    }
+
+    /**
      * Whether first launch has finished — the seven screens of Task 18.
      *
      * Defaults to false, which means the one install that already exists
@@ -235,6 +269,8 @@ class Store(ctx: Context) {
         const val KEY_HAPTICS_MODE = "haptics_mode"
         const val KEY_HAPTIC_QUEUE = "haptic_queue_pending"
         const val KEY_HAPTICS_DONE = "haptics_done"
+        const val KEY_RECENT = "recently_played"
+        const val RECENT_MAX = 3
 
         /** See [editQueue]: one lock for the whole process, not one per [Store]. */
         val QUEUE_LOCK = Any()

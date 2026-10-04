@@ -1,8 +1,7 @@
 package com.mosman.thrum
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,23 +23,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /**
  * The app's frame. Task 18, drawn across all final screens.
  *
- * Bottom tabs in exact order: Home, My Haptics, Music, Settings.
- * Fixed 80dp bar in #1A1A18 with 1px #3A3A36 top border.
+ * The order is fixed and deliberate: the phone check runs inside first
+ * launch's splash before anything else; a first-time user walks the seven
+ * screens; and only then does the tab bar appear, Home first, because calls
+ * come first. Tabs in exact order: Home, My Haptics, Music, Settings.
  */
 @Composable
 fun ThrumRoot(onDiagnostics: (() -> Unit)? = null) {
@@ -76,31 +75,34 @@ enum class NavTab(val icon: String, val labelRes: Int) {
 
 @Composable
 private fun Tabs(onDiagnostics: (() -> Unit)?) {
-    var tab by remember { mutableStateOf(NavTab.HOME) }
-    var showExport by remember { mutableStateOf(false) }
-    var showTuning by remember { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableStateOf(NavTab.HOME) }
+    // Null when closed; otherwise whether it opened on the song playing.
+    var export by remember { mutableStateOf<Boolean?>(null) }
+    var tuning by remember { mutableStateOf<TuneTarget?>(null) }
 
+    // Screens over the tabs, nearest first. Tune and Export open over the
+    // player too, so closing them returns to the song, not to a tab.
+    // Each one handles the phone's Back button itself; before, only the
+    // player did, and Back from any other closed the whole app.
+    tuning?.let { target ->
+        TuneScreen(target = target, onClose = { tuning = null })
+        return
+    }
+    export?.let { thisSongFirst ->
+        ExportScreen(thisSongFirst = thisSongFirst, onClose = { export = null })
+        return
+    }
     if (Player.open) {
         PlayerScreen(
-            onTune = {
-                Player.open = false
-                showTuning = true
-            },
-            onExport = {
-                Player.open = false
-                showExport = true
-            },
+            onTune = { target -> tuning = target },
+            onExport = { export = true },
         )
         return
     }
-    if (showTuning) {
-        TuneScreen(onClose = { showTuning = false })
-        return
-    }
-    if (showExport) {
-        ExportScreen(onClose = { showExport = false })
-        return
-    }
+
+    // Back on another tab goes Home first, the way Android apps do, rather
+    // than closing the app from the middle of it.
+    BackHandler(enabled = tab != NavTab.HOME) { tab = NavTab.HOME }
 
     Column(modifier = Modifier.fillMaxSize().background(ThrumField)) {
         Box(modifier = Modifier.weight(1f)) {
@@ -113,15 +115,13 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
                 )
                 NavTab.HAPTICS -> MyHapticsTab(
                     onGoToMusic = { tab = NavTab.MUSIC },
-                    onExport = { showExport = true },
+                    onExport = { export = false },
                 )
-                NavTab.MUSIC -> MusicTab(
-                    onExport = { showExport = true },
-                )
+                NavTab.MUSIC -> MusicTab(onExport = { export = false })
                 NavTab.SETTINGS -> SettingsTab(
                     onOpenMusic = { tab = NavTab.MUSIC },
                     onOpenHome = { tab = NavTab.HOME },
-                    onOpenTune = { showTuning = true },
+                    onOpenTune = { tuning = TuneTarget.Calls },
                 )
             }
 
@@ -129,17 +129,14 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = Space.S3, vertical = 10.dp),
                 ) {
                     MiniPlayer()
                 }
             }
         }
 
-        ThrumNavBar(
-            current = tab,
-            onSelect = { tab = it },
-        )
+        ThrumNavBar(current = tab, onSelect = { tab = it })
     }
 }
 
@@ -149,43 +146,37 @@ fun ThrumNavBar(
     onSelect: (NavTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF1A1A18))
-            .border(width = 1.dp, color = ThrumRule)
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .height(72.dp)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.CenterVertically,
+            .background(ThrumTabBar)
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        NavTab.entries.forEach { tabItem ->
-            val isSelected = tabItem == current
-            val color = if (isSelected) ThrumAccent else ThrumInk2
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onSelect(tabItem) }
-                    .padding(vertical = 4.dp)
-                    .semantics { selected = isSelected },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                ThrumIcon(
-                    name = tabItem.icon,
-                    tint = color,
-                    size = 22.dp,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = stringResource(tabItem.labelRes),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = color,
-                    maxLines = 1,
-                )
+        // A rule along the top only; the first bar boxed itself on all four sides.
+        HorizontalDivider(color = ThrumRule, thickness = 1.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(72.dp)
+                .padding(horizontal = Space.S2, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NavTab.entries.forEach { item ->
+                val isSelected = item == current
+                val color = if (isSelected) ThrumAccentInk else ThrumInk2
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(item) })
+                        .padding(vertical = Space.S1),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    ThrumIcon(name = item.icon, tint = color, size = 22.dp)
+                    Spacer(Modifier.height(Space.S1))
+                    Text(stringResource(item.labelRes), style = ThrumType.tab, color = color, maxLines = 1)
+                }
             }
         }
     }

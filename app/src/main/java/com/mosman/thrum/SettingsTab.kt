@@ -1,47 +1,41 @@
 package com.mosman.thrum
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
+import android.net.Uri
 import android.provider.Settings
-import androidx.compose.foundation.background
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,14 +44,16 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Screens 20, 21, 22: Settings, About Thrum, and Phone check.
+ * Settings, About and Phone check: screens 20, 21, 22. Task 26.
+ *
+ * Every row reads its value live — from [Store] or from the system — and a
+ * row only acts when it has somewhere to send you. Two rows that the first
+ * UI drew here are gone on purpose: "Online catalog: On" (Mutalib removed the
+ * online catalog on 3 October; there is no internet in this app) and "Clean
+ * up low-quality songs" (Task 29, not built, and its row only opened Home).
  */
 @Composable
-fun SettingsTab(
-    onOpenMusic: () -> Unit,
-    onOpenHome: () -> Unit,
-    onOpenTune: (() -> Unit)? = null,
-) {
+fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () -> Unit) {
     val ctx = LocalContext.current
     val store = remember { Store(ctx) }
     val db = remember { LibraryDb.get(ctx) }
@@ -74,601 +70,384 @@ fun SettingsTab(
         return
     }
 
-    val callAccess by produceState(initialValue = false) {
-        while (true) {
-            value = NotificationManagerCompatHelper.isEnabled(ctx)
-            delay(POLL_MS)
-        }
-    }
-    val musicPermission = remember {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_AUDIO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-    }
-    val musicAccess by produceState(initialValue = false) {
-        while (true) {
-            value = ContextCompat.checkSelfPermission(ctx, musicPermission) ==
-                PackageManager.PERMISSION_GRANTED
-            delay(POLL_MS)
-        }
-    }
+    val callAccess by rememberPolled(hasCallAccess(ctx)) { hasCallAccess(it) }
+    val musicAccess by rememberPolled(hasMusicAccess(ctx)) { hasMusicAccess(it) }
+    // Held here as well as written to the store, so a tap redraws at once.
+    // The first build wrote the store and nothing else, and the switch looked
+    // as if it ignored the tap.
+    var ringMode by remember { mutableStateOf(store.fireInRingMode) }
+    var background by remember { mutableStateOf(store.hapticsMode == HapticsWorker.MODE_BACKGROUND) }
+    val callSong = remember { store.armedScore?.sourceName }
+    val body = remember { store.body }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF131312))
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 20.dp, vertical = 10.dp)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        // Title
+    ThrumPage(overTabs = true) {
         Text(
-            "Settings",
-            fontSize = 31.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFFD8C513),
-            modifier = Modifier.padding(top = 10.dp, bottom = 16.dp),
+            stringResource(R.string.tab_settings),
+            style = ThrumType.statement,
+            color = ThrumInk,
+            modifier = Modifier
+                .padding(top = 10.dp, bottom = Space.S4)
+                .semantics { heading() },
         )
 
-        // Sect: Calls
-        SettingsSectionTitle("Calls")
-        ThrumCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                SettingsItem(
-                    name = "Song for calls",
-                    value = store.armedScore?.sourceName ?: "AIZO",
-                    onClick = onOpenHome,
-                )
-                SettingsDivider()
-                SettingsItem(
-                    name = "Call access",
-                    value = if (callAccess) "On" else "Off",
-                    onClick = {
-                        if (!callAccess) {
-                            runCatching {
-                                ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                            }
-                        }
-                    },
-                )
-                SettingsDivider()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "Also when the ringer is on",
-                        fontSize = 14.5.sp,
-                        color = Color(0xFFF5F5F0),
-                    )
-                    ThrumSwitch(
-                        checked = store.fireInRingMode,
-                        onCheckedChange = { store.fireInRingMode = it },
-                    )
-                }
-            }
+        SettingsSection(stringResource(R.string.settings_calls_section)) {
+            SettingsRow(
+                name = stringResource(R.string.settings_song_for_calls),
+                value = callSong ?: stringResource(R.string.settings_not_set),
+                onClick = onOpenHome,
+            )
+            SettingsDivider()
+            SettingsRow(
+                name = stringResource(R.string.settings_call_access),
+                value = stringResource(if (callAccess) R.string.settings_on else R.string.settings_off),
+                // On needs nothing; off is the state that needs a way out.
+                onClick = if (callAccess) {
+                    null
+                } else {
+                    { runCatching { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } }
+                },
+            )
+            SettingsDivider()
+            SwitchRow(
+                name = stringResource(R.string.ring_mode_label),
+                help = stringResource(R.string.ring_mode_help),
+                checked = ringMode,
+                onChange = {
+                    ringMode = it
+                    store.fireInRingMode = it
+                },
+            )
         }
 
-        Spacer(Modifier.height(18.dp))
-
-        // Sect: Music
-        SettingsSectionTitle("Music")
-        ThrumCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                SettingsItem(
-                    name = "Music access",
-                    value = if (musicAccess) "On" else "Off",
-                    onClick = {
-                        if (!musicAccess) {
-                            runCatching {
-                                ctx.startActivity(
-                                    Intent(
-                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                        android.net.Uri.fromParts("package", ctx.packageName, null),
-                                    ),
-                                )
-                            }
+        SettingsSection(stringResource(R.string.settings_music_section)) {
+            SettingsRow(
+                name = stringResource(R.string.settings_music_access),
+                value = stringResource(if (musicAccess) R.string.settings_on else R.string.settings_off),
+                onClick = if (musicAccess) {
+                    null
+                } else {
+                    {
+                        runCatching {
+                            ctx.startActivity(
+                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null)),
+                            )
                         }
-                    },
-                )
-                SettingsDivider()
-                SettingsItem(
-                    name = "Scan for new music",
-                    sub = if (store.lastScanAtMs > 0) {
-                        "Last scanned " + SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(store.lastScanAtMs))
+                    }
+                },
+            )
+            SettingsDivider()
+            SettingsRow(
+                name = stringResource(R.string.settings_scan_new),
+                sub = if (store.lastScanAtMs > 0) {
+                    stringResource(
+                        R.string.settings_last_scanned,
+                        SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(store.lastScanAtMs)),
+                    )
+                } else {
+                    stringResource(R.string.settings_never_scanned)
+                },
+                // The scan lives in the Music tab; one scan path, not two.
+                onClick = onOpenMusic,
+            )
+            SettingsDivider()
+            SettingsRow(
+                name = stringResource(R.string.settings_make_haptics),
+                value = stringResource(if (background) R.string.settings_mode_background else R.string.settings_mode_as_played),
+                onClick = {
+                    background = !background
+                    store.hapticsDone = 0
+                    if (background) {
+                        store.hapticsMode = HapticsWorker.MODE_BACKGROUND
+                        // Everything without a haptic joins the walk now.
+                        scope.launch {
+                            val all = withContext(Dispatchers.IO) { db.dao().allTrackUris() }
+                            HapticsWorker.enqueue(ctx, all)
+                        }
                     } else {
-                        "Last scanned today"
-                    },
-                    onClick = onOpenMusic,
-                )
-                SettingsDivider()
-                SettingsItem(
-                    name = "Make haptics",
-                    value = if (store.hapticsMode == HapticsWorker.MODE_BACKGROUND) "In the background" else "As played",
-                    onClick = {
-                        val switchingToBg = store.hapticsMode != HapticsWorker.MODE_BACKGROUND
-                        store.hapticsMode = if (switchingToBg) HapticsWorker.MODE_BACKGROUND else HapticsWorker.MODE_AS_PLAYED
-                        store.hapticsDone = 0
-                        if (switchingToBg) {
-                            scope.launch {
-                                val all = withContext(Dispatchers.IO) { db.dao().allTrackUris() }
-                                HapticsWorker.enqueue(ctx, all)
-                            }
-                        } else {
-                            // Nothing walks the list in "as I play them" mode.
-                            store.editQueue(emptySet()) { HapticQueue() }
-                        }
-                    },
-                )
-                SettingsDivider()
-                SettingsItem(
-                    name = "Online catalog",
-                    value = "On",
-                    onClick = onOpenMusic,
-                )
-            }
+                        store.hapticsMode = HapticsWorker.MODE_AS_PLAYED
+                        // Nothing walks the list in "as I play them" mode.
+                        store.editQueue(emptySet()) { HapticQueue() }
+                    }
+                },
+            )
         }
 
-        Spacer(Modifier.height(18.dp))
-
-        // Sect: Haptics
-        SettingsSectionTitle("Haptics")
-        ThrumCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                SettingsItem(
-                    name = "Default feel",
-                    value = when (Tuning.matching(store.body)) {
-                        Tuning.CRISP -> "Crisp"
-                        Tuning.FULL -> "Full"
-                        Tuning.STRONG -> "Strong"
-                        else -> "Crisp"
-                    },
-                    onClick = { onOpenTune?.invoke() ?: onOpenHome() },
-                )
-                SettingsDivider()
-                SettingsItem(
-                    name = "Clean up low-quality songs",
-                    value = "Ask first",
-                    onClick = onOpenHome,
-                )
-            }
+        SettingsSection(stringResource(R.string.settings_haptics_section)) {
+            SettingsRow(
+                name = stringResource(R.string.settings_default_feel),
+                value = stringResource(Tuning.matching(body)?.nameRes ?: R.string.settings_custom),
+                onClick = onOpenTune,
+            )
         }
 
-        Spacer(Modifier.height(18.dp))
-
-        // Sect: This phone and Thrum
-        SettingsSectionTitle("This phone and Thrum")
-        ThrumCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                SettingsItem(
-                    name = "Phone check",
-                    onClick = { showPhoneCheck = true },
-                )
-                SettingsDivider()
-                SettingsItem(
-                    name = "About Thrum",
-                    onClick = { showAbout = true },
-                )
-            }
+        SettingsSection(stringResource(R.string.settings_phone_section)) {
+            SettingsRow(name = stringResource(R.string.phonecheck_title), onClick = { showPhoneCheck = true })
+            SettingsDivider()
+            SettingsRow(name = stringResource(R.string.about_title), onClick = { showAbout = true })
         }
-
-        Spacer(Modifier.height(90.dp)) // Bottom nav padding
     }
 }
 
 @Composable
-private fun SettingsSectionTitle(title: String) {
-    Text(
-        text = title,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = Color(0xFF8E8E86),
-        letterSpacing = 0.5.sp,
-        modifier = Modifier.padding(bottom = 8.dp),
-    )
+private fun SettingsSection(title: String, content: @Composable () -> Unit) {
+    Overline(title, modifier = Modifier.padding(top = Space.S2, bottom = Space.S2, start = 2.dp))
+    ThrumCard(padding = PaddingValues(0.dp)) { content() }
+    Spacer(Modifier.height(18.dp))
 }
 
 @Composable
 private fun SettingsDivider() {
-    HorizontalDivider(
-        color = Color(0xFF2A2A26),
-        thickness = 1.dp,
-    )
+    HorizontalDivider(color = ThrumRule, thickness = 1.dp)
 }
 
+/** A setting: its name, its value, and a way in when [onClick] is given. */
 @Composable
-private fun SettingsItem(
+private fun SettingsRow(
     name: String,
     sub: String? = null,
     value: String? = null,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .heightIn(min = Touch.min)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(horizontal = Space.S4, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                name,
-                fontSize = 14.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFFF5F5F0),
-            )
-            if (sub != null) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    sub,
-                    fontSize = 12.5.sp,
-                    color = Color(0xFF8E8E86),
-                )
-            }
+            Text(name, style = ThrumType.row, color = ThrumInk)
+            if (sub != null) Text(sub, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.S2),
         ) {
             if (value != null) {
                 Text(
                     value,
-                    fontSize = 14.sp,
-                    color = Color(0xFF8E8E86),
+                    style = ThrumType.body,
+                    color = ThrumInk2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = Space.S3),
                 )
             }
-            ThrumIcon.Chev(tint = Color(0xFF8E8E86), size = 16.dp)
+            if (onClick != null) ThrumIcon(name = "chev", tint = ThrumInk2, size = 16.dp)
         }
     }
 }
 
+@Composable
+private fun SwitchRow(name: String, help: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.S4, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(name, style = ThrumType.row, color = ThrumInk)
+            Text(help, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
+        }
+        Spacer(Modifier.width(Space.S3))
+        ThrumSwitch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
 /**
- * Screen 21: About Thrum.
+ * About Thrum, screen 21. The founder story is the agreed text from the
+ * final screens. The Thrum Originals section waits for the collection
+ * (Task 27): the first UI printed "Made for Thrum by ." with no name in it.
  */
 @Composable
 private fun AboutScreen(onClose: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF131312))
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 22.dp, vertical = 12.dp)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        // Topbar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable(onClick = onClose),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                ThrumIcon.Back(tint = Color(0xFFF5F5F0), size = 20.dp)
-            }
-            Text(
-                "About Thrum",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFF5F5F0),
-            )
-        }
+    BackHandler(onBack = onClose)
+    ThrumPage(overTabs = true) {
+        ThrumTopBar(title = stringResource(R.string.about_title), onBack = onClose)
 
-        Spacer(Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.app_name).uppercase(),
+            style = ThrumType.statement.copy(letterSpacing = ThrumType.wordmark.letterSpacing),
+            color = ThrumAccentInk,
+            modifier = Modifier.padding(top = Space.S4),
+        )
+        Text(stringResource(R.string.onboarding_tagline), style = ThrumType.lead, color = ThrumInk, modifier = Modifier.padding(top = 6.dp))
 
-        // Wordmark
-        Text(
-            "THRUM",
-            fontSize = 31.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = Color(0xFFF5F5F0),
-            letterSpacing = 2.5.sp,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Hear it. Feel it.",
-            fontSize = 15.sp,
-            color = Color(0xFFF5F5F0),
-        )
+        Overline(stringResource(R.string.about_why), modifier = Modifier.padding(top = 28.dp, bottom = Space.S2))
+        Text(stringResource(R.string.about_story_1), style = ThrumType.lead, color = ThrumInkSoft)
+        Text(stringResource(R.string.about_story_2), style = ThrumType.lead, color = ThrumInkSoft, modifier = Modifier.padding(top = Space.S3))
+        Text(stringResource(R.string.about_founder), style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = Space.S3))
 
         Spacer(Modifier.height(28.dp))
-
-        SettingsSectionTitle("Why Thrum")
-        Text(
-            "I wanted my phone to do more than play sound. I wanted to feel the music too.",
-            fontSize = 14.sp,
-            color = Color(0xFFF5F5F0),
-            lineHeight = 20.sp,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "I'd seen iPhones sync vibration with music, and I wanted that on Android, made from the songs already on my phone. So I built Thrum.",
-            fontSize = 14.sp,
-            color = Color(0xFFF5F5F0),
-            lineHeight = 20.sp,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "Mutalib Osman",
-            fontSize = 12.5.sp,
-            color = Color(0xFF8E8E86),
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        SettingsSectionTitle("Thrum Originals")
-        Text(
-            "Made for Thrum by .",
-            fontSize = 14.sp,
-            color = Color(0xFFF5F5F0),
-        )
-
-        Spacer(Modifier.weight(1f))
-        Spacer(Modifier.height(30.dp))
-
-        // Version & Privacy card
-        ThrumCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Version", fontSize = 14.5.sp, color = Color(0xFFF5F5F0))
-                    Text(BuildConfig.VERSION_NAME, fontSize = 14.sp, color = Color(0xFF8E8E86))
-                }
-                SettingsDivider()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                ) {
-                    Text(
-                        "No internet permission",
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFFF5F5F0),
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "Your songs never leave this phone.",
-                        fontSize = 12.5.sp,
-                        color = Color(0xFF8E8E86),
-                    )
-                }
-            }
+        ThrumCard(padding = PaddingValues(0.dp)) {
+            SettingsRow(name = stringResource(R.string.about_version, BuildConfig.VERSION_NAME))
+            SettingsDivider()
+            SettingsRow(
+                name = stringResource(R.string.about_no_internet),
+                sub = stringResource(R.string.about_no_internet_help),
+            )
         }
-
-        Spacer(Modifier.height(20.dp))
     }
 }
 
 /**
- * Screen 22: Phone check.
+ * Phone check, screen 22: what this phone can do. It measures the
+ * instrument, so the two hands-on tests live here: the tap test, and the
+ * phone's own buzz to hold Thrum's rhythm against — the comparison Task 15
+ * (fixing the hum) is judged by.
  */
 @Composable
 private fun PhoneCheckScreen(onClose: () -> Unit) {
     val ctx = LocalContext.current
     val capability = remember { Haptics.capability(ctx) }
     val scope = rememberCoroutineScope()
-    var ratePlaying by remember { mutableStateOf(0) }
+    val callAccess by rememberPolled(hasCallAccess(ctx)) { hasCallAccess(it) }
+    val musicAccess by rememberPolled(hasMusicAccess(ctx)) { hasMusicAccess(it) }
 
-    val callAccess by produceState(initialValue = false) {
-        while (true) {
-            value = NotificationManagerCompatHelper.isEnabled(ctx)
-            delay(POLL_MS)
-        }
+    // One test at a time owns the motor; leaving the screen ends it.
+    var ratePlaying by remember { mutableIntStateOf(0) }
+    var stockPlaying by remember { mutableStateOf(false) }
+    var testJob by remember { mutableStateOf<Job?>(null) }
+    fun stopTests() {
+        testJob?.cancel()
+        testJob = null
+        ratePlaying = 0
+        stockPlaying = false
+        Haptics.stop(ctx)
     }
-    val musicPermission = remember {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_AUDIO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-    }
-    val musicAccess by produceState(initialValue = false) {
-        while (true) {
-            value = ContextCompat.checkSelfPermission(ctx, musicPermission) ==
-                PackageManager.PERMISSION_GRANTED
-            delay(POLL_MS)
-        }
-    }
+    DisposableEffect(Unit) { onDispose { stopTests() } }
+    BackHandler(onBack = onClose)
 
-    fun runRateTest() {
-        scope.launch {
-            for (rate in RATE_LADDER) {
-                ratePlaying = rate
-                val train = Demo.pulseTrain(rate)
-                Haptics.play(ctx, train)
-                delay(train.durationMs + RATE_GAP_MS)
-                Haptics.stop(ctx)
-                delay(RATE_GAP_MS)
-            }
-            ratePlaying = 0
-        }
-    }
+    ThrumPage(overTabs = true) {
+        ThrumTopBar(title = stringResource(R.string.phonecheck_title), onBack = onClose)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF131312))
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 22.dp, vertical = 12.dp)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        // Topbar
-        Row(
+        Text(
+            stringResource(if (capability.usable) R.string.phonecheck_good_title else R.string.phonecheck_bad_title),
+            style = ThrumType.statement,
+            color = if (capability.usable) ThrumAccentInk else ThrumWarn,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable(onClick = onClose),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                ThrumIcon.Back(tint = Color(0xFFF5F5F0), size = 20.dp)
-            }
-            Text(
-                "Phone check",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFF5F5F0),
+                .padding(top = Space.S2, bottom = 20.dp)
+                .semantics { heading() },
+        )
+
+        ThrumCard(padding = PaddingValues(0.dp)) {
+            CheckRow(
+                name = stringResource(R.string.phonecheck_motor),
+                value = stringResource(if (capability.hasVibrator) R.string.phonecheck_yes else R.string.phonecheck_none),
+                ok = capability.hasVibrator,
+            )
+            SettingsDivider()
+            CheckRow(
+                name = stringResource(R.string.phonecheck_amplitude),
+                sub = stringResource(R.string.phonecheck_amplitude_help),
+                value = stringResource(if (capability.amplitudeControl) R.string.phonecheck_yes else R.string.phonecheck_no),
+                ok = capability.amplitudeControl,
+            )
+            SettingsDivider()
+            CheckRow(
+                name = stringResource(R.string.settings_call_access),
+                value = stringResource(if (callAccess) R.string.settings_on else R.string.settings_off),
+                ok = callAccess,
+            )
+            SettingsDivider()
+            CheckRow(
+                name = stringResource(R.string.settings_music_access),
+                value = stringResource(if (musicAccess) R.string.settings_on else R.string.settings_off),
+                ok = musicAccess,
             )
         }
 
-        Spacer(Modifier.height(8.dp))
-
-        // Statement
-        Text(
-            if (capability.usable) "Your phone can do it" else "Your phone can't do this",
-            fontSize = 31.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFFD8C513),
-            lineHeight = 36.sp,
-        )
-
-        Spacer(Modifier.height(20.dp))
-
-        // Status Card list
-        ThrumCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                CheckItemRow(
-                    name = "Vibration motor",
-                    value = if (capability.hasVibrator) "Yes" else "None",
-                    checked = capability.hasVibrator,
-                )
-                SettingsDivider()
-                CheckItemRow(
-                    name = "Strength control",
-                    sub = "The part rhythm needs",
-                    value = if (capability.amplitudeControl) "Yes" else "No",
-                    checked = capability.amplitudeControl,
-                )
-                SettingsDivider()
-                CheckItemRow(
-                    name = "Call access",
-                    value = if (callAccess) "On" else "Off",
-                    checked = callAccess,
-                )
-                SettingsDivider()
-                CheckItemRow(
-                    name = "Music access",
-                    value = if (musicAccess) "On" else "Off",
-                    checked = musicAccess,
+        // The tap test. Nothing here claims a speed: the user's own hand
+        // finds where the taps blur. The first UI printed "up to 8 a second,
+        // measured on this phone" — the 8 was measured on Mutalib's Pixel.
+        Overline(stringResource(R.string.rate_title), modifier = Modifier.padding(top = Space.S5, bottom = Space.S2, start = 2.dp))
+        ThrumCard(padding = PaddingValues(18.dp)) {
+            Text(stringResource(R.string.rate_help), style = ThrumType.body, color = ThrumInkSoft)
+            if (ratePlaying > 0) {
+                Text(
+                    stringResource(R.string.rate_playing, ratePlaying),
+                    style = ThrumType.figure,
+                    color = ThrumAccentInk,
+                    modifier = Modifier.padding(top = Space.S3),
                 )
             }
+            SecondaryButton(
+                text = stringResource(if (ratePlaying > 0) R.string.ready_stop else R.string.rate_run),
+                small = true,
+                onClick = {
+                    if (ratePlaying > 0) {
+                        stopTests()
+                    } else {
+                        stopTests()
+                        testJob = scope.launch {
+                            for (rate in RATE_LADDER) {
+                                ratePlaying = rate
+                                val train = Demo.pulseTrain(rate)
+                                Haptics.play(ctx, train)
+                                delay(train.durationMs + RATE_GAP_MS)
+                                Haptics.stop(ctx)
+                                delay(RATE_GAP_MS)
+                            }
+                            ratePlaying = 0
+                            testJob = null
+                        }
+                    }
+                },
+                modifier = Modifier.padding(top = 14.dp),
+            )
         }
 
-        Spacer(Modifier.height(24.dp))
-
-        // Sect: How fast can it tap?
-        SettingsSectionTitle("How fast can it tap?")
-        ThrumCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Text(
-                    "Separate taps up to 8 a second",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFF5F5F0),
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Measured on this phone. Faster than that, the taps blur into one buzz.",
-                    fontSize = 12.5.sp,
-                    color = Color(0xFF8E8E86),
-                    lineHeight = 17.sp,
-                )
-
-                if (ratePlaying > 0) {
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "$ratePlaying / sec",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD8C513),
-                    )
-                }
-
-                Spacer(Modifier.height(14.dp))
-                SecondaryButton(
-                    text = "Run the tap test again",
-                    onClick = { runRateTest() },
-                )
-            }
+        // The phone's own call vibration, read off this phone's own record:
+        // one second full, one second still, repeating.
+        Overline(stringResource(R.string.phonecheck_buzz_title), modifier = Modifier.padding(top = Space.S5, bottom = Space.S2, start = 2.dp))
+        ThrumCard(padding = PaddingValues(18.dp)) {
+            Text(stringResource(R.string.ready_stock_help), style = ThrumType.body, color = ThrumInkSoft)
+            SecondaryButton(
+                text = stringResource(if (stockPlaying) R.string.ready_stock_stop else R.string.ready_stock),
+                small = true,
+                onClick = {
+                    // Decided before anything is cleared: the label says
+                    // "Stop the buzz" while it plays. Checking after the
+                    // clear-up was the dead-stop bug fixed on 3 October.
+                    val wasPlaying = stockPlaying
+                    stopTests()
+                    if (wasPlaying) return@SecondaryButton
+                    if (Haptics.playStockRingtoneBuzz(ctx) == null) {
+                        stockPlaying = true
+                        // It repeats for ever, so it always gets a cap.
+                        testJob = scope.launch {
+                            delay(Haptics.STOCK_BUZZ_MS)
+                            stopTests()
+                        }
+                    }
+                },
+                modifier = Modifier.padding(top = 14.dp),
+            )
         }
-
-        Spacer(Modifier.height(20.dp))
     }
 }
 
 @Composable
-private fun CheckItemRow(
-    name: String,
-    sub: String? = null,
-    value: String,
-    checked: Boolean,
-) {
+private fun CheckRow(name: String, value: String, ok: Boolean, sub: String? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(horizontal = Space.S4, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.S3),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.weight(1f),
-        ) {
-            ThrumIcon.Check(
-                tint = if (checked) Color(0xFFD8C513) else Color(0xFF8E8E86),
-                size = 18.dp,
-            )
-            Column {
-                Text(
-                    name,
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFF5F5F0),
-                )
-                if (sub != null) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        sub,
-                        fontSize = 12.5.sp,
-                        color = Color(0xFF8E8E86),
-                    )
-                }
-            }
+        ThrumIcon(name = if (ok) "check" else "x", tint = if (ok) ThrumAccentInk else ThrumInk2, size = 18.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(name, style = ThrumType.row, color = ThrumInk)
+            if (sub != null) Text(sub, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
         }
-        Text(
-            value,
-            fontSize = 14.sp,
-            color = Color(0xFF8E8E86),
-        )
+        Text(value, style = ThrumType.body, color = ThrumInk2)
     }
 }
 
 private val RATE_LADDER = listOf(2, 3, 4, 6, 8, 12)
 private const val RATE_GAP_MS = 900L
-
-private object NotificationManagerCompatHelper {
-    fun isEnabled(ctx: android.content.Context): Boolean =
-        androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(ctx)
-            .contains(ctx.packageName)
-}

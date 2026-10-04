@@ -9,9 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -20,12 +18,14 @@ import androidx.compose.ui.unit.dp
 /**
  * The score, drawn. Thrum's signature visual element.
  *
- * Configurable to draw:
- * - Real live score waveforms
- * - Mirrored raw audio waveforms
- * - Preset pattern ribbons (buzz, afro, heart, pulse, energy)
- * - Mini ribbons in list rows
- * - Progress playheads
+ * It draws **a real score** — the song's own haptic, the call song, the
+ * demo rhythm the app actually plays — or one of the preset shapes below,
+ * which only ever illustrate a preset or a diagram, never stand in for a
+ * song. The first UI drew the same made-up "afro" shape on every song row,
+ * which said every song felt the same.
+ *
+ * [progress] draws a playhead from 0 to 1; anything else draws none.
+ * [mirror] draws the bars around the middle, the way a sound wave is drawn.
  */
 @Composable
 fun PulseRibbon(
@@ -36,14 +36,14 @@ fun PulseRibbon(
     progress: Float = -1f,
     fill: Float = 1f,
     mirror: Boolean = false,
-    glow: Boolean = false,
     height: Dp = Ribbon.height,
     barWidth: Dp = Ribbon.barWidth,
     barGap: Dp = Ribbon.barGap,
     modifier: Modifier = Modifier,
-    barColour: Color = Color(0xFFD8C513),
-    silentColour: Color = Color(0xFF3A3A36),
-    playedColour: Color = Color(0xFFEFEFEA),
+    barColour: Color = ThrumAccentInk,
+    silentColour: Color = ThrumRule,
+    playedColour: Color = ThrumInk,
+    mirrorColour: Color = ThrumInk2,
 ) {
     val rawAmps = remember(score, amplitudes, pattern, limit) {
         val base = when {
@@ -55,32 +55,23 @@ fun PulseRibbon(
         if (limit != null && limit < base.size) base.subList(0, limit) else base
     }
 
-    val label = when {
-        score != null -> "The rhythm: ${score.pulseCount()} hits over ${score.durationMs / 1000} seconds"
-        pattern != null -> "Rhythm pattern $pattern"
-        else -> "Waveform ribbon"
+    // A real score is described to a screen reader; a preset shape is
+    // decoration and stays silent ("Rhythm pattern afro" told nobody anything).
+    val label = score?.let {
+        stringResource(R.string.ribbon_label, it.pulseCount(), clockOf(it.durationMs))
     }
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .semantics { contentDescription = label },
+            .then(if (label != null) Modifier.semantics { contentDescription = label } else Modifier),
     ) {
         val barPx = barWidth.toPx()
         val gapPx = barGap.toPx()
         val slot = barPx + gapPx
         val columns = (size.width / slot).toInt().coerceAtLeast(1)
         val h = size.height
-
-        if (glow) {
-            drawIntoCanvas { canvas ->
-                val nativePaint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.parseColor("#D8C513")
-                    setShadowLayer(24f, 0f, 0f, android.graphics.Color.parseColor("#D8C513"))
-                }
-            }
-        }
 
         if (rawAmps.isEmpty()) {
             val y = if (mirror) (h - 2f) / 2f else h - 2f
@@ -105,7 +96,7 @@ fun PulseRibbon(
             val topY = if (mirror) (h - bh) / 2f else h - bh
 
             val color = when {
-                mirror -> Color(0xFF6E6E68)
+                mirror -> mirrorColour
                 drawn == 0 -> silentColour
                 progress >= 0f && c <= playedUpTo -> playedColour
                 else -> barColour
@@ -118,7 +109,9 @@ fun PulseRibbon(
             )
         }
 
-        if (progress in 0f..1f) {
+        // The width guard is not decoration: coerceIn throws on an empty range,
+        // and a ribbon squeezed under two pixels wide would take the app down.
+        if (progress in 0f..1f && size.width > 2f) {
             val x = (progress * columns * slot).coerceIn(0f, size.width - 1.5f)
             drawRect(
                 color = playedColour,

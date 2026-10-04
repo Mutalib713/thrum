@@ -218,8 +218,12 @@ object Player {
         start(ctx, queue[target], now?.hearAndFeel ?: true)
     }
 
-    private fun start(ctx: Context, track: Track, hearAndFeel: Boolean) {
+    private fun start(ctx: Context, track: Track, requestedHearAndFeel: Boolean) {
         appCtx = ctx.applicationContext
+        // An imported haptic has no song behind it — the file never held
+        // one — so it plays feel-only whoever asks. Asking it for sound used
+        // to leave the player stuck on a source that does not exist.
+        val hearAndFeel = requestedHearAndFeel && !ThrumFile.isImported(track.sourceUri)
         startJob?.cancel()
         startJob = scope.launch {
             stopDrive()
@@ -268,6 +272,7 @@ object Player {
                 durationMs = ready.score.durationMs,
                 playing = true,
             )
+            Store(ctx).addRecent(track.sourceUri)
 
             if (hearAndFeel) {
                 prepareAudio(ctx, track.sourceUri)
@@ -331,6 +336,30 @@ object Player {
         tickerJob?.cancel()
         tickerJob = null
     }
+
+    /**
+     * The Tune screen rebuilt this song's haptic. If it is the song playing,
+     * the new one takes over from where things are — the drive restarts from
+     * the true position, the same way a switch to "feel only" does.
+     */
+    fun retuned(ctx: Context, updated: Haptic) {
+        val current = now ?: return
+        if (current.track.sourceUri != updated.trackUri) return
+        haptic = updated
+        now = current.copy(durationMs = updated.score.durationMs)
+        if (current.playing) {
+            scope.launch {
+                if (!current.hearAndFeel) feelOnlyElapsedMs = feelClockMs()
+                stopDrive()
+                Haptics.stop(ctx)
+                drive(updated.score, current.hearAndFeel, resume = true)
+            }
+        }
+    }
+
+    /** Whether this song is what calls play, for the "Calls" mark on its page. */
+    fun isCallSong(ctx: Context): Boolean =
+        now?.track?.sourceUri?.let { it == Store(ctx).sourceUri } == true
 
     /** "Use for calls": this song's first 45 seconds become what a call plays. */
     fun useForCalls(ctx: Context) {

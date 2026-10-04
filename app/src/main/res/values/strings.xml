@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Thrum</string>
-    <string name="tagline">Vibrate mode, playing your own music</string>
 
     <!-- Blocked: the motor cannot vary strength. Terminal, and honest about it. -->
     <string name="blocked_title">This phone can\'t do it</string>
@@ -18,9 +17,6 @@
     <string name="permission_action">Turn on notification access</string>
 
     <!-- Empty -->
-    <string name="empty_title">Pick the song you want to feel</string>
-    <string name="empty_body">Any track on your phone. Thrum follows the bass and drums, and
-        makes your phone vibrate to them when someone calls.</string>
     <string name="empty_action">Choose a song</string>
 
     <!-- Loading -->
@@ -35,8 +31,6 @@
 
     <!-- Ready -->
     <string name="ready_meta">%1$s · %2$d hits</string>
-    <string name="ready_action">Use this when someone calls</string>
-    <string name="ready_preview">Play it with the song</string>
     <!-- Renamed in Task 19: "feel it on its own" became the test call, and the
         name matters — a test call plays exactly what a call plays, through the
         same route, so on Silent it stays silent and the test never lies. -->
@@ -56,21 +50,26 @@
 
     <!-- Armed -->
     <string name="armed_title">Ready</string>
-    <string name="armed_change">Choose a different song</string>
 
     <!-- Home. Task 19: the song for calls, the test call that never lies
             (it plays through the same route a call does, so on Silent it
             stays silent, exactly as a call would), the 45-second window, and
             the last call line read from the event log. -->
     <string name="home_for_calls">For calls</string>
-    <string name="home_not_set">not set yet</string>
-    <string name="home_verdict_row">%1$s · %2$s</string>
     <string name="home_ringer_vibrate">on vibrate</string>
     <string name="home_ringer_ring">on ring</string>
     <string name="home_ringer_silent">on silent</string>
     <string name="home_ringer_unknown">ringer unreadable</string>
     <string name="home_calls_window">Calls use the first 45 seconds of the song, repeated until you answer.</string>
     <string name="home_last_call">Last call, %1$s: Thrum started your haptic %2$s after it rang.</string>
+    <!-- 2026-10-04 review. Screen 27 in the final screens' own words, without
+         the demo pattern the first UI offered there (PROFILE §4 item 3). -->
+    <string name="home_none_title">No song for calls</string>
+    <string name="home_none_body">Calls use Android\'s normal buzz until you pick one.</string>
+    <string name="home_none_music">Or find one in Music</string>
+    <string name="home_change">Change</string>
+    <string name="home_recent">Recently played</string>
+    <string name="ribbon_label">The rhythm: %1$d hits over %2$s</string>
 
     <!-- Setup. Task 9, and it is short on purpose: the supersede measurement
          (PROFILE.md §11 R2) removed almost everything this screen was going to
@@ -82,8 +81,6 @@
          "no sound". -->
     <string name="setup_wont_title">Won\'t work yet</string>
 
-    <string name="setup_vibrate">Your phone is on vibrate, so next time it rings, this is what
-        you feel.</string>
 
     <string name="setup_ring_on">Your phone is ringing, so you will hear your ringtone and feel
         this. Unless they are the same file, those are two different songs.</string>
@@ -103,7 +100,6 @@
 
     <!-- The technical row, for the kind of person who wants the numbers -->
     <string name="tech_row">%1$d steps · %2$d ms each · still %3$d%% of the time</string>
-    <string name="armed_indicator">Armed</string>
     <!-- Tune the feel. Task 24, screen 15. The dials carry their design names —
             Intensity, Focus, Duration — and the presets are the three points the
             2026-09-21 measurement actually walked: they change exactly the
@@ -129,6 +125,11 @@
     <string name="tune_problem">The dials can\'t change this rhythm at the moment. %1$s</string>
     <string name="tune_no_source">The file it was built from is no longer recorded, so there is
         nothing to rebuild it from. Choose the song again to change the feel.</string>
+    <string name="tune_imported">This haptic came from a Thrum file, so there\'s no song to rebuild it from.</string>
+    <string name="tune_defaults_note">There\'s no song for calls yet, so these set the feel every new haptic starts with.</string>
+    <string name="tune_fine">Fine-tune</string>
+    <string name="tune_feel">Feel it</string>
+    <string name="tune_done">Done</string>
     <string name="rate_title">How fast can this phone tap?</string>
     <string name="rate_help">Plays the same tap at six speeds, slowest first, with a pause
         between each. Hold the phone and notice where the taps stop feeling separate and turn into
@@ -156,6 +157,10 @@
     <string name="onboarding_feel_android">Android today</string>
     <string name="onboarding_feel_thrum">With Thrum</string>
     <string name="onboarding_feel_note">This needs no permission at all.</string>
+    <string name="onboarding_feel_title">Feel the difference</string>
+    <string name="onboarding_diagram_sound">The sound</string>
+    <string name="onboarding_diagram_beats">The beats</string>
+    <string name="onboarding_diagram_phone">Your phone</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_sources_title">Calls, music and videos</string>
     <string name="onboarding_sources_body">Anything with a beat can become something you feel.</string>
@@ -181,17 +186,12 @@
     <string name="onboarding_done_action">Choose a song for calls</string>
     <string name="onboarding_done_look">Look around first</string>
 
-    <!-- The tabs. Home carries the calls screen; the other three are honest
-         about what this build does not have yet — their screens arrive with
-         Tasks 20, 23 and 26, and a stub that pretends otherwise would be a
-         screen reporting an intention. -->
+    <!-- The tabs, in the order the final screens fix: Home first, because
+         calls come first. -->
     <string name="tab_home">Home</string>
     <string name="tab_haptics">My Haptics</string>
     <string name="tab_music">Music</string>
     <string name="tab_settings">Settings</string>
-    <string name="stub_haptics_body">Every haptic you make will live here, one per song, video or file. This build starts with calls.</string>
-    <string name="stub_music_body">Scanning your music arrives with the library. This build starts with calls.</string>
-    <string name="stub_settings_body">Everything you can change lives on the Home tab for now.</string>
 
     <!-- The Music tab. Task 20: the scan asks for music access only when the
             user taps "Scan for music"; refusing it leaves "pick one song",
@@ -210,15 +210,14 @@
     <string name="music_denied_settings">Turn on music access</string>
     <string name="music_empty_after_scan">Nothing found. If your music lives somewhere unusual, \"Pick one song\" reaches anywhere the file chooser does.</string>
     <string name="music_no_match">Nothing matches that search.</string>
+    <string name="music_scan_failed">The scan stopped before it finished. Try again.</string>
 
     <!-- The player. Task 21, screens 13 and 14. The haptic is made on first
             play — about eight seconds, once per song — and the drive re-syncs
             against the audio at every piece join, so drift never compounds. -->
     <string name="player_close">Close</string>
-    <string name="player_artist_source">%1$s · Music</string>
     <string name="player_making_title">Making its haptic</string>
     <string name="player_making_body">About 8 seconds, the first time only.</string>
-    <string name="player_stats">%1$s · %2$d hits · still %3$d%% of the time</string>
     <string name="player_hear_feel">Hear and feel</string>
     <string name="player_feel_only">Feel only</string>
     <string name="player_previous">Previous</string>
@@ -228,13 +227,18 @@
     <string name="player_use_calls">Use for calls</string>
     <string name="player_using_calls">This is your song for calls. Home shows it, and a test call plays its first 45 seconds.</string>
     <string name="player_unreadable">This phone can\'t read this file.</string>
+    <string name="player_hits">%1$d hits · still %2$d%%</string>
+    <!-- The final screens' own word. "Tune the feel" did not fit beside "Use for calls". -->
+    <string name="player_tune">Tune</string>
 
     <!-- Making haptics. Task 22: the question is asked once, after the first
             scan; the answer is changeable in Settings (Task 26). The
             background walk is honest about battery — the design says so and
             R12 records why. -->
-    <string name="make_title">Found your music: make haptics?</string>
-    <string name="make_count">Found %1$d songs</string>
+    <plurals name="make_count">
+        <item quantity="one">Found %1$d song</item>
+        <item quantity="other">Found %1$d songs</item>
+    </plurals>
     <string name="make_question">Make their haptics now? Each song takes about 8 seconds on your phone.</string>
     <string name="make_background">All of them, in the background</string>
     <string name="make_background_help">Thrum works through them while you use your phone. It uses some battery while it does.</string>
@@ -247,8 +251,7 @@
 
     <!-- My Haptics and the Create flow. Task 23: videos and files arrive one
             at a time through the phone's own chooser — Thrum never asks to see
-            all videos. "A Thrum file" waits for Task 25's export/import and is
-            not drawn pretending. -->
+            all videos. "A Thrum file" is import, live since Task 25. -->
     <string name="haptics_filter_all">All</string>
     <string name="haptics_filter_music">Music</string>
     <string name="haptics_filter_videos">Videos</string>
@@ -266,6 +269,10 @@
     <string name="create_file">An audio file</string>
     <string name="create_song">A song</string>
     <string name="create_privacy">Videos and files open your phone\'s own file chooser. Thrum reads only the one you pick.</string>
+    <string name="create_video_help">Feel the sound from any video</string>
+    <string name="create_file_help">A voice note, ringtone or recording</string>
+    <string name="create_song_help">Your music is already in the Music tab</string>
+    <string name="import_option_help">Open a haptic you exported</string>
 
     <!-- Export and import. Task 25, screen 17. The file holds the score and
             the tuning, never audio and never a URI — Rule 3's export
@@ -276,7 +283,23 @@
     <string name="export_what">What to export</string>
     <string name="export_this_song">This song</string>
     <string name="export_all_songs">All songs</string>
-    <string name="export_missing">%1$d songs don\'t have a haptic yet. They\'re being made in the background — export again after, or play them to jump the queue.</string>
+    <plurals name="export_missing">
+        <item quantity="one">%1$d song doesn\'t have a haptic yet. It\'s being made in the background — export again after, or play it to jump the queue.</item>
+        <item quantity="other">%1$d songs don\'t have a haptic yet. They\'re being made in the background — export again after, or play them to jump the queue.</item>
+    </plurals>
+    <!-- 2026-10-04 review: in "as I play them" mode nothing is made in the
+         background, so the line above would not be true there. -->
+    <plurals name="export_missing_as_played">
+        <item quantity="one">%1$d song doesn\'t have a haptic yet. Play it to make its haptic, then export again.</item>
+        <item quantity="other">%1$d songs don\'t have a haptic yet. Play them to make their haptics, then export again.</item>
+    </plurals>
+    <plurals name="export_count_all">
+        <item quantity="one">%1$d haptic</item>
+        <item quantity="other">%1$d haptics</item>
+    </plurals>
+    <string name="export_nothing">Nothing to export yet. Play a song or make a haptic first.</string>
+    <string name="export_as">As</string>
+    <string name="export_file_name">Thrum haptics</string>
     <string name="export_format_files">Thrum pattern files</string>
     <string name="export_format_files_help">Back them up, or open them in Thrum on another phone.</string>
     <string name="export_format_ringtone">Ringtones with the vibration inside</string>
@@ -317,8 +340,6 @@
     <string name="about_story_1">I wanted my phone to do more than play sound. I wanted to feel the music too.</string>
     <string name="about_story_2">I\'d seen iPhones sync vibration with music, and I wanted that on Android, made from the songs already on my phone. So I built Thrum.</string>
     <string name="about_founder">Mutalib Osman</string>
-    <string name="about_originals">Thrum Originals</string>
-    <string name="about_originals_note">Made from open-licence music, curated to be felt. The credits travel with the collection.</string>
     <string name="about_no_internet">No internet permission</string>
     <string name="about_no_internet_help">Your songs never leave this phone.</string>
     <string name="about_version">Version %1$s</string>
@@ -331,6 +352,7 @@
     <string name="phonecheck_yes">Yes</string>
     <string name="phonecheck_no">No</string>
     <string name="phonecheck_none">None</string>
+    <string name="phonecheck_buzz_title">Your phone\'s own buzz</string>
     <string name="home_card_music">Music</string>
     <string name="home_card_music_help">Play and feel your songs</string>
     <string name="home_card_create">Create</string>

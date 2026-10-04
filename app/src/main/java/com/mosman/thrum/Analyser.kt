@@ -476,6 +476,39 @@ class ScoreBuilder(
         }
 
         /**
+         * A whole song's haptic, with all three dials: what the library
+         * stores and the player plays in pieces. No trim, no coarsening —
+         * PROFILE §8; a call takes its own window from it.
+         */
+        fun wholeScore(levels: Levels, stepMs: Int, name: String, punch: Int, distance: Int, bodyMs: Int): Score =
+            toScore(
+                levels,
+                stepMs,
+                name,
+                minFelt = punch,
+                bodyMs = bodyMs,
+                bodyCeiling = ceilingFor(punch, distance),
+            )
+
+        /**
+         * What a call plays: the first [RINGTONE_SECONDS] at full 20 ms
+         * detail, with all three dials, repeated by the listener until the
+         * call is answered (PROFILE §4 item 3).
+         *
+         * **One definition, because two drifted.** The UI first drawn on the
+         * final screens built Home's call song from the whole track instead,
+         * with two of the three dials missing — so a three-minute song was
+         * squeezed to 40 ms steps to fit the vibrator's limit, the "chunky"
+         * feel Mutalib rejected on 21 September. Home's picker and the Tune
+         * screen both come through here now. `fitWithin` stays as the
+         * backstop for a step size this trim does not cover.
+         */
+        fun callScore(levels: Levels, stepMs: Int, name: String, punch: Int, distance: Int, bodyMs: Int): Score =
+            wholeScore(levels, stepMs, name, punch, distance, bodyMs)
+                .firstSeconds(RINGTONE_SECONDS)
+                .fitWithin(Haptics.MAX_STEPS)
+
+        /**
          * Kick drums live around 50–100 Hz and bass guitar just above. 200 Hz
          * keeps both and drops most of the vocal, which carries the melody but
          * not the pulse.

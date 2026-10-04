@@ -40,10 +40,12 @@ object ThrumFile {
 
     /**
      * Deterministic per name, so re-importing the same file overwrites its
-     * own row instead of piling up duplicates.
+     * own row instead of piling up duplicates. A pipe becomes a dash like a
+     * space does: stored lists of songs are pipe-joined ([HapticQueue],
+     * "Recently played"), and a name like "A|B" would split into two.
      */
     fun importedUriFor(name: String): String =
-        IMPORTED_SCHEME + name.trim().lowercase().replace(' ', '-').ifEmpty { "imported" }
+        IMPORTED_SCHEME + name.trim().lowercase().replace(' ', '-').replace('|', '-').ifEmpty { "imported" }
 
     /** One or more haptics as text. Blocks in, blocks out. */
     fun encode(haptics: List<Haptic>): String = haptics.joinToString("\n\n") { haptic ->
