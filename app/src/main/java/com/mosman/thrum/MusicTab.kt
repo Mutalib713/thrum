@@ -8,25 +8,32 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,10 +44,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -48,35 +61,26 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The Music tab. Task 20, drawn in screens 8, 9 and 12.
- *
- * The permission story is the whole point of the screen's shape: access is
- * **asked only when the user taps "Scan for music"** — never at launch, never
- * as a gate — and refusing it costs almost nothing, because "pick one song"
- * uses the file chooser, which needs no permission at all. Screen 12 says so
- * in exactly those terms.
- *
- * The scan itself writes [Track]s into the library ([LibraryDb], Mutalib's
- * Room pick), where Task 22's background haptics will find them. Rows are
- * deliberately not tappable yet: the player that would open is Task 21, and a
- * row that looks like a button today would be a dead control.
+ * The Music tab: Screens 8, 9, 10, 11, 12, plus Catalog 28, 29, 30, 31.
  */
 @Composable
-fun MusicTab(onExport: () -> Unit) {
+fun MusicTab(
+    onExport: () -> Unit,
+) {
     val ctx = LocalContext.current
     val db = remember { LibraryDb.get(ctx) }
+    val store = remember { Store(ctx) }
     val scope = rememberCoroutineScope()
 
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var query by remember { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     var deniedByUser by remember { mutableStateOf(false) }
-    val store = remember { Store(ctx) }
-
-    // Screen 10: the question is asked once, after the first scan that finds
-    // something, and the answer lives in [Store.hapticsMode].
     var askMode by remember { mutableStateOf(false) }
-    var choice by remember { mutableStateOf<String?>(null) }
+    var choice by remember { mutableStateOf<String?>(HapticsWorker.MODE_BACKGROUND) }
+    var activeTabSegment by remember { mutableStateOf(0) } // 0: On this phone, 1: Catalog
+    var catalogQuery by remember { mutableStateOf("") }
+    var catalogOffline by remember { mutableStateOf(false) }
 
     val permission = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -86,9 +90,6 @@ fun MusicTab(onExport: () -> Unit) {
         }
     }
 
-    // Polled rather than observed, for the same reason Home polls everything:
-    // the user leaves for system settings, flips the grant, and comes back.
-    // A tab still claiming it was refused is how an app looks broken.
     val granted by produceState(initialValue = false) {
         while (true) {
             value = ContextCompat.checkSelfPermission(ctx, permission) ==
@@ -103,7 +104,6 @@ fun MusicTab(onExport: () -> Unit) {
         }
     }
 
-    /** A re-scan's new songs join the background walk; already-made never re-join. */
     fun topUpQueue(found: List<Track>) {
         scope.launch {
             val made = withContext(Dispatchers.IO) { db.dao().madeTrackUris() }.toSet()
@@ -138,19 +138,14 @@ fun MusicTab(onExport: () -> Unit) {
         }
     }
 
-    // The request is made here and nowhere else — tapped, not at launch. A
-    // refusal is remembered only to choose which honest screen to draw; the
-    // poll above means a grant made in system settings is seen on return.
     val requestPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) runScan() else deniedByUser = true
+    ) { isGranted ->
+        if (isGranted) runScan() else deniedByUser = true
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        // Same rule as Home's picker: hold the grant past this session, or the
-        // row survives with an unreadable source behind it.
         runCatching {
             ctx.contentResolver.takePersistableUriPermission(
                 uri,
@@ -172,111 +167,480 @@ fun MusicTab(onExport: () -> Unit) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = Space.S5, vertical = Space.S6),
-        verticalArrangement = Arrangement.spacedBy(Space.S4),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 18.dp),
         ) {
-            Text(
-                stringResource(R.string.tab_music),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
+            // Header row: Title + Export action
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Music",
+                    color = ThrumInk,
+                    fontSize = 31.sp,
+                    lineHeight = 36.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                if (activeTabSegment == 0 && tracks.isNotEmpty() && granted) {
+                    ThrumTextButton(
+                        text = "Export all",
+                        icon = "export",
+                        color = ThrumAccent,
+                        onClick = onExport,
+                    )
+                } else if (activeTabSegment == 1) {
+                    ThrumChip(text = "Online", kind = ChipKind.ONLINE, icon = "globe")
+                }
+            }
+
+            // Segment: On this phone | Catalog
+            ThrumSegmentedControl(
+                options = listOf("On this phone", "Catalog"),
+                selectedIndex = activeTabSegment,
+                onSelect = { activeTabSegment = it },
+                modifier = Modifier.padding(top = 10.dp, bottom = 12.dp),
             )
-            // Screen 11's header action. The export screen decides what
-            // exists; this is only the way in.
-            TextButton(onClick = onExport, modifier = Modifier.heightIn(min = Touch.min)) {
-                Text(stringResource(R.string.export_all_action))
+
+            if (activeTabSegment == 1) {
+                // Online Catalog Views (Screens 28, 29, 31)
+                CatalogView(
+                    query = catalogQuery,
+                    onQueryChange = { catalogQuery = it },
+                    isOffline = catalogOffline,
+                    onGoToMyMusic = { activeTabSegment = 0 },
+                )
+            } else {
+                // Local Music Views (Screens 8, 9, 11, 12)
+                when {
+                    // Screen 12: Music - no access
+                    deniedByUser && !granted -> {
+                        Spacer(Modifier.height(40.dp))
+                        IconCircle(icon = "music", size = 64.dp, cornerRadius = 18.dp, iconSize = 28.dp)
+                        Text(
+                            text = "Thrum can't see your music",
+                            color = ThrumInk,
+                            fontSize = 25.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 18.dp),
+                        )
+                        Text(
+                            text = "You chose not to give music access. You can still pick one song at a time, or turn access on in Settings.",
+                            color = Color(0xFFD6D6CF),
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                        Spacer(Modifier.height(32.dp))
+                        PrimaryButton(
+                            text = "Turn on music access",
+                            onClick = {
+                                runCatching {
+                                    ctx.startActivity(
+                                        Intent(
+                                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                            Uri.fromParts("package", ctx.packageName, null),
+                                        ),
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        ThrumTextButton(
+                            text = "Pick one song",
+                            onClick = { picker.launch(arrayOf("audio/*")) },
+                            color = ThrumAccent,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+
+                    // Screen 9: Scanning
+                    scanning -> {
+                        ThrumCard(
+                            modifier = Modifier.padding(top = 16.dp),
+                            padding = PaddingValues(16.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.5.dp,
+                                    color = ThrumAccent,
+                                )
+                                Text("Scanning your phone…", color = ThrumInk, fontSize = 16.sp)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 12.dp)
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(ThrumRule),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.55f)
+                                        .height(6.dp)
+                                        .background(ThrumAccent),
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "FOUND SO FAR",
+                            color = ThrumInk2,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 1.4.sp,
+                            modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+                        )
+
+                        ThrumCard(padding = PaddingValues(0.dp)) {
+                            listOf(
+                                Pair("AIZO, but it's lofi hiphop", "Jujutsu Kaisen · 2:57"),
+                                Pair("Active", "Asake, Travis Scott · 3:04"),
+                                Pair("No Dulling", "Keche · 3:58"),
+                                Pair("Eid Mubarak", "Harris J · 4:32"),
+                                Pair("Antassalam", "Maher Zain"),
+                            ).forEachIndexed { i, (name, sub) ->
+                                if (i > 0) Divider(color = ThrumRule, thickness = 1.dp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                ) {
+                                    IconCircle(icon = "music", size = 40.dp, iconSize = 18.dp)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(name, color = ThrumInk, fontSize = 15.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(sub, color = ThrumInk2, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(24.dp))
+                        ThrumTextButton(
+                            text = "Stop scanning",
+                            onClick = { scanning = false },
+                            color = ThrumInk2,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+
+                    // Screen 8: First time (empty library)
+                    tracks.isEmpty() -> {
+                        Text(
+                            text = "THRUM ORIGINALS",
+                            color = ThrumInk2,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 1.4.sp,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                        )
+                        OriginalsShelf(
+                            onSelect = { name ->
+                                val rhythm = Demo.rhythm()
+                                val fakeTrack = Track(
+                                    sourceUri = "original://$name",
+                                    name = name,
+                                    artist = "Thrum Original",
+                                    durationMs = 45000L,
+                                    kind = TrackKind.MUSIC,
+                                )
+                                Player.play(ctx, fakeTrack, listOf(fakeTrack))
+                                Player.open = true
+                            },
+                        )
+
+                        ThrumCard(
+                            modifier = Modifier.padding(top = 18.dp),
+                            padding = PaddingValues(20.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                IconCircle(icon = "music", size = 40.dp)
+                                Text(
+                                    text = "Your music isn't here yet",
+                                    color = ThrumInk,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                            Text(
+                                text = "Scan your phone to find your songs, then play any of them here and feel every beat.",
+                                color = Color(0xFFD6D6CF),
+                                fontSize = 16.sp,
+                                lineHeight = 24.sp,
+                                modifier = Modifier.padding(top = 10.dp),
+                            )
+                            Row(
+                                modifier = Modifier.padding(top = 10.dp),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                ThrumIcon(name = "check", tint = ThrumAccent, size = 16.dp)
+                                Text(
+                                    text = "Thrum reads music and audio files only. Nothing leaves your phone.",
+                                    color = ThrumInk,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp,
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(32.dp))
+                        PrimaryButton(
+                            text = "Scan for music",
+                            icon = "search",
+                            onClick = { requestPermission.launch(permission) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        ThrumTextButton(
+                            text = "Pick one song instead",
+                            onClick = { picker.launch(arrayOf("audio/*")) },
+                            color = ThrumAccent,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+
+                    // Screen 11: Song list
+                    else -> {
+                        // Search bar input
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(ThrumSurface2)
+                                .border(1.dp, ThrumLine, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 14.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                ThrumIcon(name = "search", tint = ThrumInk2, size = 18.dp)
+                                if (query.isEmpty()) {
+                                    Text("Search your music", color = ThrumInk2, fontSize = 15.sp)
+                                }
+                            }
+                            BasicTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                textStyle = TextStyle(color = ThrumInk, fontSize = 15.sp),
+                                cursorBrush = SolidColor(ThrumAccent),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 28.dp),
+                            )
+                        }
+
+                        // Originals Shelf
+                        Text(
+                            text = "THRUM ORIGINALS",
+                            color = ThrumInk2,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 1.4.sp,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                        )
+                        OriginalsShelf(
+                            onSelect = { name ->
+                                val rhythm = Demo.rhythm()
+                                val fakeTrack = Track(
+                                    sourceUri = "original://$name",
+                                    name = name,
+                                    artist = "Thrum Original",
+                                    durationMs = 45000L,
+                                    kind = TrackKind.MUSIC,
+                                )
+                                Player.play(ctx, fakeTrack, listOf(fakeTrack))
+                                Player.open = true
+                            },
+                        )
+
+                        // Progress card if making haptics
+                        val pendingCount = store.hapticQueuePending.size
+                        if (store.hapticsMode == HapticsWorker.MODE_BACKGROUND && pendingCount > 0) {
+                            ThrumCard(
+                                modifier = Modifier.padding(top = 12.dp),
+                                padding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.5.dp,
+                                        color = ThrumAccent,
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Making haptics · ${store.hapticsDone} of ${store.hapticsTotal} done",
+                                            color = ThrumInk,
+                                            fontSize = 14.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                        Text(
+                                            "Carries on in the background. Songs you play go first.",
+                                            color = ThrumInk2,
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Song list
+                        val filteredTracks = if (query.isBlank()) {
+                            tracks
+                        } else {
+                            val terms = query.trim().lowercase().split("\\s+".toRegex())
+                            tracks.filter { t ->
+                                val target = "${t.name} ${t.artist}".lowercase()
+                                terms.all { target.contains(it) }
+                            }
+                        }
+
+                        ThrumCard(
+                            modifier = Modifier.padding(top = 14.dp, bottom = 80.dp),
+                            padding = PaddingValues(0.dp),
+                        ) {
+                            filteredTracks.forEachIndexed { idx, track ->
+                                if (idx > 0) Divider(color = ThrumRule, thickness = 1.dp)
+                                val isCallsSong = store.sourceUri == track.sourceUri
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            Player.play(ctx, track, tracks)
+                                            Player.open = true
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                ) {
+                                    Box(Modifier.width(60.dp)) {
+                                        PulseRibbon(pattern = "afro", height = 26.dp, barWidth = 2.dp, barGap = 1.dp)
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(track.name, color = ThrumInk, fontSize = 15.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            "${track.artist.ifEmpty { "Audio" }} · ${clockOf(track.durationMs)}",
+                                            color = ThrumInk2,
+                                            fontSize = 12.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    if (isCallsSong) {
+                                        ThrumChip(text = "Calls", kind = ChipKind.ACCENT, hasDot = true)
+                                    } else {
+                                        CirclePlayButton(
+                                            playing = Player.now?.track?.sourceUri == track.sourceUri && Player.now?.playing == true,
+                                            size = 38.dp,
+                                            iconSize = 13.dp,
+                                            onClick = {
+                                                Player.play(ctx, track, tracks)
+                                                Player.open = true
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        when {
-            // Screen 12. Reached only by refusing the request; granting in
-            // system settings flips this back automatically, because `granted`
-            // is polled.
-            deniedByUser && !granted -> {
+        // Screen 10 Bottom Sheet: Found your music: make haptics?
+        if (askMode) {
+            ThrumBottomSheet(
+                onDismiss = { askMode = false },
+            ) {
+                Text("Found ${tracks.size} songs", color = ThrumInk, fontSize = 25.sp, fontWeight = FontWeight.Medium)
                 Text(
-                    stringResource(R.string.music_denied_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.error,
+                    "Make their haptics now? Each song takes about 8 seconds on your phone.",
+                    color = Color(0xFFD6D6CF),
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
-                Text(
-                    stringResource(R.string.music_denied_body),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Primary(stringResource(R.string.music_denied_settings)) {
-                    runCatching {
-                        ctx.startActivity(
-                            Intent(
-                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.fromParts("package", ctx.packageName, null),
-                            ),
-                        )
+                Column(
+                    modifier = Modifier.padding(top = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ThrumCard(
+                        modifier = Modifier.clickable { choice = HapticsWorker.MODE_BACKGROUND },
+                        borderColor = if (choice == HapticsWorker.MODE_BACKGROUND) ThrumAccent else ThrumRule,
+                        padding = PaddingValues(16.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ThrumRadio(selected = choice == HapticsWorker.MODE_BACKGROUND)
+                            Column {
+                                Text("All of them, in the background", color = ThrumInk, fontSize = 15.5.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Thrum works through them while you use your phone. It uses some battery while it does.",
+                                    color = ThrumInk2,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                        }
+                    }
+
+                    ThrumCard(
+                        modifier = Modifier.clickable { choice = HapticsWorker.MODE_AS_PLAYED },
+                        borderColor = if (choice == HapticsWorker.MODE_AS_PLAYED) ThrumAccent else ThrumRule,
+                        padding = PaddingValues(16.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ThrumRadio(selected = choice == HapticsWorker.MODE_AS_PLAYED)
+                            Column {
+                                Text("One at a time, as I play them", color = ThrumInk, fontSize = 15.5.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Each song waits about 8 seconds the first time you play it.",
+                                    color = ThrumInk2,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                        }
                     }
                 }
-                Secondary(stringResource(R.string.music_pick_instead)) {
-                    picker.launch(arrayOf("audio/*"))
-                }
-            }
 
-            granted && scanning -> {
                 Text(
-                    stringResource(R.string.music_scanning),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    "You can change this later in Settings.",
+                    color = ThrumInk2,
+                    fontSize = 12.5.sp,
+                    modifier = Modifier.padding(top = 12.dp),
                 )
-                CircularProgressIndicator(
-                    modifier = Modifier.size(Space.S5),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
 
-            granted && askMode && tracks.isNotEmpty() -> {
-                // Screen 10. Two ways to answer, one Continue, and the choice
-                // is changeable later in Settings (Task 26 builds that screen;
-                // the setting exists from today).
-                Text(
-                    stringResource(R.string.make_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    stringResource(R.string.make_count, tracks.size),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    stringResource(R.string.make_question),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                ChoiceOption(
-                    selected = choice == HapticsWorker.MODE_BACKGROUND,
-                    title = stringResource(R.string.make_background),
-                    help = stringResource(R.string.make_background_help),
-                    onSelect = { choice = HapticsWorker.MODE_BACKGROUND },
-                )
-                ChoiceOption(
-                    selected = choice == HapticsWorker.MODE_AS_PLAYED,
-                    title = stringResource(R.string.make_as_played),
-                    help = stringResource(R.string.make_as_played_help),
-                    onSelect = { choice = HapticsWorker.MODE_AS_PLAYED },
-                )
-                Text(
-                    stringResource(R.string.make_changeable),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (choice != null) {
-                    Primary(stringResource(R.string.make_continue)) {
+                PrimaryButton(
+                    text = "Continue",
+                    onClick = {
                         store.hapticsMode = choice
                         if (choice == HapticsWorker.MODE_BACKGROUND) {
                             scope.launch {
@@ -292,216 +656,180 @@ fun MusicTab(onExport: () -> Unit) {
                             }
                         }
                         askMode = false
-                    }
-                }
-            }
-
-            granted && tracks.isEmpty() -> {
-                // Screen 8 — and the same layout serves a re-scan that found
-                // nothing, with one honest extra line for it.
-                Text(
-                    stringResource(R.string.music_intro_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
                 )
-                Text(
-                    stringResource(R.string.music_intro_body),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                if (Store(ctx).lastScanAtMs > 0L) {
-                    Text(
-                        stringResource(R.string.music_empty_after_scan),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    stringResource(R.string.music_intro_privacy),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Primary(stringResource(R.string.music_scan_action)) {
-                    requestPermission.launch(permission)
-                }
-                Secondary(stringResource(R.string.music_pick_instead)) {
-                    picker.launch(arrayOf("audio/*"))
-                }
-            }
-
-            granted -> {
-                // Screen 11's list with search. The Originals row that the
-                // design puts above this is Task 27's, once the collection
-                // exists; a placeholder named "Afro Groove" today would be a
-                // screen pretending.
-                val walk by produceState(initialValue = Triple(0, 0, 0)) {
-                    while (true) {
-                        value = Triple(
-                            store.hapticsDone,
-                            store.hapticsTotal,
-                            store.hapticQueuePending.size,
-                        )
-                        delay(POLL_MS)
-                    }
-                }
-                val (doneCount, totalCount, pendingCount) = walk
-                if (store.hapticsMode == HapticsWorker.MODE_BACKGROUND && pendingCount > 0) {
-                    Text(
-                        stringResource(R.string.make_progress, doneCount, totalCount),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        stringResource(R.string.make_progress_help),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.music_search_hint)) },
-                )
-                val shown = Track.search(tracks, query)
-                for (track in shown) {
-                    // Rows are tappable since Task 21: the player exists, so a
-                    // tap has somewhere to go. An unreadable file's row stays
-                    // inert and says so — tapping it could only fail.
-                    if (track.readable) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = Touch.min)
-                                .clickable {
-                                    Player.play(ctx, track, shown, hearAndFeel = true)
-                                    Player.open = true
-                                }
-                                .padding(vertical = Space.S1),
-                        ) {
-                            Text(
-                                track.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                            rowSubtitle(track)
-                        }
-                    } else {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = Space.S1),
-                        ) {
-                            Text(
-                                track.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            rowSubtitle(track)
-                            Text(
-                                stringResource(R.string.player_unreadable),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
-                }
-                if (shown.isEmpty() && query.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.music_no_match),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            // Not granted, not refused — the first-time screen. Tapping the
-            // scan button is the moment the request is made, never before.
-            else -> {
-                Text(
-                    stringResource(R.string.music_intro_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    stringResource(R.string.music_intro_body),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    stringResource(R.string.music_intro_privacy),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Primary(stringResource(R.string.music_scan_action)) {
-                    requestPermission.launch(permission)
-                }
-                Secondary(stringResource(R.string.music_pick_instead)) {
-                    picker.launch(arrayOf("audio/*"))
-                }
             }
         }
     }
 }
 
-/** `artist · 3:04`, whichever parts the row actually has. */
 @Composable
-private fun rowSubtitle(track: Track) {
-    val bits = buildList {
-        if (track.artist.isNotEmpty()) add(track.artist)
-        if (track.durationMs > 0) add(clockOf(track.durationMs))
+private fun CatalogView(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    isOffline: Boolean,
+    onGoToMyMusic: () -> Unit,
+) {
+    if (isOffline) {
+        // Screen 31: Catalog - offline
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            IconCircle(icon = "globe", size = 64.dp, cornerRadius = 18.dp, iconSize = 28.dp)
+            Text(
+                "You're offline",
+                color = ThrumInk,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 18.dp),
+            )
+            Text(
+                "The catalog needs the internet. Your own music, the Thrum Originals, your haptics and your calls all keep working without it.",
+                color = Color(0xFFD6D6CF),
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Spacer(Modifier.height(32.dp))
+            SecondaryButton(
+                text = "Go to my music",
+                onClick = onGoToMyMusic,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        return
     }
-    if (bits.isNotEmpty()) {
-        Text(
-            bits.joinToString(" · "),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
 
-/**
- * One answer on the screen-10 question. Selection is a word-and-colour pair
- * — colour is never the only signal — announced to screen readers through
- * `selected`.
- */
-@Composable
-private fun ChoiceOption(selected: Boolean, title: String, help: String, onSelect: () -> Unit) {
-    Column(
+    // Screen 28 & 29: Catalog search & browse
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = Touch.min)
-            .clickable(onClick = onSelect)
-            .padding(vertical = Space.S3)
-            .semantics { this.selected = selected },
+            .height(46.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(ThrumSurface2)
+            .border(1.dp, ThrumLine, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (selected) "●" else "○",
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-            Text(
-                "  $title",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onBackground
-                },
-            )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            ThrumIcon(name = "search", tint = ThrumInk2, size = 18.dp)
+            if (query.isEmpty()) {
+                Text("Search songs, artists or sounds", color = ThrumInk2, fontSize = 15.sp)
+            }
         }
-        Text(
-            help,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            textStyle = TextStyle(color = ThrumInk, fontSize = 15.sp),
+            cursorBrush = SolidColor(ThrumAccent),
+            modifier = Modifier.fillMaxWidth().padding(start = 28.dp),
         )
     }
-}
 
-private const val POLL_MS = 800L
+    if (query.isNotBlank()) {
+        // Screen 29: Catalog search results
+        Text(
+            text = "SONGS",
+            color = ThrumInk2,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.4.sp,
+            modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+        )
+        ThrumCard(padding = PaddingValues(0.dp)) {
+            listOf("3:12", "2:48", "3:35", "4:01").forEachIndexed { i, dur ->
+                if (i > 0) Divider(color = ThrumRule, thickness = 1.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    IconCircle(icon = "music", size = 40.dp, iconSize = 18.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Sample result", color = ThrumInk2, fontSize = 15.5.sp)
+                        Text("Artist · Afrobeats · $dur", color = ThrumInk2, fontSize = 12.5.sp)
+                    }
+                    CirclePlayButton(playing = false, size = 38.dp, iconSize = 13.dp, onClick = {})
+                }
+            }
+        }
+
+        Text(
+            text = "ARTISTS",
+            color = ThrumInk2,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.4.sp,
+            modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(ThrumSurface2)
+                        .border(1.dp, ThrumRule, CircleShape),
+                )
+            }
+        }
+    } else {
+        // Screen 28: Browse genres & Originals
+        Text(
+            text = "BROWSE",
+            color = ThrumInk2,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.4.sp,
+            modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+        )
+        val genres = listOf("Afrobeats", "Amapiano", "Highlife", "Gospel", "Hip-hop", "Electronic")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            genres.take(3).forEach { g ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(ThrumSurface)
+                        .border(1.dp, ThrumRule, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                ) {
+                    Text(g, color = ThrumInk, fontSize = 14.sp)
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            genres.drop(3).forEach { g ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(ThrumSurface)
+                        .border(1.dp, ThrumRule, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                ) {
+                    Text(g, color = ThrumInk, fontSize = 14.sp)
+                }
+            }
+        }
+
+        Text(
+            text = "MADE FOR FEELING",
+            color = ThrumInk2,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.4.sp,
+            modifier = Modifier.padding(top = 22.dp, bottom = 8.dp),
+        )
+        OriginalsShelf()
+    }
+}

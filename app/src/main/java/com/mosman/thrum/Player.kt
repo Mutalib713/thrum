@@ -88,7 +88,7 @@ object Player {
      * Play a track from the library. [queue] is the list it was tapped in, so
      * previous and next walk the same order the user was looking at.
      */
-    fun play(ctx: Context, track: Track, queue: List<Track>, hearAndFeel: Boolean) {
+    fun play(ctx: Context, track: Track, queue: List<Track>, hearAndFeel: Boolean = true) {
         this.queue = queue
         index = queue.indexOfFirst { it.sourceUri == track.sourceUri }
         start(ctx, track, hearAndFeel)

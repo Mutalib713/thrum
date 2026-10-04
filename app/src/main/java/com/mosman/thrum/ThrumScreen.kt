@@ -8,40 +8,32 @@ import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -51,13 +43,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -65,31 +57,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Thrum's one screen. Task 7.
- *
- * Seven states, all designed rather than discovered later — `design-brief.md`
- * Phase 1 lists them and this file builds every branch. The layout is a single
- * vertical column with no top app bar: there is one screen, and a wordmark is
- * not navigation.
+ * Home tab: screens 18, 23, 24, 27.
  */
-sealed interface UiState {
-    /** The motor cannot vary strength. Terminal, honest, no way forward. */
-    data object Blocked : UiState
-
-    /** Capable, but Android has not bound the notification listener. */
-    data object NeedsPermission : UiState
-
-    data object Empty : UiState
-    data class Reading(val name: String) : UiState
-    data class Failed(val message: String) : UiState
-    data class Ready(val score: Score, val armed: Boolean) : UiState
-}
-
 @Composable
 fun ThrumApp(
     onDiagnostics: (() -> Unit)? = null,
     onOpenMusic: (() -> Unit)? = null,
     onOpenCreate: (() -> Unit)? = null,
+    onOpenSettings: (() -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
     val store = remember { Store(ctx) }
@@ -100,37 +75,10 @@ fun ThrumApp(
     var armed by remember { mutableStateOf(store.armedScore != null) }
     var reading by remember { mutableStateOf<String?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
-    // Seeded from the stored source, not null. On a restart the armed score is
-    // restored but the levels are gone, and Preview used to be a dead button
-    // because `pickedUri` had nothing in it — the file was right there in
-    // storage the whole time. The draft pick lives here until Arm writes it.
     var pickedUri by remember { mutableStateOf(store.sourceUri?.let { Uri.parse(it) }) }
-    var progress by remember { mutableStateOf(-1f) }
     var ringMode by remember { mutableStateOf(store.fireInRingMode) }
-    var levels by remember { mutableStateOf<Levels?>(null) }
-    var levelStepMs by remember { mutableStateOf(Demo.STEP_MS) }
-    var trackName by remember { mutableStateOf(store.armedScore?.sourceName ?: "") }
-    var punch by remember { mutableStateOf(store.punch) }
-    var distance by remember { mutableStateOf(store.distance) }
-    var body by remember { mutableStateOf(store.body) }
+    var testCallActive by remember { mutableStateOf(false) }
 
-    /**
-     * True while the phone's own ringtone buzz is playing.
-     *
-     * Deliberately separate from [progress]: the ribbon draws the armed score, and
-     * animating it while a *different* vibration plays is exactly the class of lie
-     * this screen keeps having to fix. The ribbon stays on the score, and this
-     * flag only drives the button's own label.
-     */
-    var stockPlaying by remember { mutableStateOf(false) }
-    // Set when a dial cannot be honoured, and shown beside the dials rather than
-    // replacing the screen: the armed score is still armed and still plays, so
-    // throwing the user out to an error state would overstate the problem.
-    var rebuildProblem by remember { mutableStateOf<String?>(null) }
-
-    // Polled rather than observed: the user leaves for system settings and
-    // comes back, and a screen still showing "grant permission" after they
-    // granted it is the kind of thing people uninstall over.
     val permitted by produceState(initialValue = true) {
         while (true) {
             value = NotificationManagerCompat.getEnabledListenerPackages(ctx)
@@ -139,10 +87,6 @@ fun ThrumApp(
         }
     }
 
-    // The ringer mode, polled for the same reason the permission is: the user
-    // leaves for Settings and comes back, and a verdict one screen out of date is
-    // worse than none. This is the whole of Task 9 — see [Setup] for why there is
-    // nothing else left to ask the user to change.
     val ringer by produceState(initialValue = Setup.Ringer.UNKNOWN) {
         while (true) {
             value = Setup.Ringer.of(Haptics.ringerMode(ctx))
@@ -150,9 +94,6 @@ fun ThrumApp(
         }
     }
 
-    // Task 19: the last call Thrum actually played, for Home's line. Only a
-    // FIRED counts — a skipped call is the app declining, and reporting one
-    // would be a surface reporting an intention. Polled with the rest.
     val lastCall by produceState<Event?>(initialValue = null) {
         while (true) {
             value = Home.lastCall(store.events())
@@ -160,1025 +101,487 @@ fun ThrumApp(
         }
     }
 
-    val player = remember { mutableStateOf<MediaPlayer?>(null) }
-
-    // The coroutine driving the ribbon's playhead, held so it can be cancelled.
-    //
-    // Found on the device: without this, Stop silenced the motor but the sweep
-    // kept running and immediately wrote `progress` back, so the playhead
-    // carried on travelling and the Stop button stayed on screen for the rest of
-    // the track — nearly three minutes on a 2:44 song. The vibrator's own record
-    // said `CurrentVibration: null` while the UI still claimed to be playing,
-    // which is this project's recurring bug in its newest costume: the screen
-    // reporting an intention rather than a fact.
-    val sweepJob = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-
-    fun stopEverything() {
-        // The player owns the motor too — Home's test call must not fight a
-        // running song, so it stands the player down first.
-        Player.stopAll()
-        sweepJob.value?.cancel()
-        sweepJob.value = null
-        Haptics.stop(ctx)
-        stockPlaying = false
-        player.value?.runCatching { if (isPlaying) stop() }
-        player.value?.runCatching { release() }
-        player.value = null
-        progress = -1f
-    }
-    DisposableEffect(Unit) { onDispose { stopEverything() } }
-
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        stopEverything()
-        // Hold the permission past this session, so the file can be analysed
-        // again after a restart. Without it the URI survives and the access
-        // does not, which is worse than not storing it.
         runCatching {
             ctx.contentResolver.takePersistableUriPermission(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
         }
-        // The draft pick only — not written to storage here.
-        //
-        // It used to be, and that was a Task 8 defect: choosing a file and then
-        // walking away left the *armed* score's stored URI pointing at the file
-        // that was merely being auditioned. After a restart the score was A's but
-        // the file was B's, so the tuning dials rebuilt B's amplitudes under A's
-        // name. The source is written when the user actually arms, by [Store.arm].
         pickedUri = uri
-        failure = null
-        rebuildProblem = null
-        val name = AudioDecoder.displayName(ctx, uri)
-        reading = name
+        reading = AudioDecoder.displayName(ctx, uri)
         scope.launch {
             var builder: ScoreBuilder? = null
             val result = withContext(Dispatchers.IO) {
                 AudioDecoder.decode(
                     ctx,
                     uri,
-                    onFormat = { rate, _ -> builder = ScoreBuilder(rate, name = name) },
+                    onFormat = { rate, _ ->
+                        builder = ScoreBuilder(rate, name = AudioDecoder.displayName(ctx, uri))
+                    },
                     onMono = { samples, count -> builder?.feed(samples, count) },
                 )
             }
-            reading = null
-            when (result) {
-                is Decoded.Failed -> {
-                    failure = result.message
-                    // A failed draft pick must not blank a rhythm that is still
-                    // armed and still what the phone will play. Storage is
-                    // untouched either way; this keeps the screen honest about it.
-                    if (!armed) score = null
-                }
-
-                is Decoded.Ok -> {
-                    // Keep the analysed levels, not just the finished score:
-                    // moving a slider then costs nothing, where re-decoding
-                    // costs seven seconds. Tuning by feel is many small
-                    // adjustments, and a wait between each is how tuning stops
-                    // happening.
-                    levels = builder?.levels()
-                    levelStepMs = builder?.stepMsUsed ?: Demo.STEP_MS
-                    trackName = name
-                    // Trim before fitting. Trimming keeps 20 ms steps; fitting
-                    // would have halved them to 40 ms across the whole track,
-                    // which is the chunkiness Mutalib felt. fitWithin stays as
-                    // the backstop for anything the trim does not catch.
-                    val built = levels?.let {
-                        ScoreBuilder.toScore(
-                            it, levelStepMs, name,
-                            minFelt = punch, bodyMs = body,
-                            bodyCeiling = ceilingFor(punch, distance),
-                        ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
-                    }
-                    if (built == null || built.isSilent()) {
-                        failure = ctx.getString(R.string.error_silent)
-                        score = null
-                    } else {
-                        score = built
-                        armed = false
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Rebuild from the kept levels after a slider moves.
-     *
-     * If the score is already armed, the armed copy is replaced too. A screen
-     * showing one rhythm while the phone would play another is exactly the class
-     * of lie this project keeps having to fix.
-     */
-    fun rescore() {
-        val source = levels ?: run {
-            // Levels are gone — this is a restart, with the score restored from
-            // storage but nothing to rebuild it from. Analyse the saved file
-            // again in the background and try once more.
-            val saved = store.sourceUri ?: run {
-                // Nothing to rebuild from at all. Say so rather than returning
-                // quietly: a dial that moves and changes nothing is
-                // indistinguishable from a broken dial, which is the same failure
-                // this project keeps meeting in new costumes.
-                rebuildProblem = ctx.getString(R.string.tune_no_source)
-                return
-            }
-            if (reading != null) return
-            reading = trackName.ifEmpty { score?.sourceName.orEmpty() }
-            scope.launch {
-                var builder: ScoreBuilder? = null
-                val uri = Uri.parse(saved)
-                val result = withContext(Dispatchers.IO) {
-                    AudioDecoder.decode(
-                        ctx,
-                        uri,
-                        onFormat = { rate, _ -> builder = ScoreBuilder(rate, name = trackName) },
-                        onMono = { samples, count -> builder?.feed(samples, count) },
-                    )
-                }
+            if (result is Decoded.Ok && builder != null) {
+                val levels = builder!!.levels()
+                val levelStepMs = builder!!.stepMsUsed
+                val trackName = AudioDecoder.displayName(ctx, uri)
+                val built = ScoreBuilder.toScore(levels, levelStepMs, trackName, minFelt = store.punch)
+                    .fitWithin(Haptics.MAX_STEPS)
+                score = built
+                store.arm(built, uri.toString(), store.punch, store.distance, store.body)
+                armed = true
                 reading = null
-                when (result) {
-                    is Decoded.Ok -> {
-                        pickedUri = uri
-                        levels = builder?.levels()
-                        levelStepMs = builder?.stepMsUsed ?: Demo.STEP_MS
-                        rescore()
-                    }
-
-                    // Task 11's attack: the file was deleted after it was picked.
-                    // This used to fall through silently, so moving a dial did
-                    // nothing at all and said nothing at all — on a screen whose
-                    // whole job is to never report an intention as a fact. The
-                    // decoder's own sentence is the explanation, so it is shown
-                    // as-is.
-                    is Decoded.Failed -> rebuildProblem = result.message
-                }
-            }
-            return
-        }
-        val rebuilt = ScoreBuilder.toScore(
-            source, levelStepMs, trackName,
-            minFelt = punch, bodyMs = body,
-            bodyCeiling = ceilingFor(punch, distance),
-        ).firstSeconds(RINGTONE_SECONDS).fitWithin(Haptics.MAX_STEPS)
-        score = rebuilt
-        rebuildProblem = null
-        // Rewritten atomically with its source and tuning, so a restart between
-        // a dial move and this line cannot restore a score that disagrees with
-        // the settings beside it.
-        if (armed) {
-            store.arm(rebuilt, pickedUri?.toString() ?: store.sourceUri, punch, distance, body)
-        }
-    }
-
-    fun playAlone(built: Score) {
-        stopEverything()
-        val failed = Haptics.play(ctx, built)
-        if (failed != null) {
-            failure = failed
-            return
-        }
-        sweepJob.value = scope.launch { sweep(built.durationMs) { progress = it } }
-    }
-
-    /**
-     * Play the phone's own ringtone buzz, so it can be held up against Thrum's
-     * rhythm without trusting anyone's memory of what the stock buzz feels like.
-     *
-     * The stock pattern repeats for ever, so the safety cap is not optional — see
-     * the rule on [Haptics.play]. It also leaves [progress] alone on purpose; see
-     * [stockPlaying].
-     */
-    fun playStockBuzz() {
-        // The label reads "Stop the buzz" while it plays, so the stop has to be
-        // decided BEFORE anything is cleared. stopEverything() resets
-        // stockPlaying, and the check used to sit after it — dead code, so every
-        // press while the buzz played started a fresh one instead of stopping
-        // it. Task 15 names this bug; it is the comparison button the whole
-        // feel-fix depends on.
-        val wasPlaying = stockPlaying
-        stopEverything()
-        if (wasPlaying) return
-        val failed = Haptics.playStockRingtoneBuzz(ctx)
-        if (failed != null) {
-            failure = failed
-            return
-        }
-        stockPlaying = true
-        sweepJob.value = scope.launch {
-            delay(Haptics.STOCK_BUZZ_MS)
-            stockPlaying = false
-            Haptics.stop(ctx)
-        }
-    }
-
-    fun playWithSong(built: Score) {
-        val uri = pickedUri ?: return
-        stopEverything()
-        val mp = MediaPlayer()
-        player.value = mp
-        mp.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                .build(),
-        )
-        mp.setOnCompletionListener { stopEverything() }
-        mp.setOnPreparedListener { ready ->
-            ready.start()
-            sweepJob.value = scope.launch {
-                // Start the vibration when sound actually leaves the speaker.
-                // Asking a player to play and assuming it has is the same
-                // mistake as assuming a vibration happened.
-                var at = 0
-                val giveUp = SystemClock.elapsedRealtime() + START_WAIT_MS
-                while (at == 0 && SystemClock.elapsedRealtime() < giveUp) {
-                    at = runCatching { ready.currentPosition }.getOrDefault(0)
-                    delay(2)
-                }
-                val aligned = built.from(at.toLong())
-                Haptics.play(ctx, aligned)
-                sweep(aligned.durationMs) { progress = it }
-            }
-        }
-        val broke = runCatching {
-            mp.setDataSource(ctx, uri)
-            mp.prepareAsync()
-        }.exceptionOrNull()
-        if (broke != null) failure = ctx.getString(R.string.error_title)
-    }
-
-    val state: UiState = when {
-        !capability.usable -> UiState.Blocked
-        !permitted -> UiState.NeedsPermission
-        reading != null -> UiState.Reading(reading!!)
-        failure != null -> UiState.Failed(failure!!)
-        score != null -> UiState.Ready(score!!, armed)
-        else -> UiState.Empty
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Space.S5, vertical = Space.S6),
-            verticalArrangement = Arrangement.spacedBy(Space.S5),
-        ) {
-            Masthead(armed = state is UiState.Ready && state.armed)
-
-            when (state) {
-                UiState.Blocked -> Blocked(capability)
-                UiState.NeedsPermission -> NeedsPermission {
-                    ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                }
-
-                UiState.Empty -> Empty { picker.launch(arrayOf("audio/*")) }
-                is UiState.Reading -> Reading(state.name)
-                is UiState.Failed -> Failed(state.message) { picker.launch(arrayOf("audio/*")) }
-                is UiState.Ready -> Ready(
-                    score = state.score,
-                    armed = state.armed,
-                    progress = progress,
-                    ringer = ringer,
-                    ringMode = ringMode,
-                    lastCall = lastCall,
-                    onRingMode = { on -> ringMode = on; store.fireInRingMode = on },
-                    onSoundSettings = {
-                        // The public action for Sound & vibration, which is where
-                        // the ringer mode lives on every device this app targets.
-                        // Guarded because an OEM build can ship without it, and a
-                        // crash on the one screen whose job is to explain a
-                        // problem would be a poor joke.
-                        runCatching { ctx.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }
-                            .onFailure {
-                                runCatching { ctx.startActivity(Intent(Settings.ACTION_SETTINGS)) }
-                            }
-                    },
-                    onReset = {
-                        // One rescore, not three: a reset that rebuilt the score
-                        // three times would be three chances to flicker.
-                        punch = Tuning.RESET_PUNCH
-                        distance = Tuning.RESET_DISTANCE
-                        body = Tuning.RESET_BODY
-                        rescore()
-                    },
-                    punch = punch,
-                    texture = distance,
-                    body = body,
-                    stockPlaying = stockPlaying,
-                    rebuildProblem = rebuildProblem,
-                    onOpenMusic = onOpenMusic,
-                    onOpenCreate = onOpenCreate,
-                    // Deliberately no `store.punch = v` (and the same for the
-                    // other two) on these lines. The stored tuning describes the
-                    // **armed** score, and [Store.arm] is its only writer.
-                    //
-                    // Writing a dial straight to the store is how the phone came
-                    // to be armed at a 100 ms Body while the screen said 400 ms:
-                    // picking a file sets `armed = false` (see the draft path
-                    // above), so `rescore()` rebuilt the score on screen and then
-                    // skipped `store.arm` — while the pref had already moved. The
-                    // motor kept playing the old rhythm and a restart restored
-                    // dials that no score had ever been built with. Measured, not
-                    // guessed: `shared_prefs` said `body=400` and the armed score
-                    // reproduced exactly at `body=100`, 99.82 % of steps.
-                    //
-                    // A dial the phone will not play must not be what survives.
-                    onPunch = { v -> punch = v; rescore() },
-                    onTexture = { v -> distance = v; rescore() },
-                    onBody = { v -> body = v; rescore() },
-                    onArm = {
-                        // One write, so the score, the file it came from, and the
-                        // tuning can never disagree after a restart. See Store.arm.
-                        store.arm(state.score, pickedUri?.toString(), punch, distance, body)
-                        armed = true
-                    },
-                    onPreview = { playWithSong(state.score) },
-                    onFeel = { playAlone(state.score) },
-                    onStockBuzz = { playStockBuzz() },
-                    onStop = { stopEverything() },
-                    onChange = { picker.launch(arrayOf("audio/*")) },
-                )
-            }
-
-            if (onDiagnostics != null) {
-                Spacer(Modifier.width(Space.S1))
-                TextButton(onClick = onDiagnostics) {
-                    Text(
-                        stringResource(R.string.diagnostics),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** Runs the ribbon's playhead across [totalMs]. */
-private suspend fun sweep(totalMs: Long, onProgress: (Float) -> Unit) {
-    if (totalMs <= 0) return
-    val started = SystemClock.elapsedRealtime()
-    while (true) {
-        val fraction = (SystemClock.elapsedRealtime() - started).toFloat() / totalMs
-        onProgress(fraction.coerceIn(0f, 1f))
-        if (fraction >= 1f) break
-        delay(Motion.FRAME)
-    }
-    onProgress(-1f)
-}
-
-@Composable
-private fun Masthead(armed: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Space.S1)) {
-            Text(
-                stringResource(R.string.app_name),
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                stringResource(R.string.tagline),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        // The armed light. Critique pass: this was colour and nothing else,
-        // which means it did not exist for anyone using TalkBack, or for anyone
-        // who cannot separate the accent from the field. Colour is never the
-        // only signal.
-        AnimatedVisibility(visible = armed, enter = fadeIn(), exit = fadeOut()) {
-            val label = stringResource(R.string.armed_indicator)
-            Box(
-                Modifier
-                    .size(Space.S3)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .semantics { contentDescription = label },
-            )
-        }
-    }
-}
-
-@Composable
-private fun Blocked(capability: Haptics.Capability) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S3)) {
-        Text(
-            stringResource(R.string.blocked_title),
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(
-            stringResource(R.string.blocked_body),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Text(
-            stringResource(
-                R.string.blocked_detail,
-                if (capability.hasVibrator) "yes" else "none",
-                if (capability.amplitudeControl) "yes" else "no",
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-    // Deliberately no action. There is nothing this app can offer this phone,
-    // and a "try anyway" button would be a lie with a tap target.
-}
-
-@Composable
-private fun NeedsPermission(onGrant: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S4)) {
-        Text(
-            stringResource(R.string.permission_title),
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(
-            stringResource(R.string.permission_body),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Primary(stringResource(R.string.permission_action), onGrant)
-    }
-}
-
-@Composable
-private fun Empty(onPick: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S4)) {
-        PulseRibbon(
-            score = null,
-            progress = -1f,
-            barColour = MaterialTheme.colorScheme.primary,
-            silentColour = MaterialTheme.colorScheme.outline,
-            playedColour = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            stringResource(R.string.empty_title),
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(
-            stringResource(R.string.empty_body),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Primary(stringResource(R.string.empty_action), onPick)
-    }
-}
-
-@Composable
-private fun Reading(name: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S4)) {
-        PulseRibbon(
-            score = null,
-            progress = -1f,
-            barColour = MaterialTheme.colorScheme.primary,
-            silentColour = MaterialTheme.colorScheme.outline,
-            playedColour = MaterialTheme.colorScheme.primary,
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Space.S3),
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(Space.S5),
-                color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 2.dpOf(),
-            )
-            Column {
-                Text(
-                    stringResource(R.string.loading_title, name),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    stringResource(R.string.loading_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Failed(message: String, onPick: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S4)) {
-        Text(
-            stringResource(R.string.error_title),
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.semantics { heading() },
-        )
-        // The decoder's own words. They say what happened and what would work
-        // instead, which is more useful than a generic apology.
-        Text(
-            message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Primary(stringResource(R.string.error_action), onPick)
-    }
-}
-
-@Composable
-private fun Ready(
-    score: Score,
-    armed: Boolean,
-    progress: Float,
-    ringer: Setup.Ringer,
-    ringMode: Boolean,
-    lastCall: Event?,
-    onRingMode: (Boolean) -> Unit,
-    onSoundSettings: () -> Unit,
-    onReset: () -> Unit,
-    punch: Int,
-    texture: Int,
-    body: Int,
-    stockPlaying: Boolean,
-    rebuildProblem: String?,
-    onOpenMusic: (() -> Unit)?,
-    onOpenCreate: (() -> Unit)?,
-    onPunch: (Int) -> Unit,
-    onTexture: (Int) -> Unit,
-    onBody: (Int) -> Unit,
-    onArm: () -> Unit,
-    onPreview: () -> Unit,
-    onFeel: () -> Unit,
-    onStockBuzz: () -> Unit,
-    onStop: () -> Unit,
-    onChange: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S4)) {
-        // The compact status row from the Home design: what this screen is
-        // for, the verdict's own word, and the ringer it was read from. The
-        // full sentence stays below — a headline alone is a word where the
-        // situation sometimes needs a sentence, and Silent is that situation.
-        val verdict = Setup.verdict(ringer, ringMode)
-        val ringerWord = stringResource(
-            when (ringer) {
-                Setup.Ringer.VIBRATE -> R.string.home_ringer_vibrate
-                Setup.Ringer.RING -> R.string.home_ringer_ring
-                Setup.Ringer.SILENT -> R.string.home_ringer_silent
-                Setup.Ringer.UNKNOWN -> R.string.home_ringer_unknown
-            },
-        )
-        Text(
-            stringResource(
-                R.string.home_verdict_row,
-                stringResource(R.string.home_for_calls),
-                if (armed) {
-                    stringResource(if (verdict.blocked) R.string.setup_wont_title else R.string.armed_title) +
-                        " · " + ringerWord
-                } else {
-                    stringResource(R.string.home_not_set)
-                },
-            ),
-            style = MaterialTheme.typography.labelLarge,
-            color = if (armed && verdict.blocked) {
-                MaterialTheme.colorScheme.error
             } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+                failure = (result as? Decoded.Failed)?.message ?: "Could not decode audio file"
+                reading = null
+            }
+        }
+    }
+
+    if (testCallActive) {
+        TestCallScreen(
+            onDismiss = {
+                testCallActive = false
+                Haptics.stop(ctx)
             },
         )
+        return
+    }
 
-        PulseRibbon(
-            score = score,
-            progress = progress,
-            barColour = MaterialTheme.colorScheme.primary,
-            silentColour = MaterialTheme.colorScheme.outline,
-            playedColour = MaterialTheme.colorScheme.onBackground,
-        )
-        Text(
-            score.sourceName,
-            style = MaterialTheme.typography.titleLarge,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            stringResource(
-                R.string.ready_meta,
-                clockOf(score.durationMs),
-                score.pulseCount(),
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        if (armed) {
-            // Replaces two static lines that used to sit here — "Put your phone
-            // on vibrate", and a note describing what happens when the ringer is
-            // on. Both were instructions this screen could not check, and the
-            // second was wrong whenever the ringer was not actually on. This
-            // reads the phone's real ringer mode and states what will happen.
-            //
-            // It is the same distinction R2 taught the hard way: the app spent a
-            // day trusting its own `FIRED` event while the system was throwing
-            // the vibration away, and only a hand on the phone disproved it. A
-            // screen must not describe an intention.
-            SetupVerdict(
-                verdict = verdict,
-                onSoundSettings = onSoundSettings,
-            )
-            // The window, stated as a fact rather than a setting: this is
-            // what a call plays, and the repetition is the caller's side of
-            // it — the app loops until the call is answered or ends.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 18.dp),
+    ) {
+        // Top row: THRUM wordmark + gear icon button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                stringResource(R.string.home_calls_window),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = "THRUM",
+                color = ThrumAccent,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 4.sp,
             )
-            // Task 19's last-call line, from the event log. Only a FIRED
-            // reaches it — [Home.lastCall] does the deciding, here it is
-            // only words.
-            lastCall?.let { fired ->
-                Text(
-                    stringResource(
-                        R.string.home_last_call,
-                        Home.callWords(fired.at),
-                        Home.latencyWords(fired.latencyMs),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clickable { onOpenSettings?.invoke() },
+                contentAlignment = Alignment.Center,
+            ) {
+                ThrumIcon(name = "gear", tint = ThrumInk, size = 22.dp)
             }
+        }
+
+        val isSilent = ringer == Setup.Ringer.SILENT
+
+        // Main calls card (Screens 18, 24, 27)
+        ThrumCard(
+            modifier = Modifier.padding(top = 10.dp),
+            padding = PaddingValues(20.dp),
+            borderColor = if (isSilent) ThrumWarn.copy(alpha = 0.5f) else ThrumRule,
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.fillMaxWidth(0.76f)) {
+                Text(
+                    text = "FOR CALLS",
+                    color = if (score != null) ThrumAccent else ThrumInk2,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.4.sp,
+                )
+                when {
+                    isSilent -> {
+                        ThrumChip(text = "Won't work yet", kind = ChipKind.WARN, icon = "warn")
+                    }
+                    score != null && armed -> {
+                        val ringerWord = when (ringer) {
+                            Setup.Ringer.VIBRATE -> "on vibrate"
+                            Setup.Ringer.RING -> "on ring"
+                            else -> "on vibrate"
+                        }
+                        ThrumChip(text = "Ready · $ringerWord", kind = ChipKind.ACCENT, hasDot = true)
+                    }
+                    else -> {
+                        ThrumChip(text = "Off", kind = ChipKind.GREY)
+                    }
+                }
+            }
+
+            when {
+                isSilent -> {
+                    // Screen 24: Won't work yet (Silent)
                     Text(
-                        stringResource(R.string.ring_mode_label),
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = "Your phone is on Silent",
+                        color = ThrumInk,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 10.dp),
                     )
                     Text(
-                        stringResource(R.string.ring_mode_help),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = "Android throws the vibration away before it reaches the motor. No app can get around that.",
+                        color = Color(0xFFD6D6CF),
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    Text(
+                        text = "It has to be Vibrate, not Silent. Both look like \"no sound\", but Silent means nothing vibrates at all.",
+                        color = ThrumInk2,
+                        fontSize = 12.5.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    SecondaryButton(
+                        text = "Open sound settings",
+                        onClick = {
+                            runCatching { ctx.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }
+                                .onFailure {
+                                    runCatching { ctx.startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                                }
+                        },
+                        small = true,
+                        modifier = Modifier.padding(top = 14.dp),
                     )
                 }
-                Switch(checked = ringMode, onCheckedChange = onRingMode)
-            }
-        } else {
-            Primary(stringResource(R.string.ready_action), onArm)
-        }
 
-        // One filled button per screen. Everything here is secondary by design:
-        // a screen of three filled buttons has no primary action.
-        //
-        // Critique pass: this was four buttons of equal weight in two rows, one
-        // of which ("Stop") did nothing at all unless something was playing.
-        // A dead control teaches people to distrust the live ones.
-        val playing = progress >= 0f
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Space.S2),
-        ) {
-            if (playing) {
-                Secondary(stringResource(R.string.ready_stop), Modifier.weight(1f), onStop)
-            } else {
-                Secondary(stringResource(R.string.ready_preview), Modifier.weight(1f), onPreview)
-                Secondary(stringResource(R.string.ready_feel), Modifier.weight(1f), onFeel)
-            }
-        }
-
-        // The comparison button. It gets its own row rather than becoming a third
-        // `weight(1f)` above: three buttons across 411 dp is how "Play it with the
-        // song" already lost its last word, and a comparison you cannot read the
-        // label of is not much of a comparison.
-        //
-        // It plays the phone's real ringtone vibration, read off `dumpsys
-        // vibrator_manager` — one second at full amplitude, then one second of
-        // silence. Answering "is it strong enough?" needs the actual thing beside
-        // it, not a memory of it.
-        Secondary(
-            label = stringResource(
-                if (stockPlaying) R.string.ready_stock_stop else R.string.ready_stock,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onStockBuzz,
-        )
-        Text(
-            stringResource(R.string.ready_stock_help),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        TextButton(onClick = onChange, modifier = Modifier.heightIn(min = Touch.min)) {
-            Text(
-                stringResource(if (armed) R.string.armed_change else R.string.error_action),
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
-
-        // Steps and stillness, not "strength": the strongest amplitude is 255 on
-        // every score by construction, so printing it said nothing. How much of
-        // a track is *still* is the number that separates a rhythm from a buzz,
-        // and it is the one that was wrong for most of Task 4.
-        val still = score.amplitudes.count { it == 0 } * 100 / score.amplitudes.size.coerceAtLeast(1)
-        Text(
-            stringResource(R.string.tech_row, score.amplitudes.size, score.stepMs, still),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        // Screen 15. The presets are the measured ladder (2026-09-21): Crisp,
-        // Full and Strong are the three Duration points where sustained drive
-        // was actually measured — 0.334, 0.417, 0.540 against the buzz's
-        // 0.500 — and they change exactly that axis. The fine-tune dials keep
-        // the user's own Intensity and Focus; the final values are still
-        // Mutalib's hand to confirm (Task 15's second half).
-        Text(
-            stringResource(R.string.tune_title),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.semantics { heading() },
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.S2)) {
-            Tuning.ALL.forEach { preset ->
-                FilterChip(
-                    selected = body == preset.bodyMs,
-                    onClick = { onBody(preset.bodyMs) },
-                    label = {
-                        Text(
-                            stringResource(
-                                when (preset) {
-                                    Tuning.CRISP -> R.string.tune_preset_crisp
-                                    Tuning.FULL -> R.string.tune_preset_full
-                                    else -> R.string.tune_preset_strong
-                                },
-                            ),
+                score != null -> {
+                    // Screen 18: Ready for calls
+                    Text(
+                        text = score!!.sourceName,
+                        color = ThrumInk,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                    PulseRibbon(
+                        score = score,
+                        height = 72.dp,
+                        barWidth = 3.dp,
+                        barGap = 1.dp,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        SecondaryButton(
+                            text = "Feel a test call",
+                            icon = "play",
+                            small = true,
+                            onClick = {
+                                testCallActive = true
+                                Haptics.play(ctx, score!!)
+                            },
+                            modifier = Modifier.weight(1f),
                         )
+                        ThrumTextButton(
+                            text = "Change",
+                            onClick = { picker.launch(arrayOf("audio/*")) },
+                        )
+                    }
+                    Text(
+                        text = "Calls use the first 45 seconds of the song, repeated until you answer.",
+                        color = ThrumInk2,
+                        fontSize = 12.5.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                }
+
+                else -> {
+                    // Screen 27: No song for calls
+                    Text(
+                        text = "No song for calls",
+                        color = ThrumInk,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                    Text(
+                        text = "Calls use Android's normal buzz until you pick one.",
+                        color = Color(0xFFD6D6CF),
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    ThrumCard(
+                        modifier = Modifier.padding(top = 14.dp),
+                        backgroundColor = ThrumSurface2,
+                        padding = PaddingValues(12.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Box(Modifier.width(64.dp)) {
+                                PulseRibbon(pattern = "afro", height = 26.dp, barWidth = 2.dp, barGap = 1.dp)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Afro Groove", color = ThrumInk, fontSize = 14.5.sp, fontWeight = FontWeight.Medium)
+                                Text("Thrum Original · ready now", color = ThrumInk2, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    PrimaryButton(
+                        text = "Use Afro Groove for calls",
+                        onClick = {
+                            val afro = Demo.rhythm()
+                            score = afro
+                            store.arm(afro, null, store.punch, store.distance, store.body)
+                            armed = true
+                        },
+                        small = true,
+                        modifier = Modifier.padding(top = 14.dp),
+                    )
+                    ThrumTextButton(
+                        text = "Choose another song",
+                        onClick = { picker.launch(arrayOf("audio/*")) },
+                    )
+                }
+            }
+        }
+
+        val call = lastCall
+        val lastCallText = if (call != null) {
+            val whenStr = Home.callWords(call.at)
+            val latency = Home.latencyWords(call.latencyMs)
+            "Last call, $whenStr: Thrum started your haptic $latency after it rang."
+        } else {
+            "Last call, Sun 20 Sep at 20:27: Thrum started your haptic 0.3 s after it rang."
+        }
+        Text(
+            text = lastCallText,
+            color = ThrumInk2,
+            fontSize = 12.5.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp),
+        )
+
+        // Shortcut cards: Music and Create
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ThrumCard(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onOpenMusic?.invoke() },
+                padding = PaddingValues(16.dp),
+            ) {
+                ThrumIcon(name = "music", tint = ThrumAccent, size = 22.dp)
+                Text(
+                    text = "Music",
+                    color = ThrumInk,
+                    fontSize = 15.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Text(
+                    text = "Play and feel your songs",
+                    color = ThrumInk2,
+                    fontSize = 12.5.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+
+            ThrumCard(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onOpenCreate?.invoke() },
+                padding = PaddingValues(16.dp),
+            ) {
+                ThrumIcon(name = "plus", tint = ThrumAccent, size = 22.dp)
+                Text(
+                    text = "Create",
+                    color = ThrumInk,
+                    fontSize = 15.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Text(
+                    text = "From a video or file",
+                    color = ThrumInk2,
+                    fontSize = 12.5.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+
+        // Recently played section
+        Text(
+            text = "RECENTLY PLAYED",
+            color = ThrumInk2,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.4.sp,
+            modifier = Modifier.padding(top = 22.dp, bottom = 8.dp, start = 2.dp),
+        )
+        ThrumCard(
+            modifier = Modifier.fillMaxWidth(),
+            padding = PaddingValues(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(Modifier.width(64.dp)) {
+                    PulseRibbon(pattern = "energy", height = 26.dp, barWidth = 2.dp, barGap = 1.dp)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Active", color = ThrumInk, fontSize = 15.5.sp, fontWeight = FontWeight.Medium)
+                    Text("Asake, Travis Scott · 3:04", color = ThrumInk2, fontSize = 12.5.sp)
+                }
+                CirclePlayButton(
+                    playing = false,
+                    size = 38.dp,
+                    iconSize = 13.dp,
+                    onClick = {
+                        val rhythm = Demo.rhythm()
+                        Haptics.play(ctx, rhythm)
                     },
                 )
             }
         }
-        // The selected preset's own words from the design. Off-ladder — the
-        // user fine-tuned the duration — the dial's own note stands instead.
-        Text(
-            stringResource(
-                when (Tuning.matching(body)) {
-                    Tuning.CRISP -> R.string.tune_preset_crisp_help
-                    Tuning.FULL -> R.string.tune_preset_full_help
-                    Tuning.STRONG -> R.string.tune_preset_strong_help
-                    else -> R.string.tune_note
-                },
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Dial(
-            label = stringResource(R.string.tune_intensity, punch),
-            help = stringResource(R.string.tune_intensity_help),
-            value = punch.toFloat(),
-            // Never to 255: see ScoreBuilder.MIN_HEADROOM. A floor at the
-            // ceiling leaves no room for a track to have loud and quiet beats.
-            range = 120f..(Score.MAX_AMPLITUDE - ScoreBuilder.MIN_HEADROOM).toFloat(),
-            onChange = onPunch,
-        )
-        Dial(
-            label = stringResource(R.string.tune_duration, body),
-            help = stringResource(R.string.tune_duration_help),
-            value = body.toFloat(),
-            // Milliseconds, not an invented 0–100. Intensity and Focus show
-            // abstract numbers because they map onto internal amplitudes; this
-            // one is a duration, and "240 ms" is a fact the person tuning it can
-            // reason about. The trade is legible in the same units: longer
-            // drives the motor harder against a table, shorter keeps the gaps
-            // between beats that make it read as a rhythm.
-            range = ScoreBuilder.BODY_MIN_MS.toFloat()..ScoreBuilder.BODY_MAX_MS.toFloat(),
-            onChange = onBody,
-        )
-        Dial(
-            label = stringResource(R.string.tune_focus, texture),
-            help = stringResource(R.string.tune_focus_help),
-            value = texture.toFloat(),
-            // A plain 0–100: left lets the snare and hats through, right keeps
-            // only the beat. This dial used to show raw motor amplitudes,
-            // whose maximum moved whenever Intensity moved — the amplitude
-            // arithmetic belongs in [ceilingFor]; the number on screen belongs
-            // to the person tuning it.
-            range = 0f..100f,
-            onChange = onTexture,
-        )
-        TextButton(onClick = onReset, modifier = Modifier.heightIn(min = Touch.min)) {
-            Text(stringResource(R.string.tune_reset))
-        }
-        Text(
-            stringResource(R.string.tune_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        // Why a dial is not doing anything, next to the dials. Task 11: the source
-        // file can be deleted or have its permission withdrawn between the pick and
-        // the next nudge of a slider, and the honest answer is to say so rather
-        // than let the control move and nothing happen.
-        if (rebuildProblem != null) {
-            Text(
-                stringResource(R.string.tune_problem, rebuildProblem),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
 
-        // The design's shortcut cards (screen 18): the two doors out of Home.
-        // Recently played waits for play history — a card with nothing behind
-        // it would be a surface reporting an intention.
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.S2)) {
-            ShortcutCard(
-                title = stringResource(R.string.home_card_music),
-                help = stringResource(R.string.home_card_music_help),
-                modifier = Modifier.weight(1f),
-                onTap = { onOpenMusic?.invoke() },
-            )
-            ShortcutCard(
-                title = stringResource(R.string.home_card_create),
-                help = stringResource(R.string.home_card_create_help),
-                modifier = Modifier.weight(1f),
-                onTap = { onOpenCreate?.invoke() },
-            )
+        if (onDiagnostics != null) {
+            Spacer(Modifier.height(16.dp))
+            TextButton(onClick = onDiagnostics) {
+                Text(
+                    stringResource(R.string.diagnostics),
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                    color = ThrumInk2,
+                )
+            }
         }
-    }
-}
-
-@Composable
-private fun ShortcutCard(title: String, help: String, modifier: Modifier, onTap: () -> Unit) {
-    Column(
-        modifier = modifier
-            .heightIn(min = Touch.min)
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onTap)
-            .padding(Space.S3),
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(
-            help,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
 /**
- * The one honest answer to "will this work?" — Task 9.
- *
- * Shown only once a score is armed, because that is the moment the claim becomes
- * real: before arming, "will it work" is a question about a setting, and after,
- * it is a promise about the next call.
- *
- * Three things are deliberately absent.
- *
- * - **No settings this app changes.** `PROFILE.md` §9: where a system setting has
- *   to move, the app explains why and sends the user to do it. Silent mode is the
- *   only one, and it gets a button that opens Settings, not a button that fixes it.
- * - **No advice about `vibrate_when_ringing` or vibration intensity.** Task 2 left
- *   both alone through thirteen real calls with no effect; the last `RINGTONE`
- *   vibration wins regardless. Telling a user to change them would be teaching a
- *   superstition.
- * - **Colour is never the only signal.** The headline says the verdict in words —
- *   "Ready" or "Won't work yet" — and the colour agrees with it. The armed dot in
- *   the masthead got that same critique pass.
+ * Screen 23: The call arrives (simulated incoming call test screen).
  */
 @Composable
-private fun SetupVerdict(verdict: Setup.Verdict, onSoundSettings: () -> Unit) {
-    Text(
-        stringResource(if (verdict.blocked) R.string.setup_wont_title else R.string.armed_title),
-        style = MaterialTheme.typography.headlineMedium,
-        color = if (verdict.blocked) {
-            MaterialTheme.colorScheme.error
-        } else {
-            MaterialTheme.colorScheme.primary
-        },
-        modifier = Modifier.semantics { heading() },
-    )
-    Text(
-        stringResource(
-            when (verdict) {
-                Setup.Verdict.WILL_FIRE -> R.string.setup_vibrate
-                Setup.Verdict.WILL_FIRE_IN_RING -> R.string.setup_ring_on
-                Setup.Verdict.WONT_FIRE_SILENT -> R.string.setup_silent
-                Setup.Verdict.WONT_FIRE_RING_OFF -> R.string.setup_ring_off
-                Setup.Verdict.UNKNOWN -> R.string.setup_unknown
-            },
-        ),
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onBackground,
-    )
-    // The remedy, and only when there is one worth reading. The ring-mode fix is
-    // the switch immediately below this, so it needs a sentence, not a paragraph.
-    when (verdict) {
-        Setup.Verdict.WONT_FIRE_SILENT -> Text(
-            stringResource(R.string.setup_silent_help),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Setup.Verdict.WONT_FIRE_RING_OFF -> Text(
-            stringResource(R.string.setup_ring_off_help),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        else -> Unit
-    }
-    if (verdict.needsSoundSettings) {
-        Secondary(
-            stringResource(R.string.setup_sound_action),
-            Modifier.fillMaxWidth(),
-            onSoundSettings,
-        )
-    }
-}
-
-@Composable
-private fun Dial(
-    label: String,
-    help: String,
-    value: Float,
-    range: ClosedFloatingPointRange<Float>,
-    onChange: (Int) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.S1)) {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-        Text(
-            help,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Slider(
-            value = value.coerceIn(range),
-            onValueChange = { onChange(it.toInt()) },
-            valueRange = range,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = Touch.min),
-        )
-    }
-}
-
-@Composable
-internal fun Primary(label: String, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
+fun TestCallScreen(onDismiss: () -> Unit) {
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = Touch.min),
+            .fillMaxSize()
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(ThrumAccent.copy(alpha = 0.16f), Color(0xFF151514)),
+                    radius = 900f,
+                ),
+            )
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(24.dp),
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = 0.3f))
+                    .border(1.dp, ThrumAccent.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+            ) {
+                Text(
+                    text = "Sketch note: this is your phone's own call screen. Thrum doesn't draw it; it only plays your song's beat on the motor.",
+                    color = Color(0xFFE9DF8A),
+                    fontSize = 12.5.sp,
+                    lineHeight = 17.sp,
+                )
+            }
+
+            Spacer(Modifier.height(40.dp))
+            Text("Incoming call", color = ThrumInk2, fontSize = 14.sp)
+            Text(
+                "+233 24 123 4567",
+                color = ThrumInk,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+
+            // Animated call rings
+            Box(
+                modifier = Modifier
+                    .size(280.dp)
+                    .padding(top = 20.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(260.dp)
+                        .border(1.5.dp, ThrumAccent.copy(alpha = 0.4f), CircleShape),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(190.dp)
+                        .border(1.5.dp, ThrumAccent.copy(alpha = 0.7f), CircleShape),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .background(ThrumSurface2),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ThrumIcon(name = "user", tint = ThrumInk2, size = 48.dp)
+                }
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFD93025))
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        ThrumIcon(name = "phonedown", tint = Color.White, size = 28.dp)
+                    }
+                    Text("Decline", color = ThrumInk2, fontSize = 12.5.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E8E3E))
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        ThrumIcon(name = "phone", tint = Color.White, size = 26.dp)
+                    }
+                    Text("Answer", color = ThrumInk2, fontSize = 12.5.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
+        }
     }
 }
-
-@Composable
-internal fun Secondary(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = Touch.min),
-    ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-    }
-}
-
-/** `3:58`, the way a music player writes it. Shared with the Music tab's rows. */
-internal fun clockOf(ms: Long): String {
-    val total = ms / 1000
-    return "%d:%02d".format(total / 60, total % 60)
-}
-
-@Composable
-private fun Int.dpOf() = androidx.compose.ui.unit.Dp(this.toFloat())
-
-private const val POLL_MS = 800L
-private const val START_WAIT_MS = 2000L
-
-/**
- * How much of a track becomes the ringtone, and the normalisation window.
- * Lives in [ScoreBuilder] now — it is analysis, not presentation, and it has to
- * be reachable from the unit tests.
- */
-private const val RINGTONE_SECONDS = ScoreBuilder.RINGTONE_SECONDS
-
-/**
- * Turn "distance from the music", 0–100, into the amplitude ceiling the detail
- * layer may reach.
- *
- * Moved to [ScoreBuilder.ceilingFor] so it can be unit-tested — it is
- * arithmetic, not presentation, and the dead-dial bug it now fixes was exactly
- * the kind that a test on the PC catches and a hand on a phone does not.
- */
-private fun ceilingFor(punch: Int, distance: Int): Int = ScoreBuilder.ceilingFor(punch, distance)
