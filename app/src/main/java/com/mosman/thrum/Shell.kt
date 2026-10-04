@@ -77,7 +77,7 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
         Box(modifier = Modifier.weight(1f)) {
             when (tab) {
                 Tab.HOME -> ThrumApp(onDiagnostics = onDiagnostics)
-                Tab.HAPTICS -> Stub(stringResource(R.string.tab_haptics), stringResource(R.string.stub_haptics_body))
+                Tab.HAPTICS -> MyHapticsTab(onGoToMusic = { tab = Tab.MUSIC })
                 Tab.MUSIC -> MusicTab()
                 Tab.SETTINGS -> Stub(stringResource(R.string.tab_settings), stringResource(R.string.stub_settings_body))
             }

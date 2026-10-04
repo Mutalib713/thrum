@@ -344,4 +344,60 @@ class LibraryTest {
         assertEquals(emptyList<String>(), HapticQueue.decodePending(""))
         assertEquals(emptyList<String>(), HapticQueue.decodePending("|||"))
     }
+
+    // --- The My Haptics list (Task 23).
+
+    private fun hapticOf(uri: String, name: String, madeAt: Long) = Haptic(
+        trackUri = uri,
+        score = Score(20, List(50) { 200 }, name),
+        punch = 185,
+        distance = 0,
+        bodyMs = 400,
+        madeAtMs = madeAt,
+    )
+
+    @Test
+    fun `my haptics joins haptics with their tracks and flags the calls song`() {
+        val song = Track("song", "No Dulling", artist = "Keche", durationMs = 238_000, kind = TrackKind.MUSIC)
+        val video = Track("video", "Clip", durationMs = 9_000, kind = TrackKind.VIDEO)
+        val haptics = listOf(hapticOf("song", "No Dulling", madeAt = 2_000))
+        val rows = MyHaptics.rows(haptics, listOf(song, video), callsUri = "song", filter = MyHaptics.Filter.ALL)
+        // Two rows: the made haptic and the picked-but-unmade video — a pick
+        // that vanished into nothing would be a dead control in list form.
+        assertEquals(2, rows.size)
+        val songRow = rows.first { it.uri == "song" }
+        assertTrue(songRow.hasHaptic)
+        assertTrue(songRow.isCalls)
+        assertTrue(songRow.subtitle.contains("Music"))
+        assertTrue(songRow.subtitle.contains("Keche"))
+        val videoRow = rows.first { it.uri == "video" }
+        assertTrue(!videoRow.hasHaptic)
+        assertEquals(MyHaptics.kindLabel(TrackKind.VIDEO), videoRow.subtitle.substringBefore(" ·"))
+    }
+
+    @Test
+    fun `a haptic whose track is gone keeps its name from the score`() {
+        val rows = MyHaptics.rows(
+            haptics = listOf(hapticOf("vanished", "Keche - No Dulling", madeAt = 1_000)),
+            tracks = emptyList(),
+            callsUri = null,
+            filter = MyHaptics.Filter.ALL,
+        )
+        assertEquals(1, rows.size)
+        assertEquals("Keche - No Dulling", rows[0].name)
+    }
+
+    @Test
+    fun `the filters cut by kind and nothing else`() {
+        val music = Track("m", "Song", durationMs = 1, kind = TrackKind.MUSIC)
+        val video = Track("v", "Clip", durationMs = 1, kind = TrackKind.VIDEO)
+        val file = Track("f", "Note", durationMs = 1, kind = TrackKind.FILE)
+        val haptics = listOf(hapticOf("m", "Song", 1_000), hapticOf("v", "Clip", 2_000))
+        val all = MyHaptics.rows(haptics, listOf(music, video, file), null, MyHaptics.Filter.ALL)
+        assertEquals(3, all.size)
+        assertEquals(listOf("m"), MyHaptics.rows(haptics, listOf(music, video, file), null, MyHaptics.Filter.MUSIC).map { it.uri })
+        assertEquals(listOf("v"), MyHaptics.rows(haptics, listOf(music, video, file), null, MyHaptics.Filter.VIDEOS).map { it.uri })
+        // The unmade audio file counts as a file row; the made video does not.
+        assertEquals(listOf("f"), MyHaptics.rows(haptics, listOf(music, video, file), null, MyHaptics.Filter.FILES).map { it.uri })
+    }
 }

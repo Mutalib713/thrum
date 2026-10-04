@@ -789,11 +789,13 @@ The question after a scan, the queue, songs that are played jumping ahead, progr
 
 **Proof still owed:** on the phone, a scan of Mutalib's library finishes in the background with Thrum closed, the battery used is written down, and the played-song jump is felt as "next".
 
-### [ ] Task 23: Videos, audio files and My Haptics [16, 19, 26]
+### [~] Task 23: Videos, audio files and My Haptics [16, 19, 26] — **BUILT 2026-10-04, proof needs the phone**
 
 Pick a video or a file through the phone's chooser; My Haptics with All, Music, Videos and Files; delete.
 
-**Proof:** a real video from the phone becomes a haptic; an unreadable file shows the decoder's real sentence.
+**Built:** the My Haptics tab is real — the filters (All, Music, Videos, Files), rows carrying the design's subtitle ("Music · Keche · 3:58") and the Calls badge, and long-press delete **with a confirmation**, because a long-press that silently destroys work teaches distrust. The Create options (screen 16) offer a video, an audio file, and "a song" (which routes to the Music tab); "A Thrum file" waits for Task 25 and is not drawn pretending. Videos and files arrive one at a time through the chooser — Thrum never asks to see all videos — and are made straight away, the row appearing immediately with "Making its haptic…" until it lands, or the decoder's own sentence if the phone can't read it. The list's model is pure Kotlin ([MyHaptics]) and tested: the join keeps a haptic whose track vanished, unmade picks appear so nothing vanishes into nothing, and the filters cut by kind exactly.
+
+**Proof still owed:** a real video from the phone becomes a haptic and plays in step (the decoder already looks for the audio track inside a video — untested until a real clip goes through); an unreadable file shows the decoder's real sentence; delete survives a restart.
 
 ### [ ] Task 24: Tune the feel [15]
 

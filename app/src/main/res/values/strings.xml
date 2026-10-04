@@ -239,6 +239,28 @@
     <string name="make_progress">Making haptics · %1$d of %2$d done</string>
     <string name="make_progress_help">Carries on in the background. Songs you play go first.</string>
 
+    <!-- My Haptics and the Create flow. Task 23: videos and files arrive one
+            at a time through the phone's own chooser — Thrum never asks to see
+            all videos. "A Thrum file" waits for Task 25's export/import and is
+            not drawn pretending. -->
+    <string name="haptics_filter_all">All</string>
+    <string name="haptics_filter_music">Music</string>
+    <string name="haptics_filter_videos">Videos</string>
+    <string name="haptics_filter_files">Files</string>
+    <string name="haptics_empty_body">Every song you play gets a haptic, and so does every video or file you turn into one. They all live here.</string>
+    <string name="haptics_make">Make one from a video or file</string>
+    <string name="haptics_calls_badge">Calls</string>
+    <string name="haptics_making">Making its haptic…</string>
+    <string name="haptics_delete_title">Delete this haptic?</string>
+    <string name="haptics_delete_body">The song stays in your library. The haptic is made again next time you play it.</string>
+    <string name="haptics_delete_confirm">Delete</string>
+    <string name="haptics_delete_cancel">Keep</string>
+    <string name="create_title">Make a haptic from</string>
+    <string name="create_video">A video</string>
+    <string name="create_file">An audio file</string>
+    <string name="create_song">A song</string>
+    <string name="create_privacy">Videos and files open your phone\'s own file chooser. Thrum reads only the one you pick.</string>
+
     <!-- Debug builds only -->
     <string name="diagnostics">Diagnostics</string>
 </resources>
