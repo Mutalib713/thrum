@@ -813,9 +813,11 @@ One haptic or all of them, as Thrum pattern files saved on the phone; songs with
 
 **Proof still owed:** an exported file brings a haptic back after a reinstall (uninstall-wipe then import), on the phone.
 
-### [ ] Task 26: Settings, About and Phone check [20–22]
+### [~] Task 26: Settings, About and Phone check [20–22] — **BUILT 2026-10-04, dumpsys read-back needs the phone**
 
-**Proof:** every setting changes what it says it changes, read back from storage or `dumpsys`; About carries the agreed text.
+**Built:** the last tab is real. **Settings** (screen 20) gathers every feature's choice — song for calls, call access, the ringer switch, music access, scan (routing to the Music tab, with the last-scanned date), **Make haptics: in the background / as I play them** (Task 22's promised setting, live: switching to background queues everything without a haptic and starts the walk), and Default feel routing to the tune section. Every row reads its value live from Store or the system, and the permission rows poll — the read-back this task's proof asks for. **About** (21) carries the founder story verbatim from the final screens, the Originals note saying what was actually decided (open-licence music, curated to be felt), the version, and the no-internet promise. **Phone check** (22) reports the motor, strength control, both permissions, and now owns the tap-rate test — moved off Home, which slims to the design and gains the Music/Create shortcut cards. One honest omission: "Clean up low-quality songs" waits for Task 29 and is not drawn pretending; Recently played waits for play history.
+
+**Proof still owed:** the vibration settings read back from `dumpsys vibrator_manager` on the phone — a real call honouring the ringer switch and the mode setting.
 
 ### [ ] Task 27: Thrum Originals [3, 7, 8, 11, 27]
 

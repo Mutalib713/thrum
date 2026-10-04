@@ -123,6 +123,9 @@ interface LibraryDao {
     @Query("SELECT trackUri FROM haptics")
     suspend fun madeTrackUris(): List<String>
 
+    @Query("SELECT sourceUri FROM tracks")
+    suspend fun allTrackUris(): List<String>
+
     @Upsert
     suspend fun upsertTracks(tracks: List<TrackEntity>)
 

@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
@@ -85,7 +86,11 @@ sealed interface UiState {
 }
 
 @Composable
-fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
+fun ThrumApp(
+    onDiagnostics: (() -> Unit)? = null,
+    onOpenMusic: (() -> Unit)? = null,
+    onOpenCreate: (() -> Unit)? = null,
+) {
     val ctx = LocalContext.current
     val store = remember { Store(ctx) }
     val capability = remember { Haptics.capability(ctx) }
@@ -108,7 +113,6 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     var punch by remember { mutableStateOf(store.punch) }
     var distance by remember { mutableStateOf(store.distance) }
     var body by remember { mutableStateOf(store.body) }
-    var ratePlaying by remember { mutableStateOf(0) }
 
     /**
      * True while the phone's own ringtone buzz is playing.
@@ -328,27 +332,6 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
         }
     }
 
-    /**
-     * Play the same tap at rising speeds and let a hand find where they merge.
-     *
-     * The rates are announced on screen as they play, so the answer is a number
-     * Mutalib can read off rather than a feeling he has to describe.
-     */
-    fun runRateTest() {
-        stopEverything()
-        sweepJob.value = scope.launch {
-            for (rate in RATE_LADDER) {
-                ratePlaying = rate
-                val train = Demo.pulseTrain(rate)
-                Haptics.play(ctx, train)
-                delay(train.durationMs + RATE_GAP_MS)
-                Haptics.stop(ctx)
-                delay(RATE_GAP_MS)
-            }
-            ratePlaying = 0
-        }
-    }
-
     fun playAlone(built: Score) {
         stopEverything()
         val failed = Haptics.play(ctx, built)
@@ -488,10 +471,10 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                     punch = punch,
                     texture = distance,
                     body = body,
-                    ratePlaying = ratePlaying,
                     stockPlaying = stockPlaying,
                     rebuildProblem = rebuildProblem,
-                    onRateTest = { runRateTest() },
+                    onOpenMusic = onOpenMusic,
+                    onOpenCreate = onOpenCreate,
                     // Deliberately no `store.punch = v` (and the same for the
                     // other two) on these lines. The stored tuning describes the
                     // **armed** score, and [Store.arm] is its only writer.
@@ -727,10 +710,10 @@ private fun Ready(
     punch: Int,
     texture: Int,
     body: Int,
-    ratePlaying: Int,
     stockPlaying: Boolean,
     rebuildProblem: String?,
-    onRateTest: () -> Unit,
+    onOpenMusic: (() -> Unit)?,
+    onOpenCreate: (() -> Unit)?,
     onPunch: (Int) -> Unit,
     onTexture: (Int) -> Unit,
     onBody: (Int) -> Unit,
@@ -1013,28 +996,42 @@ private fun Ready(
             )
         }
 
-        // Measuring the instrument rather than tuning blind against it. If the
-        // motor cannot separate taps at the rate a score asks for, no amount of
-        // analyser work will be felt, and several rounds of tuning have now
-        // produced real changes in the data and almost none in the hand.
+        // The design's shortcut cards (screen 18): the two doors out of Home.
+        // Recently played waits for play history — a card with nothing behind
+        // it would be a surface reporting an intention.
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.S2)) {
+            ShortcutCard(
+                title = stringResource(R.string.home_card_music),
+                help = stringResource(R.string.home_card_music_help),
+                modifier = Modifier.weight(1f),
+                onTap = { onOpenMusic?.invoke() },
+            )
+            ShortcutCard(
+                title = stringResource(R.string.home_card_create),
+                help = stringResource(R.string.home_card_create_help),
+                modifier = Modifier.weight(1f),
+                onTap = { onOpenCreate?.invoke() },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShortcutCard(title: String, help: String, modifier: Modifier, onTap: () -> Unit) {
+    Column(
+        modifier = modifier
+            .heightIn(min = Touch.min)
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onTap)
+            .padding(Space.S3),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
         Text(
-            stringResource(R.string.rate_title),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(
-            stringResource(R.string.rate_help),
+            help,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (ratePlaying > 0) {
-            Text(
-                stringResource(R.string.rate_playing, ratePlaying),
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        Secondary(stringResource(R.string.rate_run), Modifier.fillMaxWidth(), onRateTest)
     }
 }
 
@@ -1175,10 +1172,6 @@ private const val START_WAIT_MS = 2000L
  * be reachable from the unit tests.
  */
 private const val RINGTONE_SECONDS = ScoreBuilder.RINGTONE_SECONDS
-
-/** Taps per second, slowest first. Thrum's own scores currently sit near 3. */
-private val RATE_LADDER = listOf(2, 3, 4, 6, 8, 12)
-private const val RATE_GAP_MS = 900L
 
 /**
  * Turn "distance from the music", 0–100, into the amplitude ceiling the detail

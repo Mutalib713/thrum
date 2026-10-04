@@ -82,10 +82,14 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
         // calls screen, which already pads for the system bars.
         Box(modifier = Modifier.weight(1f)) {
             when (tab) {
-                Tab.HOME -> ThrumApp(onDiagnostics = onDiagnostics)
+                Tab.HOME -> ThrumApp(
+                    onDiagnostics = onDiagnostics,
+                    onOpenMusic = { tab = Tab.MUSIC },
+                    onOpenCreate = { tab = Tab.HAPTICS },
+                )
                 Tab.HAPTICS -> MyHapticsTab(onGoToMusic = { tab = Tab.MUSIC })
                 Tab.MUSIC -> MusicTab(onExport = { showExport = true })
-                Tab.SETTINGS -> Stub(stringResource(R.string.tab_settings), stringResource(R.string.stub_settings_body))
+                Tab.SETTINGS -> SettingsTab(onOpenMusic = { tab = Tab.MUSIC }, onOpenHome = { tab = Tab.HOME })
             }
         }
         if (Player.now != null) MiniPlayer()
