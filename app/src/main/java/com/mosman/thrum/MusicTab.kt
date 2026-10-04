@@ -8,12 +8,14 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -241,21 +243,43 @@ fun MusicTab() {
                 )
                 val shown = Track.search(tracks, query)
                 for (track in shown) {
-                    Column(modifier = Modifier.padding(vertical = Space.S1)) {
-                        Text(
-                            track.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                        val bits = buildList {
-                            if (track.artist.isNotEmpty()) add(track.artist)
-                            if (track.durationMs > 0) add(clockOf(track.durationMs))
-                        }
-                        if (bits.isNotEmpty()) {
+                    // Rows are tappable since Task 21: the player exists, so a
+                    // tap has somewhere to go. An unreadable file's row stays
+                    // inert and says so — tapping it could only fail.
+                    if (track.readable) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = Touch.min)
+                                .clickable {
+                                    Player.play(ctx, track, shown, hearAndFeel = true)
+                                    Player.open = true
+                                }
+                                .padding(vertical = Space.S1),
+                        ) {
                             Text(
-                                bits.joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall,
+                                track.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                            rowSubtitle(track)
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = Space.S1),
+                        ) {
+                            Text(
+                                track.name,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            rowSubtitle(track)
+                            Text(
+                                stringResource(R.string.player_unreadable),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
                             )
                         }
                     }
@@ -295,6 +319,22 @@ fun MusicTab() {
                 }
             }
         }
+    }
+}
+
+/** `artist · 3:04`, whichever parts the row actually has. */
+@Composable
+private fun rowSubtitle(track: Track) {
+    val bits = buildList {
+        if (track.artist.isNotEmpty()) add(track.artist)
+        if (track.durationMs > 0) add(clockOf(track.durationMs))
+    }
+    if (bits.isNotEmpty()) {
+        Text(
+            bits.joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

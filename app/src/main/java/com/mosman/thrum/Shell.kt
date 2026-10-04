@@ -64,6 +64,13 @@ private enum class Tab { HOME, HAPTICS, MUSIC, SETTINGS }
 private fun Tabs(onDiagnostics: (() -> Unit)?) {
     var tab by remember { mutableStateOf(Tab.HOME) }
 
+    if (Player.open) {
+        // The player screen overlays the tabs; closing it keeps the song
+        // playing, which is what the mini player above the tab bar is for.
+        PlayerScreen()
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Each tab's content manages its own insets — Home is the existing
         // calls screen, which already pads for the system bars.
@@ -75,6 +82,7 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
                 Tab.SETTINGS -> Stub(stringResource(R.string.tab_settings), stringResource(R.string.stub_settings_body))
             }
         }
+        if (Player.now != null) MiniPlayer()
         TabBar(
             current = tab,
             onSelect = { tab = it },

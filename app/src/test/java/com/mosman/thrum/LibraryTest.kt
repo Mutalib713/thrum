@@ -294,4 +294,33 @@ class LibraryTest {
         // Doubled spaces and padding must not manufacture words.
         assertEquals(listOf(library[0]), Track.search(library, "  no   dulling  "))
     }
+
+    // --- The player's drive (Task 21). The pure side of it: re-syncing from
+    // --- the audio position at every join must tile the song exactly once.
+
+    @Test
+    fun `the drive from zero plays the whole song, no step skipped or doubled`() {
+        // 10,000 steps at 20 ms — longer than the vibrator accepts in one
+        // waveform, so the drive must carry it as pieces. Simulating the
+        // loop: each iteration plays the piece starting at the position and
+        // advances by that piece's own length.
+        val whole = Score(20, List(10_000) { (it * 7) % 256 })
+        val played = mutableListOf<Int>()
+        var at = 0L
+        while (at < whole.durationMs) {
+            val piece = whole.from(at).pieces(Haptics.MAX_STEPS).first()
+            played.addAll(piece.amplitudes)
+            at += piece.durationMs
+        }
+        assertEquals(whole.amplitudes, played)
+    }
+
+    @Test
+    fun `a re-sync starts exactly where the audio is`() {
+        // The whole point of reading the position at each join: resuming at
+        // 100 s continues at step 5,000, not at a step the arithmetic guessed.
+        val whole = Score(20, List(9_000) { it % 256 })
+        val resumed = whole.from(100_000).pieces(Haptics.MAX_STEPS).first()
+        assertEquals(whole.amplitudes.drop(5_000), resumed.amplitudes)
+    }
 }

@@ -205,6 +205,24 @@
     <string name="music_empty_after_scan">Nothing found. If your music lives somewhere unusual, \"Pick one song\" reaches anywhere the file chooser does.</string>
     <string name="music_no_match">Nothing matches that search.</string>
 
+    <!-- The player. Task 21, screens 13 and 14. The haptic is made on first
+            play — about eight seconds, once per song — and the drive re-syncs
+            against the audio at every piece join, so drift never compounds. -->
+    <string name="player_close">Close</string>
+    <string name="player_artist_source">%1$s · Music</string>
+    <string name="player_making_title">Making its haptic</string>
+    <string name="player_making_body">About 8 seconds, the first time only.</string>
+    <string name="player_stats">%1$s · %2$d hits · still %3$d%% of the time</string>
+    <string name="player_hear_feel">Hear and feel</string>
+    <string name="player_feel_only">Feel only</string>
+    <string name="player_previous">Previous</string>
+    <string name="player_next">Next</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_play">Play</string>
+    <string name="player_use_calls">Use for calls</string>
+    <string name="player_using_calls">This is your song for calls. Home shows it, and a test call plays its first 45 seconds.</string>
+    <string name="player_unreadable">This phone can\'t read this file.</string>
+
     <!-- Debug builds only -->
     <string name="diagnostics">Diagnostics</string>
 </resources>

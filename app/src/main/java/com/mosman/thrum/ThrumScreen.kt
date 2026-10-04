@@ -169,6 +169,9 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
     val sweepJob = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     fun stopEverything() {
+        // The player owns the motor too — Home's test call must not fight a
+        // running song, so it stands the player down first.
+        Player.stopAll()
         sweepJob.value?.cancel()
         sweepJob.value = null
         Haptics.stop(ctx)

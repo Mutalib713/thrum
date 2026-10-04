@@ -771,11 +771,15 @@ The song for calls: first 45 seconds, repeated until answered. "Feel a test call
 
 **Proof still owed:** the scan lists Mutalib's real songs on the Pixel, durations matching what Android itself reports; refusing the request draws screen 12; "pick one song" lands a row without a permission.
 
-### [ ] Task 21: The player [11, 14]
+### [~] Task 21: The player [11, 14] — **BUILT 2026-10-04, proof needs the phone**
 
 Whole songs, played in pieces the way Task 16 proved works. "Hear and feel" and "feel only", previous and next, the mini player, and "use for calls".
 
-**Proof:** AIZO plays start to finish in step, by hand and in `dumpsys`; changing song stops the old haptic with no leftover buzz.
+**Built — with one seam stated plainly.** Task 16 (the whole-song + screen-off spike) has not run, because it needs the phone; this player is built on the parts that are already proven on the PC (`Score.pieces` tiles the song exactly once, cutting at silence; the re-sync tiling is tested), and **the phone sitting now runs Task 16's spike through this player** — screen-off behaviour (R11) is measured here first, before any of this is trusted. `Player` is the one controller in the app: the Music tab's rows now open it, the mini player rides above the tab bar, and the player screen (14) shows the ribbon with its playhead, the position, the hit count and stillness, Previous / Play / Next, the "Hear and feel / Feel only" switch (real mid-play — the drive restarts from the true position), and "Use for calls", which arms this song's first 45 seconds through the one-writer rule. The haptic is **made on first play** ("about 8 seconds, the first time only" — screen 13), stored whole in the library; a file the phone cannot decode marks its row unreadable with the decoder's own sentence, which is the Dolby row from screen 11. Home's test call stands the player down first, so the two can never fight over the motor.
+
+**Known seams, recorded rather than hidden:** switching to "feel only" pauses the audio and drives the haptic off the clock; auto-advance at song end is not built (the design does not show it); the player screen's Tune entry waits for Task 24, Export for Task 25.
+
+**Proof still owed:** AIZO plays start to finish in step, by hand and in `dumpsys`; changing song stops the old haptic with no leftover buzz; the screen-off answer written down whichever way it goes.
 
 ### [ ] Task 22: ⚠ Making haptics: on first play, or all in the background [10, 11, 13]
 
