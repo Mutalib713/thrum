@@ -1,58 +1,76 @@
 package com.mosman.thrum
 
+import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.MediaPlayer
-import android.net.Uri
-import android.os.SystemClock
+import android.content.Intent
+import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.SilenceMediaSource
+import androidx.media3.session.MediaController
+import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.media3.common.Player as Engine
 
 /**
  * The in-app player: a whole song, heard and felt, from the first second to
  * the last. Task 21, drawn in screen 14.
  *
- * **How the haptic stays in step.** A whole song's score does not fit in one
- * waveform (R10), so the drive plays it in pieces — and it re-syncs at every
- * join the way Task 5 taught: the next piece starts from wherever the audio
- * *actually is* (`MediaPlayer.getCurrentPosition`), not from where arithmetic
- * assumes it is. Small timing drift therefore cannot accumulate; each join
- * absorbs it. The pure side of this — `Score.pieces` cutting at silence, the
- * re-sync tiling the remainder exactly once — is tested on the PC; what needs
- * the phone is whether Android keeps the motor going with the screen off
- * (R11), which Task 16's spike measures through this very player.
+ * **The motor follows the audio.** Media3 (Mutalib's pick, PROFILE §7)
+ * plays the sound, and every change to it, whoever made it, lands in
+ * [follow]: Thrum's own buttons, the notification and lock screen
+ * ([PlaybackService]), headphone buttons, headphones pulled out, a call
+ * taking the audio away. Playing starts the haptic drive; anything else stops
+ * the motor. The drive plays the score in pieces (R10) and every piece starts
+ * from where the audio *actually is*, so drift is absorbed at each join
+ * instead of adding up (Task 5).
  *
- * **Feel only** has no audio to chase, so the clock takes over and the same
- * piece loop runs against `SystemClock` instead.
+ * **Feel only is the same song played silently.** One clock for both modes,
+ * so switching mid-song changes the volume and nothing else. An imported
+ * haptic has no song at all, so it plays against silence of its own length.
  *
- * The haptic for a song is **made on first play** — the "one at a time, as I
- * play them" mode of §4 item 5, about eight seconds once per song. It is the
- * whole-track score (§8), stored in the library; a call later takes its first
- * 45 seconds via `Haptic.callWindow`.
+ * **The motor is always started and stopped through the app's context**
+ * ([motor]): Android cancels a vibration only through the vibrator that
+ * started it ([Haptics.vibrator]). The 2026-10-04 pause bug was exactly that.
+ *
+ * The haptic for a song is **made on first play**, about eight seconds once
+ * per song, and kept in the library; a call later takes its first 45 seconds
+ * via `Haptic.callWindow`.
  *
  * State is Compose state inside a plain object, so the Music tab, the mini
- * player and the player screen all observe the same truth — there is one
- * player in the app, and everything that shows it shows *this* one.
+ * player, the player screen and the notification all show the same truth:
+ * there is one player in the app.
  */
 object Player {
 
     data class Now(
         val track: Track,
         val hearAndFeel: Boolean,
-        /** True while the haptic is being made or the audio is still buffering. */
+        /** True while the haptic is being made. */
         val preparing: Boolean,
+        /** What the user asked for: the song is playing, or would be but for a short interruption. */
         val playing: Boolean,
         val positionMs: Long,
         val durationMs: Long,
@@ -74,30 +92,31 @@ object Player {
     /**
      * Nothing in the player may take the app down. A refusal anywhere in
      * here becomes a sentence on the player screen and the song stops. The
-     * 2026-10-04 crash came through this very scope — an exception thrown in
-     * one of its coroutines, with nothing to catch it, kills the process.
+     * 2026-10-04 crash came through a scope like this one: an exception
+     * thrown in a coroutine with nothing to catch it kills the process.
      */
     private val guard = CoroutineExceptionHandler { _, _ ->
-        mediaPlayer?.runCatching { release() }
-        mediaPlayer = null
-        appCtx?.let { Haptics.stop(it) }
-        now = now?.copy(
-            preparing = false,
-            playing = false,
-            error = appCtx?.getString(R.string.error_title),
-        )
+        quiet()
+        engine?.runCatching { stop(); clearMediaItems() }
+        now = now?.copy(preparing = false, playing = false, error = motor?.getString(R.string.error_title))
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main + guard)
-    private var appCtx: Context? = null
-    private var mediaPlayer: MediaPlayer? = null
+
+    /** The app's context. The motor is started and stopped through it and nothing else. */
+    private var motor: Context? = null
+    private var engine: ExoPlayer? = null
+    private var session: MediaSession? = null
+
+    /** Held while a song is loaded: it keeps [PlaybackService], and so the notification, alive. */
+    private var controller: ListenableFuture<MediaController>? = null
+
     private var driveJob: Job? = null
     private var tickerJob: Job? = null
 
     /**
      * The song being started. A second tap cancels the first start, so two
-     * starts can never both reach [prepareAudio] — which is how two songs
-     * used to play at once, the first one's player never released.
+     * starts can never both reach the engine.
      */
     private var startJob: Job? = null
 
@@ -105,20 +124,33 @@ object Player {
     private var queue: List<Track> = emptyList()
     private var index = -1
 
-    /** Where "feel only" was when it paused, so resuming does not jump. */
-    private var feelOnlyElapsedMs = 0L
-
-    /** When the feel-only clock was last started, so elapsed advances while playing. */
-    private var feelStartedAtMs = 0L
+    /** Hear and feel, or feel only, as last chosen: the next song keeps it. */
+    private var hearAndFeelChoice = true
 
     /**
      * Play a track from the library. [queue] is the list it was tapped in, so
      * previous and next walk the same order the user was looking at.
      */
-    fun play(ctx: Context, track: Track, queue: List<Track>, hearAndFeel: Boolean = true) {
+    fun play(ctx: Context, track: Track, queue: List<Track>, hearAndFeel: Boolean = hearAndFeelChoice) {
         this.queue = queue
         index = queue.indexOfFirst { it.sourceUri == track.sourceUri }
         start(ctx, track, hearAndFeel)
+    }
+
+    /**
+     * A list's play button: the song plays where the user is, and the mini
+     * player shows it. On the song already loaded it pauses or resumes.
+     * Mutalib asked for this on 2026-10-04; the button used to open the whole
+     * player screen every time.
+     */
+    fun playHere(ctx: Context, track: Track, queue: List<Track>) {
+        if (now?.track?.sourceUri == track.sourceUri) togglePause(ctx) else play(ctx, track, queue)
+    }
+
+    /** A tap on a song's row: its page, playing. The song already loaded keeps its place. */
+    fun openSong(ctx: Context, track: Track, queue: List<Track>) {
+        if (now?.track?.sourceUri != track.sourceUri) play(ctx, track, queue)
+        open = true
     }
 
     /**
@@ -138,70 +170,60 @@ object Player {
     fun setHearAndFeel(ctx: Context, hearAndFeel: Boolean) {
         val current = now ?: return
         if (hearAndFeel && ThrumFile.isImported(current.track.sourceUri)) {
-            // The song was never in the file — only the vibration is. Say so
+            // The song was never in the file, only the vibration was. Say so
             // rather than fail inside a player error.
             now = current.copy(error = ctx.getString(R.string.player_imported_no_audio))
             return
         }
+        hearAndFeelChoice = hearAndFeel
         if (current.hearAndFeel == hearAndFeel) return
         now = current.copy(hearAndFeel = hearAndFeel, error = null)
-        val playing = current.playing
-        if (playing) {
-            // Restart the drive from where things actually are: audio paused
-            // for feel-only, clock seeded from the audio position for the
-            // way back. The piece loop absorbs the switch at its next join.
-            scope.launch {
-                stopDrive()
-                if (hearAndFeel) {
-                    mediaPlayer?.start()
-                } else {
-                    mediaPlayer?.pause()
-                    feelOnlyElapsedMs = audioPositionMs()
-                }
-                Haptics.stop(ctx)
-                currentHaptic()?.let { drive(it.score, hearAndFeel, resume = true) }
-            }
-        }
+        engine?.volume = if (hearAndFeel) 1f else 0f
     }
 
     fun togglePause(ctx: Context) {
         val current = now ?: return
         if (current.preparing) return
-        if (current.playing) {
-            now = current.copy(playing = false)
-            scope.launch {
-                stopDrive()
-                Haptics.stop(ctx)
-                mediaPlayer?.pause()
-                if (!current.hearAndFeel) feelOnlyElapsedMs = feelClockMs()
-            }
-        } else {
-            now = current.copy(playing = true)
-            scope.launch {
-                mediaPlayer?.start()
-                currentHaptic()?.let { drive(it.score, current.hearAndFeel, resume = true) }
-            }
-        }
+        if (current.playing) pause() else resume(ctx)
     }
 
-    /** Everything stops: motor, audio, drive. The screen empties. */
+    /** The motor first, at once, then the sound. */
+    private fun pause() {
+        quiet()
+        engine?.pause()
+        now = now?.copy(playing = false)
+    }
+
+    private fun resume(ctx: Context) {
+        val e = engine ?: return
+        if (now?.preparing != false) return
+        if (e.playbackState == Engine.STATE_ENDED) e.seekTo(0)
+        if (e.playbackState == Engine.STATE_IDLE) e.prepare()
+        e.play()
+        now = now?.copy(playing = true)
+        connect(ctx)
+    }
+
+    /** Everything stops: motor, sound, notification. The screen empties. */
     fun stop(ctx: Context) {
+        motor = motor ?: ctx.applicationContext
         startJob?.cancel()
-        scope.launch {
-            stopDrive()
-            Haptics.stop(ctx)
-            mediaPlayer?.release()
-            mediaPlayer = null
-            now = null
-            haptic = null
-            open = false
-            index = -1
+        quiet()
+        engine?.run {
+            stop()
+            clearMediaItems()
         }
+        now = null
+        haptic = null
+        open = false
+        index = -1
+        queue = emptyList()
+        disconnect()
     }
 
     /** For the rest of the app: Home's test call must not fight a running player. */
     fun stopAll() {
-        appCtx?.let { stop(it) }
+        motor?.let { stop(it) }
     }
 
     fun next(ctx: Context) = step(ctx, +1)
@@ -216,25 +238,23 @@ object Player {
         val target = (index + delta).coerceIn(0, queue.size - 1)
         if (target == index) return
         // Where the player now is. Without this, next worked once and then
-        // kept landing on the same song, and the buttons' enabled state
-        // answered for a song that had stopped playing.
+        // kept landing on the same song (2026-10-04).
         index = target
-        start(ctx, queue[target], now?.hearAndFeel ?: true)
+        start(ctx, queue[target], now?.hearAndFeel ?: hearAndFeelChoice)
     }
 
     private fun start(ctx: Context, track: Track, requestedHearAndFeel: Boolean) {
-        appCtx = ctx.applicationContext
-        // An imported haptic has no song behind it — the file never held
-        // one — so it plays feel-only whoever asks. Asking it for sound used
-        // to leave the player stuck on a source that does not exist.
-        val hearAndFeel = requestedHearAndFeel && !ThrumFile.isImported(track.sourceUri)
+        val app = ctx.applicationContext
+        motor = app
+        // An imported haptic has no song behind it: the file never held one.
+        val imported = ThrumFile.isImported(track.sourceUri)
+        val hearAndFeel = requestedHearAndFeel && !imported
         startJob?.cancel()
         startJob = scope.launch {
-            stopDrive()
-            Haptics.stop(ctx)
-            mediaPlayer?.release()
-            mediaPlayer = null
-            feelOnlyElapsedMs = 0L
+            quiet()
+            // The old song goes quiet at once; its notification stays until
+            // the new song replaces it, rather than blinking out.
+            engine?.pause()
 
             now = Now(
                 track = track,
@@ -251,19 +271,23 @@ object Player {
             // time only — screen 13 says so in exactly those words. The maker
             // is shared with the background walk, so the two can never drift.
             val existing = withContext(Dispatchers.IO) {
-                LibraryDb.get(ctx).dao().hapticFor(track.sourceUri)?.toHaptic()
+                LibraryDb.get(app).dao().hapticFor(track.sourceUri)?.toHaptic()
             }
             val ready: Haptic
             if (existing != null) {
                 ready = existing
             } else {
-                claim(ctx, track.sourceUri)
+                claim(app, track.sourceUri)
                 // Finished and saved even if the user taps another song
                 // halfway: the eight seconds are already spent, and the next
                 // play of this song should not spend them again.
-                val made = withContext(NonCancellable) { HapticMaker.make(ctx, track) }
+                val made = withContext(NonCancellable) { HapticMaker.make(app, track) }
                 ensureActive() // the user moved on: keep the haptic, drop the playback
                 if (made.haptic == null) {
+                    engine?.run {
+                        stop()
+                        clearMediaItems()
+                    }
                     now = now?.copy(preparing = false, playing = false, error = made.error)
                     return@launch
                 }
@@ -271,93 +295,138 @@ object Player {
             }
 
             haptic = ready
-            now = now?.copy(
-                preparing = false,
-                durationMs = ready.score.durationMs,
-                playing = true,
-            )
-            Store(ctx).addRecent(track.sourceUri)
+            now = now?.copy(preparing = false, durationMs = ready.score.durationMs, playing = true)
+            Store(app).addRecent(track.sourceUri)
 
-            if (hearAndFeel) {
-                prepareAudio(ctx, track.sourceUri)
+            val e = engineFor(app)
+            if (imported) {
+                e.setMediaSource(silence(ready.score.durationMs))
             } else {
-                drive(ready.score, hearAndFeel = false, resume = false)
+                e.setMediaItem(
+                    MediaItem.Builder()
+                        .setMediaId(track.sourceUri)
+                        .setUri(track.sourceUri)
+                        .setMediaMetadata(metadata())
+                        .build(),
+                )
+            }
+            e.volume = if (hearAndFeel) 1f else 0f
+            e.prepare()
+            e.play()
+            connect(app)
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun silence(durationMs: Long) =
+        SilenceMediaSource.Factory().setDurationUs(durationMs * 1_000).createMediaSource()
+
+    private val events = object : Engine.Listener {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Engine.STATE_ENDED) ended()
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            // The engine's own message ("Source error") means nothing to the
+            // person holding the phone.
+            quiet()
+            now = now?.copy(preparing = false, playing = false, error = motor?.getString(R.string.player_unreadable))
+        }
+
+        override fun onEvents(player: Engine, events: Engine.Events) {
+            if (events.containsAny(
+                    Engine.EVENT_IS_PLAYING_CHANGED,
+                    Engine.EVENT_PLAYBACK_STATE_CHANGED,
+                    Engine.EVENT_PLAY_WHEN_READY_CHANGED,
+                    Engine.EVENT_PLAYBACK_SUPPRESSION_REASON_CHANGED,
+                )
+            ) {
+                follow()
             }
         }
     }
 
     /**
-     * The piece drive. Every iteration starts from where the audio truly is,
-     * so a late join, a pause, or a slow join between pieces corrects itself
-     * instead of compounding.
+     * The motor follows the sound, whatever moved it. Only real playing
+     * drives it: while the audio is starting, paused, or held for a call, the
+     * motor is quiet. Sound first, vibration second (Task 5).
      */
-    private suspend fun drive(score: Score, hearAndFeel: Boolean, resume: Boolean) {
-        val ctx = appCtx ?: return
-        if (hearAndFeel) {
-            // Task 5's rule: sound first, vibration second. A player buffers;
-            // currentPosition only advances once audio is genuinely running.
-            val giveUp = SystemClock.elapsedRealtime() + START_WAIT_MS
-            while (audioPositionMs() == 0L && SystemClock.elapsedRealtime() < giveUp) {
-                delay(2)
-            }
-        } else {
-            // Feel only has no audio to chase: the clock is the witness. On a
-            // fresh start it begins at zero; on a resume it begins where the
-            // pause left it.
-            if (!resume) feelOnlyElapsedMs = 0L
-            feelStartedAtMs = SystemClock.elapsedRealtime()
-        }
-        stopDrive()
+    private fun follow() {
+        val e = engine ?: return
+        val current = now ?: return
+        if (current.preparing) return
+        val state = e.playbackState
+        now = current.copy(
+            playing = e.playWhenReady && state != Engine.STATE_ENDED && state != Engine.STATE_IDLE,
+            positionMs = e.currentPosition.coerceAtLeast(0L),
+        )
+        if (e.isPlaying) drive() else quiet()
+    }
+
+    /**
+     * The piece drive. Every piece starts from where the audio truly is, so a
+     * late join or a slow piece corrects itself instead of compounding.
+     */
+    private fun drive() {
+        if (driveJob?.isActive == true) return
+        val ctx = motor ?: return
+        val score = haptic?.score ?: return
         driveJob = scope.launch {
-            while (true) {
-                if (now?.playing != true) break
-                val elapsed = if (hearAndFeel) audioPositionMs() else feelClockMs()
-                val rest = score.from(elapsed)
+            while (isActive) {
+                val e = engine ?: break
+                if (!e.isPlaying) break
+                val rest = score.from(e.currentPosition.coerceAtLeast(0L))
                 if (rest.amplitudes.isEmpty()) break // the song played out
                 val piece = rest.pieces(Haptics.MAX_STEPS).first()
-                Haptics.play(ctx, piece)?.let { failure ->
-                    now = now?.copy(playing = false, error = failure)
+                val failure = Haptics.play(ctx, piece)
+                if (failure != null) {
+                    // The sound plays on; the screen says why it can't be felt.
+                    now = now?.copy(error = failure)
                     break
                 }
-                // The piece runs its own length; the next iteration then
-                // re-reads the real position and corrects any drift.
+                // The piece runs its own length; the next one re-reads the
+                // real position and corrects any drift.
                 delay(piece.durationMs)
             }
         }
+        tickerJob?.cancel()
         tickerJob = scope.launch {
-            while (now != null && now?.playing == true) {
-                now = now?.copy(
-                    positionMs = if (hearAndFeel) audioPositionMs() else feelClockMs(),
-                )
+            while (isActive) {
+                engine?.let { e -> now = now?.copy(positionMs = e.currentPosition.coerceAtLeast(0L)) }
                 delay(TICK_MS)
             }
         }
     }
 
-    private suspend fun stopDrive() {
-        driveJob?.cancelAndJoin()
+    /** The motor stops now, through the context that started it. */
+    private fun quiet() {
+        driveJob?.cancel()
         driveJob = null
         tickerJob?.cancel()
         tickerJob = null
+        motor?.let { Haptics.stop(it) }
+    }
+
+    /** The song finished: like any music player, the list carries on. */
+    private fun ended() {
+        quiet()
+        now = now?.copy(playing = false, positionMs = now?.durationMs ?: 0)
+        val ctx = motor ?: return
+        if (canStep(+1)) step(ctx, +1)
     }
 
     /**
      * The Tune screen rebuilt this song's haptic. If it is the song playing,
-     * the new one takes over from where things are — the drive restarts from
-     * the true position, the same way a switch to "feel only" does.
+     * the new rhythm takes over from where the song is.
      */
     fun retuned(ctx: Context, updated: Haptic) {
         val current = now ?: return
         if (current.track.sourceUri != updated.trackUri) return
         haptic = updated
         now = current.copy(durationMs = updated.score.durationMs)
-        if (current.playing) {
-            scope.launch {
-                if (!current.hearAndFeel) feelOnlyElapsedMs = feelClockMs()
-                stopDrive()
-                Haptics.stop(ctx)
-                drive(updated.score, current.hearAndFeel, resume = true)
-            }
+        if (engine?.isPlaying == true) {
+            quiet()
+            drive()
         }
     }
 
@@ -377,54 +446,122 @@ object Player {
         )
     }
 
-    private fun prepareAudio(ctx: Context, sourceUri: String) {
-        val mp = MediaPlayer()
-        mediaPlayer = mp
-        mp.setAudioAttributes(
+    // --- The engine, and what the rest of the phone sees of it. -------------
+
+    private fun engineFor(ctx: Context): ExoPlayer = engine ?: ExoPlayer.Builder(ctx.applicationContext)
+        // Music: Android pauses it for a call or another app's sound, and
+        // the motor stops with it (see [follow]).
+        .setAudioAttributes(
             AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                 .build(),
+            true,
         )
-        mp.setOnCompletionListener {
-            now = now?.copy(playing = false, positionMs = now?.durationMs ?: 0)
-            Haptics.stop(ctx)
+        .setHandleAudioBecomingNoisy(true)
+        // Keeps the phone awake while a song plays with the screen off, so the
+        // drive's next piece is not late (R11).
+        .setWakeMode(C.WAKE_MODE_LOCAL)
+        .build()
+        .also {
+            // A video's picture has nowhere to go; decoding it would only spend battery.
+            it.trackSelectionParameters = it.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+                .build()
+            it.addListener(events)
+            engine = it
         }
-        // Without this, a file the player gives up on mid-way reports as a
-        // song that simply finished. Returning true stops Android from also
-        // calling the completion listener.
-        mp.setOnErrorListener { _, _, _ ->
-            Haptics.stop(ctx)
-            now = now?.copy(playing = false, error = ctx.getString(R.string.player_unreadable))
-            true
+
+    /** For [PlaybackService]: what the notification and lock screen control. */
+    fun session(ctx: Context): MediaSession = session ?: MediaSession.Builder(ctx, Remote(engineFor(ctx)))
+        .setSessionActivity(openApp(ctx))
+        .build()
+        .also { session = it }
+
+    fun releaseSession() {
+        session?.release()
+        session = null
+        disconnect()
+    }
+
+    /** Whether a song is playing, for [PlaybackService] when Thrum is swiped away. */
+    fun isPlaying(): Boolean = now?.playing == true
+
+    /** Tapping the notification opens Thrum on the player. */
+    const val EXTRA_OPEN_PLAYER = "com.mosman.thrum.OPEN_PLAYER"
+
+    private fun openApp(ctx: Context): PendingIntent = PendingIntent.getActivity(
+        ctx,
+        0,
+        Intent(ctx, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(EXTRA_OPEN_PLAYER, true),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    private fun connect(ctx: Context) {
+        if (controller != null) return
+        controller = MediaController.Builder(ctx, SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java)))
+            .buildAsync()
+    }
+
+    private fun disconnect() {
+        controller?.let { MediaController.releaseFuture(it) }
+        controller = null
+    }
+
+    private fun metadata(): MediaMetadata {
+        val track = now?.track ?: return MediaMetadata.EMPTY
+        return MediaMetadata.Builder()
+            .setTitle(track.name)
+            .setArtist(track.artist.ifEmpty { MyHaptics.kindLabel(track.kind) })
+            .build()
+    }
+
+    /**
+     * What the notification, the lock screen and headphone buttons talk to.
+     * Their play, pause, next and previous take the same paths as Thrum's own
+     * buttons, so the motor is never left behind.
+     */
+    private class Remote(engine: ExoPlayer) : ForwardingPlayer(engine) {
+        override fun getAvailableCommands(): Engine.Commands = super.getAvailableCommands().buildUpon()
+            .addAll(
+                Engine.COMMAND_SEEK_TO_NEXT,
+                Engine.COMMAND_SEEK_TO_PREVIOUS,
+                Engine.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                Engine.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+            )
+            // No dragging through the song from the notification: the motor
+            // plays in long pieces and would lag until the next join.
+            .remove(Engine.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+            .build()
+
+        override fun isCommandAvailable(command: Int): Boolean = availableCommands.contains(command)
+
+        override fun play() {
+            motor?.let { resume(it) }
         }
-        mp.setOnPreparedListener { ready ->
-            if (now?.playing == true) {
-                ready.start()
-                scope.launch {
-                    currentHaptic()?.let { drive(it.score, hearAndFeel = true, resume = false) }
-                }
-            }
-        }
-        runCatching {
-            mp.setDataSource(ctx, Uri.parse(sourceUri))
-            mp.prepareAsync()
-        }.onFailure {
-            // The player's own message ("setDataSource failed.: status=…")
-            // means nothing to the person holding the phone.
-            now = now?.copy(preparing = false, playing = false, error = ctx.getString(R.string.player_unreadable))
+
+        override fun pause() = Player.pause()
+
+        override fun seekToNext() = skip(+1)
+
+        override fun seekToNextMediaItem() = skip(+1)
+
+        override fun seekToPrevious() = skip(-1)
+
+        override fun seekToPreviousMediaItem() = skip(-1)
+
+        override fun hasNextMediaItem(): Boolean = canStep(+1)
+
+        override fun hasPreviousMediaItem(): Boolean = canStep(-1)
+
+        override fun getMediaMetadata(): MediaMetadata = metadata()
+
+        private fun skip(delta: Int) {
+            motor?.let { step(it, delta) }
         }
     }
 
-    private fun currentHaptic(): Haptic? = haptic
-
-    private fun audioPositionMs(): Long =
-        runCatching { mediaPlayer?.currentPosition?.toLong() ?: 0L }.getOrDefault(0L)
-
-    /** Feel-only's clock: the pause position plus the time since the last resume. */
-    private fun feelClockMs(): Long =
-        feelOnlyElapsedMs + (SystemClock.elapsedRealtime() - feelStartedAtMs)
-
-    private const val START_WAIT_MS = 2_000L
     private const val TICK_MS = 500L
 }

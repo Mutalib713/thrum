@@ -112,6 +112,14 @@ dependencies {
     // save battery. Version read off Google's Maven metadata.
     implementation("androidx.work:work-runtime-ktx:2.12.0")
 
+    // Task 21: song playback. Media3 is Mutalib's pick (PROFILE §7, 3 Oct):
+    // the base for the notification and lock-screen controls he asked for on
+    // 4 Oct, and for playing with Thrum closed. Neither artifact adds the
+    // INTERNET permission; local files only (Sacred Rule 3). Version read off
+    // Google's Maven metadata.
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-session:1.11.1")
+
     // Score and its serialization are pure Kotlin with no Android or JSON
     // dependency, so junit alone is enough to test the whole analysis layer.
     testImplementation("junit:junit:4.13.2")

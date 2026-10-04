@@ -18,6 +18,16 @@
         android:maxSdkVersion="32" />
 
     <!--
+      Playing a song with Thrum closed or the screen off (PROFILE §4, moved
+      into v1 on 2026-10-04). Android keeps a media player alive only as a
+      foreground service, and from Android 14 that service has to say it is
+      for media playback. The notification it shows is a media notification,
+      which needs no notification permission on Android 13+.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <!--
       Deliberately absent, and PROFILE.md Sacred Rule 3 keeps it that way:
       no INTERNET permission. Nothing this app touches leaves the phone.
     -->
@@ -54,6 +64,20 @@
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!--
+          The player's notification and lock-screen controls. Exported because
+          the phone's own controls (the notification shade, Bluetooth
+          headphones, a car) connect to it from outside the app.
+        -->
+        <service
+            android:name=".PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
     </application>

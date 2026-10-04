@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -479,9 +481,11 @@ private fun RecentlyPlayed() {
         val queue = rows.map { it.first }
         rows.forEachIndexed { index, (track, haptic) ->
             if (index > 0) HorizontalDivider(color = ThrumRule, thickness = 1.dp)
+            // The row opens the song's page; its play button plays it here.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable(role = Role.Button) { Player.openSong(ctx, track, queue) }
                     .padding(horizontal = Space.S3, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -507,10 +511,7 @@ private fun RecentlyPlayed() {
                     playing = Player.now?.track?.sourceUri == track.sourceUri && Player.now?.playing == true,
                     size = 38.dp,
                     iconSize = 13.dp,
-                    onClick = {
-                        Player.play(ctx, track, queue)
-                        Player.open = true
-                    },
+                    onClick = { Player.playHere(ctx, track, queue) },
                 )
             }
         }

@@ -161,10 +161,15 @@ fun MyHapticsTab(onGoToMusic: () -> Unit, onExport: () -> Unit) {
     val trackByUri = remember(tracks) { tracks.associateBy { it.sourceUri } }
     val playable = rows.filter { it.hasHaptic && it.readable }.map { trackByUri[it.uri] ?: it.asTrack() }
 
-    fun play(row: MyHaptics.Row) {
+    // The row opens the haptic's page; its play button plays it here.
+    fun open(row: MyHaptics.Row) {
         if (!row.hasHaptic || !row.readable) return
-        Player.play(ctx, trackByUri[row.uri] ?: row.asTrack(), playable)
-        Player.open = true
+        Player.openSong(ctx, trackByUri[row.uri] ?: row.asTrack(), playable)
+    }
+
+    fun playHere(row: MyHaptics.Row) {
+        if (!row.hasHaptic || !row.readable) return
+        Player.playHere(ctx, trackByUri[row.uri] ?: row.asTrack(), playable)
     }
 
     LazyColumn(
@@ -227,7 +232,8 @@ fun MyHapticsTab(onGoToMusic: () -> Unit, onExport: () -> Unit) {
                 haptic = hapticByUri[row.uri],
                 first = index == 0,
                 last = index == rows.lastIndex,
-                onPlay = { play(row) },
+                onOpen = { open(row) },
+                onPlayHere = { playHere(row) },
                 onLongPress = { if (row.hasHaptic) deleteRow = row },
             )
         }
@@ -291,7 +297,8 @@ private fun HapticRow(
     haptic: Haptic?,
     first: Boolean,
     last: Boolean,
-    onPlay: () -> Unit,
+    onOpen: () -> Unit,
+    onPlayHere: () -> Unit,
     onLongPress: () -> Unit,
 ) {
     val corner = Radius.large
@@ -307,7 +314,7 @@ private fun HapticRow(
             .fillMaxWidth()
             .clip(shape)
             .background(ThrumSurface)
-            .combinedClickable(role = Role.Button, onClick = onPlay, onLongClick = onLongPress),
+            .combinedClickable(role = Role.Button, onClick = onOpen, onLongClick = onLongPress),
     ) {
         if (!first) HorizontalDivider(color = ThrumRule, thickness = 1.dp)
         Row(
@@ -336,13 +343,13 @@ private fun HapticRow(
                     !row.hasHaptic -> Text(stringResource(R.string.haptics_making), style = ThrumType.meta, color = ThrumInk2)
                 }
             }
-            when {
-                row.isCalls -> ThrumChip(text = stringResource(R.string.haptics_calls_badge), hasDot = true)
-                canPlay -> CirclePlayButton(
+            if (row.isCalls) ThrumChip(text = stringResource(R.string.haptics_calls_badge), hasDot = true)
+            if (canPlay) {
+                CirclePlayButton(
                     playing = Player.now?.track?.sourceUri == row.uri && Player.now?.playing == true,
                     size = 38.dp,
                     iconSize = 13.dp,
-                    onClick = onPlay,
+                    onClick = onPlayHere,
                 )
             }
         }

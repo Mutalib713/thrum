@@ -227,7 +227,11 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
     }
 }
 
-/** The small player that rides above the tab bar while a song plays. */
+/**
+ * The small player that rides above the tab bar while a song plays: back,
+ * pause and next without opening the player (Mutalib, 2026-10-04). A tap
+ * anywhere else opens it.
+ */
 @Composable
 fun MiniPlayer() {
     val ctx = LocalContext.current
@@ -247,7 +251,7 @@ fun MiniPlayer() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.S3),
     ) {
-        Box(Modifier.width(60.dp)) {
+        Box(Modifier.width(44.dp)) {
             PulseRibbon(
                 score = haptic?.score,
                 progress = if (now.durationMs > 0) now.positionMs.toFloat() / now.durationMs else -1f,
@@ -266,11 +270,29 @@ fun MiniPlayer() {
                 maxLines = 1,
             )
         }
-        IconButtonBox(
-            icon = if (now.playing) "pause" else "play",
-            label = stringResource(if (now.playing) R.string.player_pause else R.string.player_play),
-            onClick = { Player.togglePause(ctx) },
-            iconSize = 20.dp,
-        )
+        // One group, no gaps: each button is already a 48 dp target.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButtonBox(
+                icon = "prev",
+                label = stringResource(R.string.player_previous),
+                onClick = { Player.previous(ctx) },
+                enabled = Player.canStep(-1),
+                iconSize = 18.dp,
+            )
+            IconButtonBox(
+                icon = if (now.playing) "pause" else "play",
+                label = stringResource(if (now.playing) R.string.player_pause else R.string.player_play),
+                onClick = { Player.togglePause(ctx) },
+                enabled = !now.preparing,
+                iconSize = 20.dp,
+            )
+            IconButtonBox(
+                icon = "next",
+                label = stringResource(R.string.player_next),
+                onClick = { Player.next(ctx) },
+                enabled = Player.canStep(+1),
+                iconSize = 18.dp,
+            )
+        }
     }
 }

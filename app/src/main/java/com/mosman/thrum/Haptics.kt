@@ -32,17 +32,20 @@ object Haptics {
     }
 
     /**
-     * Always the application's vibrator, whoever asks. Android cancels a
-     * vibration only for the vibrator object that started it, and every
-     * screen hands out its own. The player started its pieces through the
-     * app's vibrator and the pause button cancelled through the screen's, so
-     * Android ignored the pause and the motor ran on to the end of the piece:
-     * `dumpsys vibrator_manager` still said `status: running` two seconds
-     * after a pause (2026-10-04). One vibrator for the app, so any stop stops
-     * any start.
+     * The vibrator for [ctx]'s owner. **Android cancels a vibration only
+     * through the vibrator object that started it**, and each context (the
+     * app, a screen, the call listener) hands out its own. So [stop] must be
+     * given the same context [play] was, and that is a feature: the player
+     * stopping its music can never cancel a call's vibration, which
+     * [NotifService] starts through its own context.
+     *
+     * Getting this wrong was the 2026-10-04 pause bug: the player started its
+     * pieces through the app's context and paused through the screen's, so
+     * Android ignored the pause and the motor ran to the end of the piece.
+     * [Player] now uses the app's context for both.
      */
     fun vibrator(ctx: Context): Vibrator =
-        (ctx.applicationContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
 
     fun capability(ctx: Context): Capability {
         val v = vibrator(ctx)

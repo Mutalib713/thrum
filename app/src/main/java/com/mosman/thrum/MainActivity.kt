@@ -1,5 +1,6 @@
 package com.mosman.thrum
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.VibrationEffect
 import androidx.activity.ComponentActivity
@@ -61,6 +62,7 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openPlayerIfAsked(intent)
         enableEdgeToEdge()
         setContent {
             var diagnostics by remember { mutableStateOf(false) }
@@ -83,6 +85,18 @@ class MainActivity : ComponentActivity() {
                     ThrumRoot(onDiagnostics = if (BuildConfig.DEBUG) ({ diagnostics = true }) else null)
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openPlayerIfAsked(intent)
+    }
+
+    /** A tap on the playing notification opens Thrum on the song, not on whatever tab it was left. */
+    private fun openPlayerIfAsked(intent: Intent?) {
+        if (intent?.getBooleanExtra(Player.EXTRA_OPEN_PLAYER, false) == true && Player.now != null) {
+            Player.open = true
         }
     }
 }

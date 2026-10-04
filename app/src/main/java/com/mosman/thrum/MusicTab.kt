@@ -159,10 +159,8 @@ fun MusicTab(onExport: () -> Unit) {
                 walkLeft = walk.second,
                 walking = store.hapticsMode == HapticsWorker.MODE_BACKGROUND,
                 onExport = onExport,
-                onPlay = { track, queue ->
-                    Player.play(ctx, track, queue)
-                    Player.open = true
-                },
+                onOpen = { track, queue -> Player.openSong(ctx, track, queue) },
+                onPlayHere = { track, queue -> Player.playHere(ctx, track, queue) },
             )
         } else {
             ThrumPage(overTabs = true) {
@@ -373,7 +371,8 @@ private fun SongList(
     walkLeft: Int,
     walking: Boolean,
     onExport: () -> Unit,
-    onPlay: (Track, List<Track>) -> Unit,
+    onOpen: (Track, List<Track>) -> Unit,
+    onPlayHere: (Track, List<Track>) -> Unit,
 ) {
     val shown = Track.search(tracks, query)
     LazyColumn(
@@ -425,7 +424,8 @@ private fun SongList(
                 first = index == 0,
                 last = index == shown.lastIndex,
                 isCalls = track.sourceUri == callsUri,
-                onPlay = { onPlay(track, shown) },
+                onOpen = { onOpen(track, shown) },
+                onPlayHere = { onPlayHere(track, shown) },
             )
         }
     }
@@ -470,9 +470,19 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
  * One song. The first and last rows round the list's corners, so the rows
  * read as one card the way the design draws them. A file the phone cannot
  * read stays in the list and says so; tapping it could only fail.
+ *
+ * The row opens the song's page; its play button plays it here, without
+ * leaving the list (Mutalib, 2026-10-04).
  */
 @Composable
-private fun SongRow(track: Track, first: Boolean, last: Boolean, isCalls: Boolean, onPlay: () -> Unit) {
+private fun SongRow(
+    track: Track,
+    first: Boolean,
+    last: Boolean,
+    isCalls: Boolean,
+    onOpen: () -> Unit,
+    onPlayHere: () -> Unit,
+) {
     val corner = Radius.large
     val shape = when {
         first && last -> RoundedCornerShape(corner)
@@ -485,7 +495,7 @@ private fun SongRow(track: Track, first: Boolean, last: Boolean, isCalls: Boolea
             .fillMaxWidth()
             .clip(shape)
             .background(ThrumSurface)
-            .then(if (track.readable) Modifier.clickable(role = Role.Button, onClick = onPlay) else Modifier),
+            .then(if (track.readable) Modifier.clickable(role = Role.Button, onClick = onOpen) else Modifier),
     ) {
         if (!first) HorizontalDivider(color = ThrumRule, thickness = 1.dp)
         Row(
@@ -510,13 +520,13 @@ private fun SongRow(track: Track, first: Boolean, last: Boolean, isCalls: Boolea
                     Text(stringResource(R.string.player_unreadable), style = ThrumType.meta, color = ThrumWarn)
                 }
             }
-            when {
-                isCalls -> ThrumChip(text = stringResource(R.string.haptics_calls_badge), hasDot = true)
-                track.readable -> CirclePlayButton(
+            if (isCalls) ThrumChip(text = stringResource(R.string.haptics_calls_badge), hasDot = true)
+            if (track.readable) {
+                CirclePlayButton(
                     playing = Player.now?.track?.sourceUri == track.sourceUri && Player.now?.playing == true,
                     size = 38.dp,
                     iconSize = 13.dp,
-                    onClick = onPlay,
+                    onClick = onPlayHere,
                 )
             }
         }
