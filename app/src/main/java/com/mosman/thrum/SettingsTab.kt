@@ -193,20 +193,15 @@ fun SettingsTab(
                     onClick = {
                         val switchingToBg = store.hapticsMode != HapticsWorker.MODE_BACKGROUND
                         store.hapticsMode = if (switchingToBg) HapticsWorker.MODE_BACKGROUND else HapticsWorker.MODE_AS_PLAYED
+                        store.hapticsDone = 0
                         if (switchingToBg) {
                             scope.launch {
-                                val made = withContext(Dispatchers.IO) { db.dao().madeTrackUris() }.toSet()
-                                val queued = HapticQueue(emptyList(), made)
-                                    .enqueued(withContext(Dispatchers.IO) { db.dao().allTrackUris() })
-                                store.hapticQueuePending = queued.pending
-                                store.hapticsDone = 0
-                                store.hapticsTotal = queued.pending.size
-                                HapticsWorker.ensureEnqueued(ctx)
+                                val all = withContext(Dispatchers.IO) { db.dao().allTrackUris() }
+                                HapticsWorker.enqueue(ctx, all)
                             }
                         } else {
-                            store.hapticQueuePending = emptyList()
-                            store.hapticsDone = 0
-                            store.hapticsTotal = 0
+                            // Nothing walks the list in "as I play them" mode.
+                            store.editQueue(emptySet()) { HapticQueue() }
                         }
                     },
                 )

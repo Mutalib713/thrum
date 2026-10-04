@@ -284,6 +284,8 @@
     <string name="export_privacy">Only the vibration is exported. Your songs stay where they are.</string>
     <string name="export_save">Save to my phone</string>
     <string name="export_saved">Saved.</string>
+    <!-- 2026-10-04 review, A5: a failed save used to crash the app. -->
+    <string name="export_failed">That didn\'t save, so nothing was written. Try again, or choose a different place.</string>
     <string name="import_option">A Thrum file</string>
     <string name="import_failed">That file didn\'t open. It may not be a Thrum file.</string>
     <string name="player_imported_no_audio">The song isn\'t in a Thrum file — only the vibration is. Feel it on its own.</string>

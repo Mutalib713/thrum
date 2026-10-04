@@ -31,16 +31,18 @@ data class HapticQueue(
     }
 
     /**
-     * The user played this song. With a haptic already made, nothing to do.
-     * Otherwise it goes to the front — ahead of everything waiting — whether
-     * it was queued or not, because pressing play is a stronger signal than
-     * anything the scan learned.
+     * The user played this song, so the player is making its haptic **now** —
+     * the strongest way to jump the queue: ahead of everything waiting, and
+     * not waiting for the walk at all. It leaves the queue so the walk never
+     * makes it a second time, in parallel, eight seconds of decoding for
+     * nothing.
+     *
+     * This used to move the song to the *front* for the walk to pick up,
+     * while the player made it anyway. The two then decoded the same song at
+     * once, and the walk's copy of the queue, read before its own eight
+     * seconds, was what wrote a made song back in — the 2026-10-04 crash.
      */
-    fun played(uri: String): HapticQueue {
-        if (uri in made) return this
-        val rest = pending.filter { it != uri }
-        return copy(pending = listOf(uri) + rest)
-    }
+    fun claimed(uri: String): HapticQueue = copy(pending = pending.filter { it != uri })
 
     /**
      * The scan found these tracks. Already-made songs never enter; duplicates
@@ -59,6 +61,24 @@ data class HapticQueue(
         copy(pending = pending.filter { it != uri }, made = made + uri)
 
     companion object {
+        /**
+         * A queue rebuilt from storage, which is the one place the invariants
+         * above cannot be trusted.
+         *
+         * Storage is written by more than one hand — the background walk, the
+         * player, a rescan — and the library is written separately from it,
+         * so the two can disagree: a song made while someone held an older
+         * copy of the queue, a duplicate from two writers racing. The
+         * constructor refuses both, correctly, and on 2026-10-04 that refusal,
+         * reached from a song tap on the main thread, closed the app on every
+         * tap until its data was cleared. Restoring drops what the library has
+         * already made and keeps the first copy of a duplicate, so stored
+         * state can never take the app down. [Store.editQueue] is the only
+         * caller, and it writes the cleaned list straight back.
+         */
+        fun restore(pending: List<String>, made: Set<String>): HapticQueue =
+            HapticQueue(pending.filter { it !in made }.distinct(), made)
+
         /**
          * The pending queue as one stored line — pipe-joined, because a pipe
          * cannot appear inside a `content://` or `asset://` URI, so no

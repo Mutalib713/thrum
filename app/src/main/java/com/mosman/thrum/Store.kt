@@ -38,10 +38,10 @@ class Store(ctx: Context) {
     /**
      * The armed score — what a real call plays.
      *
-     * Null means nothing is armed, and [NotifService] falls back to the demo
-     * pattern rather than staying silent. A corrupt or unreadable value also
-     * reads as null: a score that cannot be decoded is not an error worth
-     * crashing a notification listener for.
+     * Null means nothing is armed, and [NotifService] stands down so the call
+     * gets Android's own buzz: PROFILE.md §4 item 3, no demo pattern. A
+     * corrupt or unreadable value also reads as null: a score that cannot be
+     * decoded is not an error worth crashing a notification listener for.
      */
     var armedScore: Score?
         get() = prefs.getString(KEY_SCORE, null)?.let { Score.decode(it) }
@@ -172,22 +172,45 @@ class Store(ctx: Context) {
         }.apply()
 
     /**
-     * The songs waiting for a haptic, in the order they will be made —
-     * [HapticQueue.encodePending]'s line. The order is the promise: a song
-     * played moves to the front, and the background walk takes the head.
+     * The songs waiting for a haptic, in the order the background walk will
+     * make them — [HapticQueue.encodePending]'s line. Read-only: every change
+     * goes through [editQueue].
      */
-    var hapticQueuePending: List<String>
+    val hapticQueuePending: List<String>
         get() = HapticQueue.decodePending(prefs.getString(KEY_HAPTIC_QUEUE, null))
-        set(v) = prefs.edit().putString(KEY_HAPTIC_QUEUE, HapticQueue.encodePending(v)).apply()
 
-    /** Progress for the "2 of 5 done" line: [hapticsDone] of [hapticsTotal]. */
+    /**
+     * Change the waiting list in one locked step: read it, change it, write it.
+     *
+     * **This is the 2026-10-04 crash fix.** The player (main thread) and the
+     * background walk (a worker thread) both change the list. The walk used
+     * to read it, spend eight seconds making a haptic, then write back the
+     * copy it had read — erasing everything the player did in between,
+     * including taking a finished song off. A finished song back on the list
+     * broke the queue's own rule, and the next song tap closed the app.
+     *
+     * Now nobody holds a copy across a decode: [change] gets the list as it
+     * is at this moment, rebuilt with [HapticQueue.restore] against [made]
+     * (the library's made set, read just before), and the result is written
+     * under the same lock. The lock is process-wide because [Store] objects
+     * are created freely, and a lock per object would guard nothing.
+     */
+    fun editQueue(made: Set<String>, change: (HapticQueue) -> HapticQueue): HapticQueue =
+        synchronized(QUEUE_LOCK) {
+            val next = change(HapticQueue.restore(hapticQueuePending, made))
+            prefs.edit().putString(KEY_HAPTIC_QUEUE, HapticQueue.encodePending(next.pending)).apply()
+            next
+        }
+
+    /**
+     * Songs the background walk has made since the queue was last empty —
+     * the "2" in "2 of 5 done". The "5" is this plus what is still waiting,
+     * worked out where it is shown, so the two numbers can never drift apart
+     * the way a separately stored total did.
+     */
     var hapticsDone: Int
         get() = prefs.getInt(KEY_HAPTICS_DONE, 0)
         set(v) = prefs.edit().putInt(KEY_HAPTICS_DONE, v).apply()
-
-    var hapticsTotal: Int
-        get() = prefs.getInt(KEY_HAPTICS_TOTAL, 0)
-        set(v) = prefs.edit().putInt(KEY_HAPTICS_TOTAL, v).apply()
 
     fun events(): List<Event> = Event.decodeAll(prefs.getString(KEY_EVENTS, "") ?: "")
 
@@ -212,6 +235,8 @@ class Store(ctx: Context) {
         const val KEY_HAPTICS_MODE = "haptics_mode"
         const val KEY_HAPTIC_QUEUE = "haptic_queue_pending"
         const val KEY_HAPTICS_DONE = "haptics_done"
-        const val KEY_HAPTICS_TOTAL = "haptics_total"
+
+        /** See [editQueue]: one lock for the whole process, not one per [Store]. */
+        val QUEUE_LOCK = Any()
     }
 }

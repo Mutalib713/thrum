@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,14 @@ fun ThrumRoot(onDiagnostics: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val store = remember { Store(ctx) }
     var onboarded by remember { mutableStateOf(store.onboarded) }
+
+    // A walk left unfinished resumes when the app opens. Before the
+    // 2026-10-04 fix the walk stopped after one song, so a phone updated
+    // from that build can be holding a list nothing is working through.
+    // Safe to ask every launch: a walk already running is left alone.
+    LaunchedEffect(Unit) {
+        if (store.hapticQueuePending.isNotEmpty()) HapticsWorker.ensureEnqueued(ctx)
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = ThrumField) {
         if (onboarded) {

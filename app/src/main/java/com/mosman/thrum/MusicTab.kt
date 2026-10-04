@@ -104,35 +104,26 @@ fun MusicTab(
         }
     }
 
-    fun topUpQueue(found: List<Track>) {
-        scope.launch {
-            val made = withContext(Dispatchers.IO) { db.dao().madeTrackUris() }.toSet()
-            val added = HapticQueue(store.hapticQueuePending, made)
-                .enqueued(found.map { it.sourceUri })
-            if (added.pending != store.hapticQueuePending) {
-                store.hapticQueuePending = added.pending
-                store.hapticsDone = 0
-                store.hapticsTotal = added.pending.size
-                HapticsWorker.ensureEnqueued(ctx)
-            }
-        }
-    }
-
     fun runScan() {
         scanning = true
         scope.launch {
-            val found = withContext(Dispatchers.IO) { MusicScan.scan(ctx) }
+            // A scan can be refused mid-way — music access taken back while
+            // it runs. That used to crash the app; now the scan just stops.
+            val found = withContext(Dispatchers.IO) { runCatching { MusicScan.scan(ctx) }.getOrNull() }
+            scanning = false
+            if (found == null) return@launch
             val now = System.currentTimeMillis()
             withContext(Dispatchers.IO) {
                 db.dao().upsertTracks(found.map { it.toEntity(now) })
             }
             store.lastScanAtMs = now
-            scanning = false
             if (found.isNotEmpty()) {
                 if (store.hapticsMode == null) {
                     askMode = true
                 } else {
-                    topUpQueue(found)
+                    // Background mode only: enqueue() leaves the list alone
+                    // in "as I play them" mode, where nothing walks it.
+                    HapticsWorker.enqueue(ctx, found.map { it.sourceUri })
                 }
             }
         }
@@ -494,7 +485,7 @@ fun MusicTab(
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            "Making haptics · ${store.hapticsDone} of ${store.hapticsTotal} done",
+                                            "Making haptics · ${store.hapticsDone} of ${store.hapticsDone + pendingCount} done",
                                             color = ThrumInk,
                                             fontSize = 14.5.sp,
                                             fontWeight = FontWeight.Medium,
@@ -643,17 +634,8 @@ fun MusicTab(
                     onClick = {
                         store.hapticsMode = choice
                         if (choice == HapticsWorker.MODE_BACKGROUND) {
-                            scope.launch {
-                                val made = withContext(Dispatchers.IO) {
-                                    db.dao().madeTrackUris()
-                                }.toSet()
-                                val queued = HapticQueue(emptyList(), made)
-                                    .enqueued(tracks.map { it.sourceUri })
-                                store.hapticQueuePending = queued.pending
-                                store.hapticsDone = 0
-                                store.hapticsTotal = queued.pending.size
-                                HapticsWorker.ensureEnqueued(ctx)
-                            }
+                            store.hapticsDone = 0
+                            scope.launch { HapticsWorker.enqueue(ctx, tracks.map { it.sourceUri }) }
                         }
                         askMode = false
                     },

@@ -8,12 +8,15 @@ import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -68,11 +71,35 @@ object Player {
     var haptic by mutableStateOf<Haptic?>(null)
         private set
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    /**
+     * Nothing in the player may take the app down. A refusal anywhere in
+     * here becomes a sentence on the player screen and the song stops. The
+     * 2026-10-04 crash came through this very scope — an exception thrown in
+     * one of its coroutines, with nothing to catch it, kills the process.
+     */
+    private val guard = CoroutineExceptionHandler { _, _ ->
+        mediaPlayer?.runCatching { release() }
+        mediaPlayer = null
+        appCtx?.let { Haptics.stop(it) }
+        now = now?.copy(
+            preparing = false,
+            playing = false,
+            error = appCtx?.getString(R.string.error_title),
+        )
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main + guard)
     private var appCtx: Context? = null
     private var mediaPlayer: MediaPlayer? = null
     private var driveJob: Job? = null
     private var tickerJob: Job? = null
+
+    /**
+     * The song being started. A second tap cancels the first start, so two
+     * starts can never both reach [prepareAudio] — which is how two songs
+     * used to play at once, the first one's player never released.
+     */
+    private var startJob: Job? = null
 
     /** The queue the player came from, for previous and next. */
     private var queue: List<Track> = emptyList()
@@ -92,42 +119,20 @@ object Player {
         this.queue = queue
         index = queue.indexOfFirst { it.sourceUri == track.sourceUri }
         start(ctx, track, hearAndFeel)
-        jumpAhead(ctx, track.sourceUri)
     }
 
     /**
-     * §4 item 5, in the background mode: a song played jumps the queue — to
-     * the **front**, ahead of everything waiting, because pressing play is a
-     * stronger signal than anything the scan learned. In "as played" mode
-     * there is no queue to jump; the haptic is made right here.
+     * §4 item 5: a song played before its turn jumps the queue. The player
+     * makes its haptic right now, so in background mode it first takes the
+     * song off the waiting list — the walk must not start the same eight-
+     * second decode in parallel. In "as played" mode the list is empty and
+     * this changes nothing.
      */
-    private fun jumpAhead(ctx: Context, uri: String) {
-        if (Store(ctx).hapticsMode != HapticsWorker.MODE_BACKGROUND) return
-        scope.launch {
-            val store = Store(ctx)
-            val made = withContext(Dispatchers.IO) {
-                LibraryDb.get(ctx).dao().madeTrackUris()
-            }.toSet()
-            val moved = HapticQueue(store.hapticQueuePending, made).played(uri)
-            if (moved.pending != store.hapticQueuePending) {
-                store.hapticQueuePending = moved.pending
-                HapticsWorker.ensureEnqueued(ctx)
-            }
-        }
-    }
-
-    /**
-     * A haptic now exists (or the file was refused) — the walk must not remake
-     * or retry it. Settled after every make attempt, success or not.
-     */
-    private fun settled(ctx: Context, uri: String) {
-        if (Store(ctx).hapticsMode != HapticsWorker.MODE_BACKGROUND) return
-        scope.launch {
-            val store = Store(ctx)
-            if (uri in store.hapticQueuePending) {
-                store.hapticQueuePending = store.hapticQueuePending - uri
-            }
-        }
+    private suspend fun claim(ctx: Context, uri: String) {
+        val store = Store(ctx)
+        if (store.hapticsMode != HapticsWorker.MODE_BACKGROUND) return
+        val made = withContext(Dispatchers.IO) { LibraryDb.get(ctx).dao().madeTrackUris() }.toSet()
+        store.editQueue(made) { it.claimed(uri) }
     }
 
     fun setHearAndFeel(ctx: Context, hearAndFeel: Boolean) {
@@ -181,6 +186,7 @@ object Player {
 
     /** Everything stops: motor, audio, drive. The screen empties. */
     fun stop(ctx: Context) {
+        startJob?.cancel()
         scope.launch {
             stopDrive()
             Haptics.stop(ctx)
@@ -214,7 +220,8 @@ object Player {
 
     private fun start(ctx: Context, track: Track, hearAndFeel: Boolean) {
         appCtx = ctx.applicationContext
-        scope.launch {
+        startJob?.cancel()
+        startJob = scope.launch {
             stopDrive()
             Haptics.stop(ctx)
             mediaPlayer?.release()
@@ -242,9 +249,12 @@ object Player {
             if (existing != null) {
                 ready = existing
             } else {
-                val made = HapticMaker.make(ctx, track)
-                if (now?.track?.sourceUri != track.sourceUri) return@launch // user moved on
-                settled(ctx, track.sourceUri)
+                claim(ctx, track.sourceUri)
+                // Finished and saved even if the user taps another song
+                // halfway: the eight seconds are already spent, and the next
+                // play of this song should not spend them again.
+                val made = withContext(NonCancellable) { HapticMaker.make(ctx, track) }
+                ensureActive() // the user moved on: keep the haptic, drop the playback
                 if (made.haptic == null) {
                     now = now?.copy(preparing = false, playing = false, error = made.error)
                     return@launch
@@ -347,6 +357,14 @@ object Player {
             now = now?.copy(playing = false, positionMs = now?.durationMs ?: 0)
             Haptics.stop(ctx)
         }
+        // Without this, a file the player gives up on mid-way reports as a
+        // song that simply finished. Returning true stops Android from also
+        // calling the completion listener.
+        mp.setOnErrorListener { _, _, _ ->
+            Haptics.stop(ctx)
+            now = now?.copy(playing = false, error = ctx.getString(R.string.player_unreadable))
+            true
+        }
         mp.setOnPreparedListener { ready ->
             if (now?.playing == true) {
                 ready.start()
@@ -359,7 +377,9 @@ object Player {
             mp.setDataSource(ctx, Uri.parse(sourceUri))
             mp.prepareAsync()
         }.onFailure {
-            now = now?.copy(preparing = false, playing = false, error = it.message)
+            // The player's own message ("setDataSource failed.: status=…")
+            // means nothing to the person holding the phone.
+            now = now?.copy(preparing = false, playing = false, error = ctx.getString(R.string.player_unreadable))
         }
     }
 

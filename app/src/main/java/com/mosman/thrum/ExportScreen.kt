@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,6 +61,7 @@ fun ExportScreen(onClose: () -> Unit) {
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var exportAll by remember { mutableStateOf(true) }
     var saved by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         db.dao().observeHaptics().collect { rows -> haptics = rows.mapNotNull { it.toHaptic() } }
@@ -77,23 +79,20 @@ fun ExportScreen(onClose: () -> Unit) {
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
-            withContext(Dispatchers.IO) {
-                ctx.contentResolver.openOutputStream(uri)?.use { out ->
-                    out.write(ThrumFile.encode(chosen).toByteArray())
-                }
+            // A save can fail for reasons outside the app — storage full, the
+            // chosen place gone. That used to crash the app; now it is said.
+            val wrote = withContext(Dispatchers.IO) {
+                runCatching {
+                    ctx.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(ThrumFile.encode(chosen).toByteArray())
+                    } != null
+                }.getOrDefault(false)
             }
             if (exportAll && missing > 0) {
-                val made = withContext(Dispatchers.IO) { db.dao().madeTrackUris() }.toSet()
-                val queued = HapticQueue(store.hapticQueuePending, made)
-                    .enqueued(tracks.map { it.sourceUri })
-                if (queued.pending != store.hapticQueuePending) {
-                    store.hapticQueuePending = queued.pending
-                    store.hapticsDone = 0
-                    store.hapticsTotal = queued.pending.size
-                    HapticsWorker.ensureEnqueued(ctx)
-                }
+                HapticsWorker.enqueue(ctx, tracks.map { it.sourceUri })
             }
-            saved = true
+            saved = wrote
+            failed = !wrote
         }
     }
 
@@ -275,11 +274,20 @@ fun ExportScreen(onClose: () -> Unit) {
                     .padding(bottom = 12.dp),
             )
         }
+        if (failed) {
+            Text(
+                stringResource(R.string.export_failed),
+                fontSize = 14.sp,
+                color = ThrumWarn,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
 
         PrimaryButton(
             text = "Save to my phone",
             onClick = {
                 saved = false
+                failed = false
                 val suggested = if (exportAll) {
                     ThrumFile.fileNameFor("Thrum haptics")
                 } else {

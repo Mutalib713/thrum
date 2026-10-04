@@ -127,32 +127,34 @@ class LibraryTest {
     // --- ahead, and never makes the same song twice".
 
     @Test
-    fun `a played song jumps the queue`() {
+    fun `a played song jumps the queue by leaving it`() {
+        // The player makes a played song's haptic itself, right now — ahead
+        // of everything waiting. It leaves the queue so the background walk
+        // never decodes the same song a second time in parallel; the others
+        // keep their order.
         val queue = HapticQueue(pending = listOf("b", "c", "d"))
-        assertEquals(listOf("c", "b", "d"), queue.played("c").pending)
+        assertEquals(listOf("b", "d"), queue.claimed("c").pending)
     }
 
     @Test
-    fun `a played song that was never queued goes to the front`() {
-        // Pressing play is a stronger signal than anything the scan learned —
-        // the user wants this one now, and "one at a time as played" (§4 item
-        // 5's other mode) is this rule with an empty queue beside it.
+    fun `claiming a song that was never queued changes nothing`() {
+        // "One at a time as played" (§4 item 5's other mode) has no queue at
+        // all, so the claim there is a no-op, not an error.
         val queue = HapticQueue(pending = listOf("b"))
-        assertEquals(listOf("x", "b"), queue.played("x").pending)
+        assertEquals(listOf("b"), queue.claimed("x").pending)
     }
 
     @Test
-    fun `a made song never rejoins the queue however it is played`() {
+    fun `a made song never rejoins the queue`() {
         val queue = HapticQueue(pending = listOf("b"), made = setOf("a"))
-        assertEquals(listOf("b"), queue.played("a").pending)
         assertEquals(listOf("b"), queue.enqueued(listOf("a")).pending)
     }
 
     @Test
     fun `no song is ever queued twice`() {
         val queue = HapticQueue(pending = listOf("b"))
-        val twice = queue.enqueued(listOf("b", "c")).played("c").enqueued(listOf("b"))
-        assertEquals(listOf("c", "b"), twice.pending)
+        val twice = queue.enqueued(listOf("b", "c")).enqueued(listOf("c", "b"))
+        assertEquals(listOf("b", "c"), twice.pending)
         assertTrue(twice.pending.toSet().size == twice.pending.size)
     }
 
@@ -162,9 +164,50 @@ class LibraryTest {
         val done = queue.completed("b")
         assertEquals(listOf("c"), done.pending)
         assertEquals(setOf("b"), done.made)
-        // And the made set holds against every later way back in.
-        assertEquals(listOf("c"), done.played("b").pending)
+        // And the made set holds against a later scan putting it back.
         assertEquals(listOf("c"), done.enqueued(listOf("b")).pending)
+    }
+
+    // --- The 2026-10-04 crash. The queue's own rule — no made song pending —
+    // --- is right, but storage is written by several hands and can break it.
+
+    @Test
+    fun `the stale copy that crashed the app can no longer reach the queue`() {
+        // Replayed exactly as it happened on the emulator. The walk read the
+        // queue, then spent eight and a half minutes on the long song. Meanwhile
+        // the player made "short" itself and took it off the stored list. The
+        // walk then wrote back the copy it had read before, which still had
+        // "short" on it — and the next song tap built a queue from storage
+        // and the constructor threw on the main thread.
+        val start = listOf("long", "second", "short", "third")
+        val walksCopy = HapticQueue(start)
+        val storedAfterThePlayer = HapticQueue(start).claimed("short").pending
+        val staleWrite = walksCopy.completed("long").pending
+        val made = setOf("long", "short")
+
+        // The old path really did put a made song back on the list.
+        assertTrue("short" in staleWrite)
+
+        // Rebuilt from storage, the list drops what the library already has,
+        // instead of throwing.
+        assertEquals(listOf("second", "third"), HapticQueue.restore(staleWrite, made).pending)
+
+        // And the fixed walk changes the list as it is now, not its old copy,
+        // so the player's claim survives the walk finishing its own song.
+        assertEquals(
+            listOf("second", "third"),
+            HapticQueue.restore(storedAfterThePlayer, made).completed("long").pending,
+        )
+    }
+
+    @Test
+    fun `restoring a list keeps the first copy of a duplicate and its order`() {
+        // Two writers racing could append the same song twice. The order the
+        // user saw is kept; only the repeat goes.
+        assertEquals(
+            listOf("b", "c", "d"),
+            HapticQueue.restore(listOf("b", "c", "b", "d", "c"), emptySet()).pending,
+        )
     }
 
     @Test(expected = IllegalArgumentException::class)
