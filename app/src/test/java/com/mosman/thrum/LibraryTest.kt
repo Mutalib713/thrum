@@ -517,16 +517,25 @@ class LibraryTest {
     }
 
     @Test
-    fun `the filters cut by kind and nothing else`() {
+    fun `the filters are all, audio and video`() {
         val music = Track("m", "Song", durationMs = 1, kind = TrackKind.MUSIC)
         val video = Track("v", "Clip", durationMs = 1, kind = TrackKind.VIDEO)
         val file = Track("f", "Note", durationMs = 1, kind = TrackKind.FILE)
-        val haptics = listOf(hapticOf("m", "Song", 1_000), hapticOf("v", "Clip", 2_000))
-        val all = MyHaptics.rows(haptics, listOf(music, video, file), null, MyHaptics.Filter.ALL)
-        assertEquals(3, all.size)
-        assertEquals(listOf("m"), MyHaptics.rows(haptics, listOf(music, video, file), null, MyHaptics.Filter.MUSIC).map { it.uri })
-        assertEquals(listOf("v"), MyHaptics.rows(haptics, listOf(music, video, file), null, MyHaptics.Filter.VIDEOS).map { it.uri })
-        // The unmade audio file counts as a file row; the made video does not.
-        assertEquals(listOf("f"), MyHaptics.rows(haptics, listOf(music, video, file), null, MyHaptics.Filter.FILES).map { it.uri })
+        val imported = ThrumFile.IMPORTED_SCHEME + "abc"
+        val haptics = listOf(hapticOf("m", "Song", 1_000), hapticOf("v", "Clip", 2_000), hapticOf(imported, "Gift", 3_000))
+        val tracks = listOf(music, video, file)
+        assertEquals(4, MyHaptics.rows(haptics, tracks, null, MyHaptics.Filter.ALL).size)
+        // A scanned song and an audio file picked by hand are both audio.
+        assertEquals(setOf("m", "f"), MyHaptics.rows(haptics, tracks, null, MyHaptics.Filter.AUDIO).map { it.uri }.toSet())
+        assertEquals(listOf("v"), MyHaptics.rows(haptics, tracks, null, MyHaptics.Filter.VIDEO).map { it.uri })
+    }
+
+    @Test
+    fun `an imported haptic says so, and a picked audio file says audio`() {
+        val file = Track("f", "Note", durationMs = 1_000, kind = TrackKind.FILE)
+        val imported = ThrumFile.IMPORTED_SCHEME + "abc"
+        val rows = MyHaptics.rows(listOf(hapticOf(imported, "Gift", 1_000)), listOf(file), null, MyHaptics.Filter.ALL)
+        assertEquals("Imported", rows.first { it.uri == imported }.subtitle.substringBefore(" ·"))
+        assertEquals("Audio", rows.first { it.uri == "f" }.subtitle.substringBefore(" ·"))
     }
 }

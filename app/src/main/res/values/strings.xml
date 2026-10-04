@@ -72,6 +72,9 @@
     <string name="home_ringer_silent">on silent</string>
     <string name="home_ringer_unknown">ringer unreadable</string>
     <string name="home_calls_window">Calls use the first 45 seconds of the song, repeated until you answer.</string>
+    <!-- Under Home's test call when "Hear and feel" is chosen. Thrum never
+         plays sound during a call; the phone's own ringtone (if any) does. -->
+    <string name="home_test_sound_note">Only the test plays the song\'s sound. On a real call, Thrum plays just the vibration.</string>
     <string name="home_last_call">Last call, %1$s: Thrum started your haptic %2$s after it rang.</string>
     <!-- 2026-10-04 review. Screen 27 in the final screens' own words, without
          the demo pattern the first UI offered there (PROFILE §4 item 3). -->
@@ -264,9 +267,8 @@
             at a time through the phone's own chooser — Thrum never asks to see
             all videos. "A Thrum file" is import, live since Task 25. -->
     <string name="haptics_filter_all">All</string>
-    <string name="haptics_filter_music">Music</string>
-    <string name="haptics_filter_videos">Videos</string>
-    <string name="haptics_filter_files">Files</string>
+    <string name="haptics_filter_audio">Audio</string>
+    <string name="haptics_filter_video">Video</string>
     <string name="haptics_empty_body">Every song you play gets a haptic, and so does every video or file you turn into one. They all live here.</string>
     <string name="haptics_make">Make one from a video or file</string>
     <string name="haptics_calls_badge">Calls</string>

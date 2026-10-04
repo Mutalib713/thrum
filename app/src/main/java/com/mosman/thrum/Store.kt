@@ -197,6 +197,15 @@ class Store(ctx: Context) {
         get() = prefs.getBoolean(KEY_CALL_ACCESS_ASKED, false)
         set(v) = prefs.edit().putBoolean(KEY_CALL_ACCESS_ASKED, v).apply()
 
+    /**
+     * Home's test call plays the song out loud as well as on the motor. Off
+     * by default: a test that bursts into music in a quiet room is a bad
+     * surprise, and feel only is what a call itself does.
+     */
+    var testHearAndFeel: Boolean
+        get() = prefs.getBoolean(KEY_TEST_HEAR_AND_FEEL, false)
+        set(v) = prefs.edit().putBoolean(KEY_TEST_HEAR_AND_FEEL, v).apply()
+
     /** When the music scan last ran — the "Last scanned" line Settings shows (Task 26). */
     var lastScanAtMs: Long
         get() = prefs.getLong(KEY_LAST_SCAN, 0L)
@@ -280,6 +289,7 @@ class Store(ctx: Context) {
         const val KEY_HAPTICS_DONE = "haptics_done"
         const val KEY_RECENT = "recently_played"
         const val KEY_CALL_ACCESS_ASKED = "call_access_asked"
+        const val KEY_TEST_HEAR_AND_FEEL = "test_hear_and_feel"
         const val RECENT_MAX = 3
 
         /** See [editQueue]: one lock for the whole process, not one per [Store]. */

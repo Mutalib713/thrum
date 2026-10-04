@@ -1,6 +1,9 @@
 package com.mosman.thrum
 
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -85,13 +88,18 @@ fun ThrumApp(
     val ringer by rememberPolled(Setup.Ringer.UNKNOWN) { Setup.Ringer.of(Haptics.ringerMode(it)) }
     val lastCall by rememberPolled<Event?>(null) { Home.lastCall(Store(it).events()) }
 
-    // The test call's playhead, and the job driving it, so Stop stops both.
+    // The test call's playhead, the job driving it and, with sound, the song
+    // itself, so Stop stops all three.
     var progress by remember { mutableFloatStateOf(-1f) }
     var testJob by remember { mutableStateOf<Job?>(null) }
+    var testAudio by remember { mutableStateOf<MediaPlayer?>(null) }
+    var testHearAndFeel by remember { mutableStateOf(store.testHearAndFeel) }
     fun stopTest() {
-        if (testJob == null) return
+        if (testJob == null && testAudio == null) return
         testJob?.cancel()
         testJob = null
+        testAudio?.runCatching { release() }
+        testAudio = null
         progress = -1f
         Haptics.stop(ctx)
     }
@@ -137,22 +145,55 @@ fun ThrumApp(
         // The player owns the motor too; it stands down rather than fight.
         Player.stopAll()
         stopTest()
-        // The same score down the same ringtone route a call uses — so on
-        // Silent it stays silent, and the test never lies.
-        val refused = Haptics.play(ctx, built)
-        if (refused != null) {
-            failure = refused
-            return
-        }
+        val source = store.sourceUri
+        val withSound = testHearAndFeel && source != null && !ThrumFile.isImported(source)
         testJob = scope.launch {
-            val started = SystemClock.elapsedRealtime()
-            while (true) {
-                val f = (SystemClock.elapsedRealtime() - started).toFloat() / built.durationMs
-                if (f >= 1f) break
-                progress = f
-                delay(Motion.FRAME)
+            if (withSound) {
+                // The song's own sound, from its first second: the window a
+                // call plays (Mutalib, 2026-10-04: "hear and feel and feel only").
+                val audio = withContext(Dispatchers.IO) {
+                    runCatching {
+                        MediaPlayer().apply {
+                            setAudioAttributes(
+                                AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                    .build(),
+                            )
+                            setDataSource(ctx, Uri.parse(source))
+                            prepare()
+                        }
+                    }.getOrNull()
+                }
+                if (audio == null) {
+                    failure = ctx.getString(R.string.player_unreadable)
+                    testJob = null
+                    return@launch
+                }
+                testAudio = audio
+                audio.start()
+                // Sound first, vibration second (Task 5): the motor waits for
+                // the audio to be truly running.
+                val giveUp = SystemClock.elapsedRealtime() + 2_000
+                while (audio.currentPosition == 0 && SystemClock.elapsedRealtime() < giveUp) delay(2)
+            }
+            // The same score down the same ringtone route a call uses — so on
+            // Silent it stays silent, and the test never lies.
+            val refused = Haptics.play(ctx, built)
+            if (refused != null) {
+                failure = refused
+            } else {
+                val started = SystemClock.elapsedRealtime()
+                while (true) {
+                    val f = (SystemClock.elapsedRealtime() - started).toFloat() / built.durationMs
+                    if (f >= 1f) break
+                    progress = f
+                    delay(Motion.FRAME)
+                }
             }
             progress = -1f
+            testAudio?.runCatching { release() }
+            testAudio = null
             testJob = null
         }
     }
@@ -281,7 +322,16 @@ fun ThrumApp(
                         ringMode = on
                         store.fireInRingMode = on
                     },
-                    onTest = { if (progress >= 0f) stopTest() else playTestCall(current) },
+                    onTest = { if (testJob != null) stopTest() else playTestCall(current) },
+                    // An imported haptic has no song to hear: feel only, and no choice to offer.
+                    canHear = store.sourceUri?.let { !ThrumFile.isImported(it) } == true,
+                    hearAndFeel = testHearAndFeel,
+                    onHearAndFeel = { on ->
+                        stopTest()
+                        testHearAndFeel = on
+                        store.testHearAndFeel = on
+                    },
+                    testing = testJob != null,
                     onChange = { picker.launch(arrayOf("audio/*")) },
                     onSoundSettings = {
                         // Guarded: an OEM build can ship without the sound
@@ -349,6 +399,10 @@ private fun ColumnScope.ReadyCard(
     onTest: () -> Unit,
     onChange: () -> Unit,
     onSoundSettings: () -> Unit,
+    canHear: Boolean,
+    hearAndFeel: Boolean,
+    onHearAndFeel: (Boolean) -> Unit,
+    testing: Boolean,
 ) {
     Text(
         score.sourceName,
@@ -400,22 +454,33 @@ private fun ColumnScope.ReadyCard(
         }
     }
 
+    // The player's own choice, for the test call too. Same words, same order.
+    if (canHear) {
+        ThrumSegmentedControl(
+            options = listOf(stringResource(R.string.player_hear_feel), stringResource(R.string.player_feel_only)),
+            selectedIndex = if (hearAndFeel) 0 else 1,
+            onSelect = { onHearAndFeel(it == 0) },
+            modifier = Modifier.padding(top = Space.S4),
+        )
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 14.dp),
+            .padding(top = Space.S3),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.S2),
     ) {
         SecondaryButton(
-            text = stringResource(if (progress >= 0f) R.string.ready_stop else R.string.ready_feel),
-            icon = if (progress >= 0f) null else "play",
+            text = stringResource(if (testing) R.string.ready_stop else R.string.ready_feel),
+            icon = if (testing) null else "play",
             small = true,
             onClick = onTest,
             modifier = Modifier.weight(1f),
         )
         ThrumTextButton(text = stringResource(R.string.home_change), onClick = onChange)
     }
+    // Hearing the song in a test must not suggest a call will play it.
+    if (canHear && hearAndFeel) CardNote(stringResource(R.string.home_test_sound_note))
     CardNote(stringResource(R.string.home_calls_window))
     failure?.let { CardNote(it, color = ThrumWarn) }
 }

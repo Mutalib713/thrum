@@ -205,11 +205,11 @@ fun MyHapticsTab(onGoToMusic: () -> Unit, onExport: () -> Unit) {
         }
         item {
             ThrumSegmentedControl(
+                // In MyHaptics.Filter's order: All, Audio, Video.
                 options = listOf(
                     stringResource(R.string.haptics_filter_all),
-                    stringResource(R.string.haptics_filter_music),
-                    stringResource(R.string.haptics_filter_videos),
-                    stringResource(R.string.haptics_filter_files),
+                    stringResource(R.string.haptics_filter_audio),
+                    stringResource(R.string.haptics_filter_video),
                 ),
                 selectedIndex = filterIndex,
                 onSelect = { filterIndex = it },

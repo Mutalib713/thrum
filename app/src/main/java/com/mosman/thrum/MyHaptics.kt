@@ -14,7 +14,14 @@ package com.mosman.thrum
  */
 object MyHaptics {
 
-    enum class Filter { ALL, MUSIC, VIDEOS, FILES }
+    /**
+     * All, Audio, Video: Mutalib's three on 2026-10-04 ("remove the file …
+     * it's just the audio and video"). Audio is every sound a haptic came
+     * from, scanned songs and audio files picked one at a time alike. A
+     * haptic imported from a Thrum file came with no sound or picture at
+     * all, so only All shows it.
+     */
+    enum class Filter { ALL, AUDIO, VIDEO }
 
     data class Row(
         val uri: String,
@@ -29,8 +36,12 @@ object MyHaptics {
     fun kindLabel(kind: TrackKind): String = when (kind) {
         TrackKind.MUSIC -> "Music"
         TrackKind.VIDEO -> "Video"
-        TrackKind.FILE -> "File"
+        TrackKind.FILE -> "Audio"
     }
+
+    /** What a row says it came from: an imported haptic has no source to name. */
+    private fun sourceLabel(uri: String, kind: TrackKind): String =
+        if (ThrumFile.isImported(uri)) "Imported" else kindLabel(kind)
 
     /**
      * The rows for one filter, in the order the screen shows them: made
@@ -49,7 +60,7 @@ object MyHaptics {
             Row(
                 uri = haptic.trackUri,
                 name = track?.name ?: haptic.score.sourceName.ifEmpty { "Untitled" },
-                subtitle = subtitle(track, haptic.score.durationMs),
+                subtitle = subtitle(haptic.trackUri, track, haptic.score.durationMs),
                 kind = track?.kind ?: TrackKind.FILE,
                 isCalls = haptic.trackUri == callsUri,
                 hasHaptic = true,
@@ -63,7 +74,7 @@ object MyHaptics {
                 Row(
                     uri = track.sourceUri,
                     name = track.name,
-                    subtitle = subtitle(track, track.durationMs),
+                    subtitle = subtitle(track.sourceUri, track, track.durationMs),
                     kind = track.kind,
                     isCalls = track.sourceUri == callsUri,
                     hasHaptic = false,
@@ -74,15 +85,14 @@ object MyHaptics {
         return all.filter { row ->
             when (filter) {
                 Filter.ALL -> true
-                Filter.MUSIC -> row.kind == TrackKind.MUSIC
-                Filter.VIDEOS -> row.kind == TrackKind.VIDEO
-                Filter.FILES -> row.kind == TrackKind.FILE
+                Filter.AUDIO -> !ThrumFile.isImported(row.uri) && row.kind != TrackKind.VIDEO
+                Filter.VIDEO -> row.kind == TrackKind.VIDEO
             }
         }
     }
 
-    private fun subtitle(track: Track?, fallbackDurationMs: Long): String {
-        val kind = kindLabel(track?.kind ?: TrackKind.FILE)
+    private fun subtitle(uri: String, track: Track?, fallbackDurationMs: Long): String {
+        val kind = sourceLabel(uri, track?.kind ?: TrackKind.FILE)
         val bits = buildList {
             add(kind)
             if (track?.artist?.isNotEmpty() == true) add(track.artist)
