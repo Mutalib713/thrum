@@ -1,8 +1,6 @@
 package com.mosman.thrum
 
 import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -190,16 +188,7 @@ fun MusicTab(onExport: () -> Unit) {
                         Spacer(Modifier.height(Space.S6))
                         PrimaryButton(
                             text = stringResource(R.string.music_denied_settings),
-                            onClick = {
-                                runCatching {
-                                    ctx.startActivity(
-                                        Intent(
-                                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                            Uri.fromParts("package", ctx.packageName, null),
-                                        ),
-                                    )
-                                }
-                            },
+                            onClick = { openAppInfo(ctx) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                         ThrumTextButton(

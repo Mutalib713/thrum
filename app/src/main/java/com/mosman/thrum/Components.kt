@@ -1,9 +1,13 @@
 package com.mosman.thrum
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,6 +39,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -661,6 +666,85 @@ fun hasCallAccess(ctx: Context): Boolean =
 
 fun hasMusicAccess(ctx: Context): Boolean =
     ContextCompat.checkSelfPermission(ctx, musicPermission) == PackageManager.PERMISSION_GRANTED
+
+/**
+ * Opens Android's notification-access switch for Thrum itself, or the list
+ * of every app on a phone with no page for one app. Remembers the visit, so
+ * a screen still without access afterwards can say why ([CallAccessLockedHelp]).
+ */
+fun openCallAccess(ctx: Context) {
+    Store(ctx).callAccessAsked = true
+    val listener = ComponentName(ctx, NotifService::class.java).flattenToString()
+    runCatching {
+        ctx.startActivity(
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, listener),
+        )
+    }.onFailure { runCatching { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } }
+}
+
+/** Thrum's own App info page: its permissions, and the ⋮ menu. */
+fun openAppInfo(ctx: Context) {
+    runCatching {
+        ctx.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null)),
+        )
+    }
+}
+
+/**
+ * Whether Android may have locked notification access. From Android 13 an
+ * app installed from a file (an APK opened from Files, Drive or WhatsApp)
+ * gets that switch greyed out until its owner unlocks it in App info; an app
+ * from the Play Store never does. The lock itself has no public API, so this
+ * says "may", and the help it gates asks rather than tells.
+ */
+fun callAccessMayBeLocked(ctx: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+    val installer = runCatching {
+        ctx.packageManager.getInstallSourceInfo(ctx.packageName).installingPackageName
+    }.getOrNull()
+    return installer != PLAY_STORE
+}
+
+private const val PLAY_STORE = "com.android.vending"
+
+/**
+ * The way out of a locked switch (see [callAccessMayBeLocked]), shown under
+ * the button that asks for access once the user has tried it. Without this
+ * the switch was a dead end: Android said no, and Thrum just asked again.
+ */
+@Composable
+fun CallAccessLockedHelp(modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(color = ThrumRule, thickness = 1.dp)
+        Text(
+            stringResource(R.string.locked_title),
+            style = ThrumType.row,
+            color = ThrumInk,
+            modifier = Modifier.padding(top = Space.S4),
+        )
+        Text(
+            stringResource(R.string.locked_body),
+            style = ThrumType.body,
+            color = ThrumInkSoft,
+            modifier = Modifier.padding(top = Space.S1),
+        )
+        listOf(R.string.locked_step_1, R.string.locked_step_2, R.string.locked_step_3).forEachIndexed { i, step ->
+            Row(modifier = Modifier.padding(top = Space.S2)) {
+                Text("${i + 1}", style = ThrumType.body, color = ThrumInk2, modifier = Modifier.width(20.dp))
+                Text(stringResource(step), style = ThrumType.body, color = ThrumInkSoft)
+            }
+        }
+        SecondaryButton(
+            text = stringResource(R.string.locked_action),
+            small = true,
+            onClick = { openAppInfo(ctx) },
+            modifier = Modifier.padding(top = Space.S3),
+        )
+    }
+}
 
 /**
  * Something the app can only find out by asking again, asked every

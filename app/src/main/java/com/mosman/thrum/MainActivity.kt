@@ -1,9 +1,7 @@
 package com.mosman.thrum
 
-import android.content.Intent
 import android.os.Bundle
 import android.os.VibrationEffect
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -258,9 +256,7 @@ private fun ProbeScreen() {
         )
         if (!listenerOn) {
             Button(
-                onClick = {
-                    ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                },
+                onClick = { openCallAccess(ctx) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Open notification access settings")

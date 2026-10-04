@@ -188,6 +188,15 @@ class Store(ctx: Context) {
         get() = prefs.getBoolean(KEY_ONBOARDED, false)
         set(v) = prefs.edit().putBoolean(KEY_ONBOARDED, v).apply()
 
+    /**
+     * The user has been sent to Android's notification-access switch at least
+     * once. A screen that is still without access after that shows how to
+     * unlock a switch Android may have locked ([CallAccessLockedHelp]).
+     */
+    var callAccessAsked: Boolean
+        get() = prefs.getBoolean(KEY_CALL_ACCESS_ASKED, false)
+        set(v) = prefs.edit().putBoolean(KEY_CALL_ACCESS_ASKED, v).apply()
+
     /** When the music scan last ran — the "Last scanned" line Settings shows (Task 26). */
     var lastScanAtMs: Long
         get() = prefs.getLong(KEY_LAST_SCAN, 0L)
@@ -270,6 +279,7 @@ class Store(ctx: Context) {
         const val KEY_HAPTIC_QUEUE = "haptic_queue_pending"
         const val KEY_HAPTICS_DONE = "haptics_done"
         const val KEY_RECENT = "recently_played"
+        const val KEY_CALL_ACCESS_ASKED = "call_access_asked"
         const val RECENT_MAX = 3
 
         /** See [editQueue]: one lock for the whole process, not one per [Store]. */

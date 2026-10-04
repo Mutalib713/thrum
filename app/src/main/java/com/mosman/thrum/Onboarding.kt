@@ -1,7 +1,5 @@
 package com.mosman.thrum
 
-import android.content.Intent
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -344,6 +343,8 @@ private fun FeelCalls(onNext: () -> Unit) {
     // Polled: the user leaves for system settings, grants, and comes back to
     // a screen that already knows — and says Next instead of asking again.
     val permitted by rememberPolled(hasCallAccess(ctx)) { hasCallAccess(it) }
+    val mayBeLocked = remember { callAccessMayBeLocked(ctx) }
+    var asked by remember { mutableStateOf(Store(ctx).callAccessAsked) }
     Step {
         ThrumDots(count = 5, activeIndex = 3)
         ThrumCard(modifier = Modifier.padding(top = Space.S5), padding = PaddingValues(20.dp)) {
@@ -383,9 +384,15 @@ private fun FeelCalls(onNext: () -> Unit) {
         } else {
             PrimaryButton(
                 text = stringResource(R.string.onboarding_calls_action),
-                onClick = { runCatching { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } },
+                onClick = {
+                    asked = true
+                    openCallAccess(ctx)
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (asked && mayBeLocked) {
+                CallAccessLockedHelp(modifier = Modifier.padding(top = Space.S5))
+            }
             ThrumTextButton(
                 text = stringResource(R.string.onboarding_calls_later),
                 onClick = onNext,

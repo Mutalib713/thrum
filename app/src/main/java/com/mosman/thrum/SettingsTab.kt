@@ -1,8 +1,5 @@
 package com.mosman.thrum
 
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -104,7 +101,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
                 onClick = if (callAccess) {
                     null
                 } else {
-                    { runCatching { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } }
+                    { openCallAccess(ctx) }
                 },
             )
             SettingsDivider()
@@ -123,17 +120,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
             SettingsRow(
                 name = stringResource(R.string.settings_music_access),
                 value = stringResource(if (musicAccess) R.string.settings_on else R.string.settings_off),
-                onClick = if (musicAccess) {
-                    null
-                } else {
-                    {
-                        runCatching {
-                            ctx.startActivity(
-                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null)),
-                            )
-                        }
-                    }
-                },
+                onClick = if (musicAccess) null else { { openAppInfo(ctx) } },
             )
             SettingsDivider()
             SettingsRow(

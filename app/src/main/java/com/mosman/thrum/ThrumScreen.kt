@@ -1,7 +1,6 @@
 package com.mosman.thrum
 
 import android.content.Intent
-import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -79,6 +78,8 @@ fun ThrumApp(
     var ringMode by remember { mutableStateOf(store.fireInRingMode) }
 
     val permitted by rememberPolled(true) { hasCallAccess(it) }
+    val mayBeLocked = remember { callAccessMayBeLocked(ctx) }
+    var askedForAccess by remember { mutableStateOf(store.callAccessAsked) }
     val ringer by rememberPolled(Setup.Ringer.UNKNOWN) { Setup.Ringer.of(Haptics.ringerMode(it)) }
     val lastCall by rememberPolled<Event?>(null) { Home.lastCall(Store(it).events()) }
 
@@ -216,10 +217,14 @@ fun ThrumApp(
                         text = stringResource(R.string.permission_action),
                         small = true,
                         onClick = {
-                            runCatching { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                            askedForAccess = true
+                            openCallAccess(ctx)
                         },
                         modifier = Modifier.padding(top = 14.dp),
                     )
+                    if (askedForAccess && mayBeLocked) {
+                        CallAccessLockedHelp(modifier = Modifier.padding(top = Space.S5))
+                    }
                 }
 
                 reading != null -> Row(
