@@ -345,6 +345,25 @@ class LibraryTest {
         assertEquals(emptyList<String>(), HapticQueue.decodePending("|||"))
     }
 
+    // --- The presets (Task 24) — the three points the 2026-09-21 measurement
+    // --- actually walked on the real armed track.
+
+    @Test
+    fun `the presets are the measured ladder, not guesses`() {
+        assertEquals(ScoreBuilder.BODY_MIN_MS, Tuning.CRISP.bodyMs) // 100 ms — sustained 0.334, more silence than the buzz
+        assertEquals(240, Tuning.FULL.bodyMs) // 0.417 — nearly parity
+        assertEquals(ScoreBuilder.BODY_MS, Tuning.STRONG.bodyMs) // 0.540 — the only one past the buzz's 0.500
+        assertEquals(Tuning.CRISP, Tuning.matching(100))
+        assertEquals(Tuning.STRONG, Tuning.matching(400))
+        assertNull(Tuning.matching(305))
+        assertEquals(3, Tuning.ALL.map { it.bodyMs }.toSet().size)
+        // "Reset to balanced" lands on the measured default: the only Duration
+        // that reached parity, the felt floor for Intensity, the whole kit for Focus.
+        assertEquals(Tuning.STRONG.bodyMs, Tuning.RESET_BODY)
+        assertEquals(ScoreBuilder.MIN_FELT, Tuning.RESET_PUNCH)
+        assertEquals(0, Tuning.RESET_DISTANCE)
+    }
+
     // --- The My Haptics list (Task 23).
 
     private fun hapticOf(uri: String, name: String, madeAt: Long) = Haptic(

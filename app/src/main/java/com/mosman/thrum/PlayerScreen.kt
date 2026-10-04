@@ -43,7 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
  * the song playing, which is what the mini player above the tab bar is for.
  */
 @Composable
-fun PlayerScreen() {
+fun PlayerScreen(onTune: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val now = Player.now ?: return
     val haptic = Player.haptic
@@ -188,9 +188,19 @@ fun PlayerScreen() {
                             color = MaterialTheme.colorScheme.primary,
                         )
                     } else {
-                        Primary(stringResource(R.string.player_use_calls)) {
-                            Player.useForCalls(ctx)
-                            confirmed = true
+                        // The design's two side-by-side actions. Tune routes to
+                        // the tune section, where the dials live in this build.
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.S2)) {
+                            if (onTune != null) {
+                                Secondary(stringResource(R.string.tune_title), Modifier.weight(1f)) { onTune() }
+                            }
+                            Secondary(
+                                stringResource(R.string.player_use_calls),
+                                Modifier.weight(1f),
+                            ) {
+                                Player.useForCalls(ctx)
+                                confirmed = true
+                            }
                         }
                     }
                 }

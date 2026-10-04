@@ -797,11 +797,13 @@ Pick a video or a file through the phone's chooser; My Haptics with All, Music, 
 
 **Proof still owed:** a real video from the phone becomes a haptic and plays in step (the decoder already looks for the audio track inside a video — untested until a real clip goes through); an unreadable file shows the decoder's real sentence; delete survives a restart.
 
-### [ ] Task 24: Tune the feel [15]
+### [~] Task 24: Tune the feel [15] — **BUILT 2026-10-04, the hand proof needs the phone**
 
 The presets from Task 15, plus Intensity, Focus and Duration (the old Punch, Distance and Body, renamed).
 
-**Proof:** QA tests pin each preset's shape; Mutalib can tell the three apart by hand.
+**Built:** screen 15's layout on Home's tune section — the three **preset chips** (Crisp / Full / Strong) above the three renamed dials, each preset carrying the design's own description ("Short taps with gaps" / "Longer beats" / "Closest to a buzz"), and **Reset to balanced**, which rebuilds once, not three times. The presets are **the measured ladder, not guesses**: the 2026-09-21 walk measured sustained drive at 0.334 / 0.417 / 0.540 for Body 100 / 240 / 400 against the buzz's 0.500, so those three points *are* the presets — and they change exactly the measured axis, leaving the user's own Intensity and Focus alone. QA tests pin the values and the shape ordering (the dial ladder test already pins crisp < default < strong on the Feel metrics). The player's screen gained its "Tune" action, routing to the tune section. Off-ladder durations (fine-tuned) select no chip, and the design's per-preset line gives way to the dial's own note.
+
+**Proof still owed:** Mutalib can tell the three apart by hand, and confirms or adjusts the preset values — Task 15's second half and this task's hand proof are the same sitting.
 
 ### [ ] Task 25: Export and import [16, 17]
 

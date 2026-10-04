@@ -67,7 +67,8 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
     if (Player.open) {
         // The player screen overlays the tabs; closing it keeps the song
         // playing, which is what the mini player above the tab bar is for.
-        PlayerScreen()
+        // Tune routes to Home, where the tune section lives in this build.
+        PlayerScreen(onTune = { Player.open = false; tab = Tab.HOME })
         return
     }
 

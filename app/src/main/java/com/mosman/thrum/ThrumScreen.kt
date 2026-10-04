@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -476,6 +477,14 @@ fun ThrumApp(onDiagnostics: (() -> Unit)? = null) {
                                 runCatching { ctx.startActivity(Intent(Settings.ACTION_SETTINGS)) }
                             }
                     },
+                    onReset = {
+                        // One rescore, not three: a reset that rebuilt the score
+                        // three times would be three chances to flicker.
+                        punch = Tuning.RESET_PUNCH
+                        distance = Tuning.RESET_DISTANCE
+                        body = Tuning.RESET_BODY
+                        rescore()
+                    },
                     punch = punch,
                     texture = distance,
                     body = body,
@@ -714,6 +723,7 @@ private fun Ready(
     lastCall: Event?,
     onRingMode: (Boolean) -> Unit,
     onSoundSettings: () -> Unit,
+    onReset: () -> Unit,
     punch: Int,
     texture: Int,
     body: Int,
@@ -905,17 +915,53 @@ private fun Ready(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        // The tuning, on the product screen rather than hidden in diagnostics.
-        // The plan called this taste from the start, and taste belongs to the
-        // person holding the phone.
+        // Screen 15. The presets are the measured ladder (2026-09-21): Crisp,
+        // Full and Strong are the three Duration points where sustained drive
+        // was actually measured — 0.334, 0.417, 0.540 against the buzz's
+        // 0.500 — and they change exactly that axis. The fine-tune dials keep
+        // the user's own Intensity and Focus; the final values are still
+        // Mutalib's hand to confirm (Task 15's second half).
         Text(
             stringResource(R.string.tune_title),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.semantics { heading() },
         )
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.S2)) {
+            Tuning.ALL.forEach { preset ->
+                FilterChip(
+                    selected = body == preset.bodyMs,
+                    onClick = { onBody(preset.bodyMs) },
+                    label = {
+                        Text(
+                            stringResource(
+                                when (preset) {
+                                    Tuning.CRISP -> R.string.tune_preset_crisp
+                                    Tuning.FULL -> R.string.tune_preset_full
+                                    else -> R.string.tune_preset_strong
+                                },
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+        // The selected preset's own words from the design. Off-ladder — the
+        // user fine-tuned the duration — the dial's own note stands instead.
+        Text(
+            stringResource(
+                when (Tuning.matching(body)) {
+                    Tuning.CRISP -> R.string.tune_preset_crisp_help
+                    Tuning.FULL -> R.string.tune_preset_full_help
+                    Tuning.STRONG -> R.string.tune_preset_strong_help
+                    else -> R.string.tune_note
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Dial(
-            label = stringResource(R.string.tune_punch, punch),
-            help = stringResource(R.string.tune_punch_help),
+            label = stringResource(R.string.tune_intensity, punch),
+            help = stringResource(R.string.tune_intensity_help),
             value = punch.toFloat(),
             // Never to 255: see ScoreBuilder.MIN_HEADROOM. A floor at the
             // ceiling leaves no room for a track to have loud and quiet beats.
@@ -923,10 +969,10 @@ private fun Ready(
             onChange = onPunch,
         )
         Dial(
-            label = stringResource(R.string.tune_body, body),
-            help = stringResource(R.string.tune_body_help),
+            label = stringResource(R.string.tune_duration, body),
+            help = stringResource(R.string.tune_duration_help),
             value = body.toFloat(),
-            // Milliseconds, not an invented 0–100. Punch and Distance show
+            // Milliseconds, not an invented 0–100. Intensity and Focus show
             // abstract numbers because they map onto internal amplitudes; this
             // one is a duration, and "240 ms" is a fact the person tuning it can
             // reason about. The trade is legible in the same units: longer
@@ -936,19 +982,20 @@ private fun Ready(
             onChange = onBody,
         )
         Dial(
-            label = stringResource(R.string.tune_texture, texture),
-            help = stringResource(R.string.tune_texture_help),
+            label = stringResource(R.string.tune_focus, texture),
+            help = stringResource(R.string.tune_focus_help),
             value = texture.toFloat(),
-            // A plain 0–100, where 0 is closest to the music.
-            //
-            // This dial used to show raw motor amplitudes, whose maximum moved
-            // whenever Punch moved — which is why "the max is 161" kept needing
-            // explaining, and why the scale meant nothing to anyone holding the
-            // phone. The amplitude arithmetic belongs in [ceilingFor]; the
-            // number on screen belongs to the person tuning it.
+            // A plain 0–100: left lets the snare and hats through, right keeps
+            // only the beat. This dial used to show raw motor amplitudes,
+            // whose maximum moved whenever Intensity moved — the amplitude
+            // arithmetic belongs in [ceilingFor]; the number on screen belongs
+            // to the person tuning it.
             range = 0f..100f,
             onChange = onTexture,
         )
+        TextButton(onClick = onReset, modifier = Modifier.heightIn(min = Touch.min)) {
+            Text(stringResource(R.string.tune_reset))
+        }
         Text(
             stringResource(R.string.tune_note),
             style = MaterialTheme.typography.bodySmall,
