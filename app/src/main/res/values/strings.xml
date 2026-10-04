@@ -223,6 +223,22 @@
     <string name="player_using_calls">This is your song for calls. Home shows it, and a test call plays its first 45 seconds.</string>
     <string name="player_unreadable">This phone can\'t read this file.</string>
 
+    <!-- Making haptics. Task 22: the question is asked once, after the first
+            scan; the answer is changeable in Settings (Task 26). The
+            background walk is honest about battery — the design says so and
+            R12 records why. -->
+    <string name="make_title">Found your music: make haptics?</string>
+    <string name="make_count">Found %1$d songs</string>
+    <string name="make_question">Make their haptics now? Each song takes about 8 seconds on your phone.</string>
+    <string name="make_background">All of them, in the background</string>
+    <string name="make_background_help">Thrum works through them while you use your phone. It uses some battery while it does.</string>
+    <string name="make_as_played">One at a time, as I play them</string>
+    <string name="make_as_played_help">Each song waits about 8 seconds the first time you play it.</string>
+    <string name="make_changeable">You can change this later in Settings.</string>
+    <string name="make_continue">Continue</string>
+    <string name="make_progress">Making haptics · %1$d of %2$d done</string>
+    <string name="make_progress_help">Carries on in the background. Songs you play go first.</string>
+
     <!-- Debug builds only -->
     <string name="diagnostics">Diagnostics</string>
 </resources>

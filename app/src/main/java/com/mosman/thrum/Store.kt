@@ -159,6 +159,36 @@ class Store(ctx: Context) {
         get() = prefs.getLong(KEY_LAST_SCAN, 0L)
         set(v) = prefs.edit().putLong(KEY_LAST_SCAN, v).apply()
 
+    /**
+     * How haptics get made — Task 22's question, answered once:
+     * `"background"` walks the whole library, `"as_played"` makes each song's
+     * the first time it is played. Null means the question has not been asked,
+     * which is what keeps it a first-scan-only screen.
+     */
+    var hapticsMode: String?
+        get() = prefs.getString(KEY_HAPTICS_MODE, null)
+        set(v) = prefs.edit().apply {
+            if (v == null) remove(KEY_HAPTICS_MODE) else putString(KEY_HAPTICS_MODE, v)
+        }.apply()
+
+    /**
+     * The songs waiting for a haptic, in the order they will be made —
+     * [HapticQueue.encodePending]'s line. The order is the promise: a song
+     * played moves to the front, and the background walk takes the head.
+     */
+    var hapticQueuePending: List<String>
+        get() = HapticQueue.decodePending(prefs.getString(KEY_HAPTIC_QUEUE, null))
+        set(v) = prefs.edit().putString(KEY_HAPTIC_QUEUE, HapticQueue.encodePending(v)).apply()
+
+    /** Progress for the "2 of 5 done" line: [hapticsDone] of [hapticsTotal]. */
+    var hapticsDone: Int
+        get() = prefs.getInt(KEY_HAPTICS_DONE, 0)
+        set(v) = prefs.edit().putInt(KEY_HAPTICS_DONE, v).apply()
+
+    var hapticsTotal: Int
+        get() = prefs.getInt(KEY_HAPTICS_TOTAL, 0)
+        set(v) = prefs.edit().putInt(KEY_HAPTICS_TOTAL, v).apply()
+
     fun events(): List<Event> = Event.decodeAll(prefs.getString(KEY_EVENTS, "") ?: "")
 
     fun addEvent(event: Event) {
@@ -179,5 +209,9 @@ class Store(ctx: Context) {
         const val KEY_BODY = "body"
         const val KEY_ONBOARDED = "onboarded"
         const val KEY_LAST_SCAN = "last_scan_at"
+        const val KEY_HAPTICS_MODE = "haptics_mode"
+        const val KEY_HAPTIC_QUEUE = "haptic_queue_pending"
+        const val KEY_HAPTICS_DONE = "haptics_done"
+        const val KEY_HAPTICS_TOTAL = "haptics_total"
     }
 }

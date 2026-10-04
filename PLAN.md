@@ -781,11 +781,13 @@ Whole songs, played in pieces the way Task 16 proved works. "Hear and feel" and 
 
 **Proof still owed:** AIZO plays start to finish in step, by hand and in `dumpsys`; changing song stops the old haptic with no leftover buzz; the screen-off answer written down whichever way it goes.
 
-### [ ] Task 22: ⚠ Making haptics: on first play, or all in the background [10, 11, 13]
+### [~] Task 22: ⚠ Making haptics: on first play, or all in the background [10, 11, 13] — **BUILT 2026-10-04, proof needs the phone**
 
 The question after a scan, the queue, songs that are played jumping ahead, progress ("2 of 5 done"), the setting to change the choice, and work that survives Thrum being closed.
 
-**Proof:** the queue tests from PROFILE §12 green; on the phone, a scan of Mutalib's library finishes in the background with Thrum closed, and the battery used is written down.
+**Built:** after the first scan that finds songs, screen 10 asks exactly as drawn — background, or one at a time as played — and the answer lives in Store, changeable in Settings once Task 26 builds that screen. The background walk is **one track per WorkManager run, self-rescheduled**: each run is a few seconds (one decode), so no foreground service and no permanent notification were needed, and the queue lives in storage, so Android pausing the walk costs nothing — the next run picks up exactly where it stopped. The order is the promise: a song played jumps to the **front** of the persisted queue (`Player.jumpAhead`), and the run that follows makes what the user asked for, not what the scan found first. A file that cannot be decoded is settled off the queue with its row marked unreadable — never retried into an infinite loop. The Music tab shows the "Making haptics · X of Y done" line while the walk runs (screen 11), and a re-scan tops the queue up without re-asking. **HapticMaker** is the one maker both the player and the worker share — two hand-copied decode paths would have drifted. Queue persistence is pipe-joined URIs (a pipe cannot appear in a `content://` URI), round-trip tested, corrupt-reads-as-empty.
+
+**Proof still owed:** on the phone, a scan of Mutalib's library finishes in the background with Thrum closed, the battery used is written down, and the played-song jump is felt as "next".
 
 ### [ ] Task 23: Videos, audio files and My Haptics [16, 19, 26]
 

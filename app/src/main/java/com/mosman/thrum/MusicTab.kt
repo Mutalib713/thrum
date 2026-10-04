@@ -34,9 +34,12 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -67,6 +70,12 @@ fun MusicTab() {
     var query by remember { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     var deniedByUser by remember { mutableStateOf(false) }
+    val store = remember { Store(ctx) }
+
+    // Screen 10: the question is asked once, after the first scan that finds
+    // something, and the answer lives in [Store.hapticsMode].
+    var askMode by remember { mutableStateOf(false) }
+    var choice by remember { mutableStateOf<String?>(null) }
 
     val permission = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -93,6 +102,21 @@ fun MusicTab() {
         }
     }
 
+    /** A re-scan's new songs join the background walk; already-made never re-join. */
+    fun topUpQueue(found: List<Track>) {
+        scope.launch {
+            val made = withContext(Dispatchers.IO) { db.dao().madeTrackUris() }.toSet()
+            val added = HapticQueue(store.hapticQueuePending, made)
+                .enqueued(found.map { it.sourceUri })
+            if (added.pending != store.hapticQueuePending) {
+                store.hapticQueuePending = added.pending
+                store.hapticsDone = 0
+                store.hapticsTotal = added.pending.size
+                HapticsWorker.ensureEnqueued(ctx)
+            }
+        }
+    }
+
     fun runScan() {
         scanning = true
         scope.launch {
@@ -101,8 +125,15 @@ fun MusicTab() {
             withContext(Dispatchers.IO) {
                 db.dao().upsertTracks(found.map { it.toEntity(now) })
             }
-            Store(ctx).lastScanAtMs = now
+            store.lastScanAtMs = now
             scanning = false
+            if (found.isNotEmpty()) {
+                if (store.hapticsMode == null) {
+                    askMode = true
+                } else {
+                    topUpQueue(found)
+                }
+            }
         }
     }
 
@@ -196,6 +227,63 @@ fun MusicTab() {
                 )
             }
 
+            granted && askMode && tracks.isNotEmpty() -> {
+                // Screen 10. Two ways to answer, one Continue, and the choice
+                // is changeable later in Settings (Task 26 builds that screen;
+                // the setting exists from today).
+                Text(
+                    stringResource(R.string.make_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    stringResource(R.string.make_count, tracks.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.make_question),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                ChoiceOption(
+                    selected = choice == HapticsWorker.MODE_BACKGROUND,
+                    title = stringResource(R.string.make_background),
+                    help = stringResource(R.string.make_background_help),
+                    onSelect = { choice = HapticsWorker.MODE_BACKGROUND },
+                )
+                ChoiceOption(
+                    selected = choice == HapticsWorker.MODE_AS_PLAYED,
+                    title = stringResource(R.string.make_as_played),
+                    help = stringResource(R.string.make_as_played_help),
+                    onSelect = { choice = HapticsWorker.MODE_AS_PLAYED },
+                )
+                Text(
+                    stringResource(R.string.make_changeable),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (choice != null) {
+                    Primary(stringResource(R.string.make_continue)) {
+                        store.hapticsMode = choice
+                        if (choice == HapticsWorker.MODE_BACKGROUND) {
+                            scope.launch {
+                                val made = withContext(Dispatchers.IO) {
+                                    db.dao().madeTrackUris()
+                                }.toSet()
+                                val queued = HapticQueue(emptyList(), made)
+                                    .enqueued(tracks.map { it.sourceUri })
+                                store.hapticQueuePending = queued.pending
+                                store.hapticsDone = 0
+                                store.hapticsTotal = queued.pending.size
+                                HapticsWorker.ensureEnqueued(ctx)
+                            }
+                        }
+                        askMode = false
+                    }
+                }
+            }
+
             granted && tracks.isEmpty() -> {
                 // Screen 8 — and the same layout serves a re-scan that found
                 // nothing, with one honest extra line for it.
@@ -234,6 +322,29 @@ fun MusicTab() {
                 // design puts above this is Task 27's, once the collection
                 // exists; a placeholder named "Afro Groove" today would be a
                 // screen pretending.
+                val walk by produceState(initialValue = Triple(0, 0, 0)) {
+                    while (true) {
+                        value = Triple(
+                            store.hapticsDone,
+                            store.hapticsTotal,
+                            store.hapticQueuePending.size,
+                        )
+                        delay(POLL_MS)
+                    }
+                }
+                val (doneCount, totalCount, pendingCount) = walk
+                if (store.hapticsMode == HapticsWorker.MODE_BACKGROUND && pendingCount > 0) {
+                    Text(
+                        stringResource(R.string.make_progress, doneCount, totalCount),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        stringResource(R.string.make_progress_help),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -332,6 +443,49 @@ private fun rowSubtitle(track: Track) {
     if (bits.isNotEmpty()) {
         Text(
             bits.joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * One answer on the screen-10 question. Selection is a word-and-colour pair
+ * — colour is never the only signal — announced to screen readers through
+ * `selected`.
+ */
+@Composable
+private fun ChoiceOption(selected: Boolean, title: String, help: String, onSelect: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = Touch.min)
+            .clickable(onClick = onSelect)
+            .padding(vertical = Space.S3)
+            .semantics { this.selected = selected },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (selected) "●" else "○",
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Text(
+                "  $title",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onBackground
+                },
+            )
+        }
+        Text(
+            help,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

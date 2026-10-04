@@ -323,4 +323,25 @@ class LibraryTest {
         val resumed = whole.from(100_000).pieces(Haptics.MAX_STEPS).first()
         assertEquals(whole.amplitudes.drop(5_000), resumed.amplitudes)
     }
+
+    // --- The persisted queue (Task 22).
+
+    @Test
+    fun `the pending queue survives being written and read back`() {
+        // A pipe cannot appear in a content:// or asset:// URI, so the join is
+        // honest and needs no escaping that could drift.
+        val pending = listOf(
+            "content://media/external/audio/1",
+            "content://media/external/audio/2",
+            "asset://afro-groove",
+        )
+        assertEquals(pending, HapticQueue.decodePending(HapticQueue.encodePending(pending)))
+    }
+
+    @Test
+    fun `a corrupted queue reads as empty rather than crashing a worker`() {
+        assertEquals(emptyList<String>(), HapticQueue.decodePending(null))
+        assertEquals(emptyList<String>(), HapticQueue.decodePending(""))
+        assertEquals(emptyList<String>(), HapticQueue.decodePending("|||"))
+    }
 }

@@ -57,4 +57,18 @@ data class HapticQueue(
      */
     fun completed(uri: String): HapticQueue =
         copy(pending = pending.filter { it != uri }, made = made + uri)
+
+    companion object {
+        /**
+         * The pending queue as one stored line — pipe-joined, because a pipe
+         * cannot appear inside a `content://` or `asset://` URI, so no
+         * escaping is needed and none can drift. Decoding filters blanks, so
+         * a corrupted or empty store degrades to an empty queue rather than
+         * throwing inside a background worker.
+         */
+        fun encodePending(pending: List<String>): String = pending.joinToString("|")
+
+        fun decodePending(text: String?): List<String> =
+            text?.split('|')?.mapNotNull { it.trim().ifEmpty { null } } ?: emptyList()
+    }
 }

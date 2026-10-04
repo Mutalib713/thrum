@@ -116,6 +116,9 @@ interface LibraryDao {
     @Query("SELECT * FROM haptics WHERE trackUri = :trackUri")
     suspend fun hapticFor(trackUri: String): HapticEntity?
 
+    @Query("SELECT * FROM tracks WHERE sourceUri = :trackUri")
+    suspend fun trackFor(trackUri: String): TrackEntity?
+
     /** The made set, for seeding [HapticQueue] without loading any scores. */
     @Query("SELECT trackUri FROM haptics")
     suspend fun madeTrackUris(): List<String>

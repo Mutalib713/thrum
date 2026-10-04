@@ -107,6 +107,11 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
 
+    // Task 22: making haptics in the background. WorkManager is Mutalib's
+    // pick — jobs survive the app being closed, and Android can pause them to
+    // save battery. Version read off Google's Maven metadata.
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
+
     // Score and its serialization are pure Kotlin with no Android or JSON
     // dependency, so junit alone is enough to test the whole analysis layer.
     testImplementation("junit:junit:4.13.2")

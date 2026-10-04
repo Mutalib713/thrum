@@ -92,6 +92,42 @@ object Player {
         this.queue = queue
         index = queue.indexOfFirst { it.sourceUri == track.sourceUri }
         start(ctx, track, hearAndFeel)
+        jumpAhead(ctx, track.sourceUri)
+    }
+
+    /**
+     * §4 item 5, in the background mode: a song played jumps the queue — to
+     * the **front**, ahead of everything waiting, because pressing play is a
+     * stronger signal than anything the scan learned. In "as played" mode
+     * there is no queue to jump; the haptic is made right here.
+     */
+    private fun jumpAhead(ctx: Context, uri: String) {
+        if (Store(ctx).hapticsMode != HapticsWorker.MODE_BACKGROUND) return
+        scope.launch {
+            val store = Store(ctx)
+            val made = withContext(Dispatchers.IO) {
+                LibraryDb.get(ctx).dao().madeTrackUris()
+            }.toSet()
+            val moved = HapticQueue(store.hapticQueuePending, made).played(uri)
+            if (moved.pending != store.hapticQueuePending) {
+                store.hapticQueuePending = moved.pending
+                HapticsWorker.ensureEnqueued(ctx)
+            }
+        }
+    }
+
+    /**
+     * A haptic now exists (or the file was refused) — the walk must not remake
+     * or retry it. Settled after every make attempt, success or not.
+     */
+    private fun settled(ctx: Context, uri: String) {
+        if (Store(ctx).hapticsMode != HapticsWorker.MODE_BACKGROUND) return
+        scope.launch {
+            val store = Store(ctx)
+            if (uri in store.hapticQueuePending) {
+                store.hapticQueuePending = store.hapticQueuePending - uri
+            }
+        }
     }
 
     fun setHearAndFeel(ctx: Context, hearAndFeel: Boolean) {
@@ -191,13 +227,24 @@ object Player {
             haptic = null
 
             // The haptic, made once per song. About eight seconds, the first
-            // time only — screen 13 says so in exactly those words.
+            // time only — screen 13 says so in exactly those words. The maker
+            // is shared with the background walk, so the two can never drift.
             val existing = withContext(Dispatchers.IO) {
                 LibraryDb.get(ctx).dao().hapticFor(track.sourceUri)?.toHaptic()
             }
-            val ready = existing ?: makeHaptic(ctx, track)
-            if (now?.track?.sourceUri != track.sourceUri) return@launch // user moved on
-            if (ready == null) return@launch // makeHaptic reported the error on [now]
+            val ready: Haptic
+            if (existing != null) {
+                ready = existing
+            } else {
+                val made = HapticMaker.make(ctx, track)
+                if (now?.track?.sourceUri != track.sourceUri) return@launch // user moved on
+                settled(ctx, track.sourceUri)
+                if (made.haptic == null) {
+                    now = now?.copy(preparing = false, playing = false, error = made.error)
+                    return@launch
+                }
+                ready = made.haptic
+            }
 
             haptic = ready
             now = now?.copy(
@@ -267,78 +314,6 @@ object Player {
         driveJob = null
         tickerJob?.cancel()
         tickerJob = null
-    }
-
-    private suspend fun makeHaptic(ctx: Context, track: Track): Haptic? {
-        val punch = Store(ctx).punch
-        val distance = Store(ctx).distance
-        val body = Store(ctx).body
-        var builder: ScoreBuilder? = null
-        val result = withContext(Dispatchers.IO) {
-            AudioDecoder.decode(
-                ctx,
-                Uri.parse(track.sourceUri),
-                onFormat = { rate, _ -> builder = ScoreBuilder(rate, name = track.name) },
-                onMono = { samples, count -> builder?.feed(samples, count) },
-            )
-        }
-        when (result) {
-            is Decoded.Failed -> {
-                // The Dolby row: the file stays listed, marked unreadable,
-                // with the decoder's own sentence on the player.
-                markUnreadable(ctx, track)
-                now = now?.copy(preparing = false, playing = false, error = result.message)
-                return null
-            }
-
-            is Decoded.Ok -> {
-                val levels = builder?.levels()
-                val built = levels?.let {
-                    // The WHOLE track — no 45-second trim, no coarsening. The
-                    // call slices its own window; the drive splits into
-                    // pieces. Trimming or fitting here would silently throw
-                    // away the song the user asked to feel.
-                    ScoreBuilder.toScore(
-                        it,
-                        builder?.stepMsUsed ?: Demo.STEP_MS,
-                        track.name,
-                        minFelt = punch,
-                        bodyMs = body,
-                        bodyCeiling = ScoreBuilder.ceilingFor(punch, distance),
-                    )
-                }
-                if (built == null || built.isSilent()) {
-                    now = now?.copy(
-                        preparing = false,
-                        playing = false,
-                        error = ctx.getString(R.string.error_silent),
-                    )
-                    return null
-                }
-                val made = Haptic(
-                    trackUri = track.sourceUri,
-                    score = built,
-                    punch = punch,
-                    distance = distance,
-                    bodyMs = body,
-                    madeAtMs = System.currentTimeMillis(),
-                )
-                withContext(Dispatchers.IO) {
-                    LibraryDb.get(ctx).dao().upsertHaptic(made.toEntity())
-                }
-                return made
-            }
-        }
-    }
-
-    private fun markUnreadable(ctx: Context, track: Track) {
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                LibraryDb.get(ctx).dao().upsertTracks(
-                    listOf(track.copy(readable = false).toEntity(System.currentTimeMillis())),
-                )
-            }
-        }
     }
 
     /** "Use for calls": this song's first 45 seconds become what a call plays. */
