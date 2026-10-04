@@ -40,4 +40,23 @@ data class Track(
         require(name.isNotEmpty()) { "a track needs a name" }
         require(durationMs >= 0) { "durationMs was $durationMs" }
     }
+
+    companion object {
+        /**
+         * The search box over the library. Every word typed must appear in the
+         * title or the artist, so "asake active" finds one song and "asake
+         * keche" finds nothing — an OR would flood the list with everything
+         * by either artist, which is the opposite of what narrowing is for.
+         * Case-folded, trimmed, and tolerant of doubled spaces; empty query
+         * means the whole library, in the order the scan wrote it.
+         */
+        fun search(tracks: List<Track>, query: String): List<Track> {
+            val words = query.lowercase().split(' ').filter { it.isNotEmpty() }
+            if (words.isEmpty()) return tracks
+            return tracks.filter { track ->
+                val haystack = (track.name + " " + track.artist).lowercase()
+                words.all { haystack.contains(it) }
+            }
+        }
+    }
 }

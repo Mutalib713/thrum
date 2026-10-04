@@ -187,6 +187,24 @@
     <string name="stub_music_body">Scanning your music arrives with the library. This build starts with calls.</string>
     <string name="stub_settings_body">Everything you can change lives on the Home tab for now.</string>
 
+    <!-- The Music tab. Task 20: the scan asks for music access only when the
+            user taps "Scan for music"; refusing it leaves "pick one song",
+            which needs no permission at all. Copy follows screens 8, 9 and 12;
+            screen 9's streaming list is not built because a MediaStore query
+            finishes in well under a second — there is nothing to stream. -->
+    <string name="music_intro_title">Your music isn\'t here yet</string>
+    <string name="music_intro_body">Scan your phone to find your songs, then play any of them here and feel every beat.</string>
+    <string name="music_intro_privacy">Thrum reads music and audio files only. Nothing leaves your phone.</string>
+    <string name="music_scan_action">Scan for music</string>
+    <string name="music_pick_instead">Pick one song instead</string>
+    <string name="music_scanning">Scanning your phone…</string>
+    <string name="music_search_hint">Search your music</string>
+    <string name="music_denied_title">Thrum can\'t see your music</string>
+    <string name="music_denied_body">You chose not to give music access. You can still pick one song at a time, or turn access on in Settings.</string>
+    <string name="music_denied_settings">Turn on music access</string>
+    <string name="music_empty_after_scan">Nothing found. If your music lives somewhere unusual, \"Pick one song\" reaches anywhere the file chooser does.</string>
+    <string name="music_no_match">Nothing matches that search.</string>
+
     <!-- Debug builds only -->
     <string name="diagnostics">Diagnostics</string>
 </resources>

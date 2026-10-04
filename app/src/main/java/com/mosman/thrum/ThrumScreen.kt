@@ -1107,8 +1107,8 @@ internal fun Secondary(label: String, modifier: Modifier = Modifier, onClick: ()
     }
 }
 
-/** `3:58`, the way a music player writes it. */
-private fun clockOf(ms: Long): String {
+/** `3:58`, the way a music player writes it. Shared with the Music tab's rows. */
+internal fun clockOf(ms: Long): String {
     val total = ms / 1000
     return "%d:%02d".format(total / 60, total % 60)
 }

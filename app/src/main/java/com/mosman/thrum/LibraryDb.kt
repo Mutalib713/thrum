@@ -1,10 +1,12 @@
 package com.mosman.thrum
 
+import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -139,4 +141,27 @@ interface LibraryDao {
 )
 abstract class LibraryDb : RoomDatabase() {
     abstract fun dao(): LibraryDao
+
+    companion object {
+        @Volatile
+        private var instance: LibraryDb? = null
+
+        /**
+         * One database per process, built on first use. The destructive
+         * fallback is the migration policy §8 states outright: the library is
+         * a cache over sources that always exist elsewhere, so a schema bump
+         * wipes and the next scan rebuilds it. If a table ever holds something
+         * irreplaceable, that is the moment to write real migrations.
+         */
+        fun get(ctx: Context): LibraryDb = instance ?: synchronized(this) {
+            instance ?: Room.databaseBuilder(
+                ctx.applicationContext,
+                LibraryDb::class.java,
+                "library.db",
+            )
+                .fallbackToDestructiveMigration(dropAllTables = true)
+                .build()
+                .also { instance = it }
+        }
+    }
 }

@@ -266,4 +266,32 @@ class LibraryTest {
         assertEquals("9.9 s", Home.latencyWords(9_940))
         assertEquals("10 s", Home.latencyWords(10_000))
     }
+
+    // --- The Music tab's search (Task 20).
+
+    @Test
+    fun `search keeps only tracks whose every word lands in the title or artist`() {
+        val asake = Track("1", "Active", artist = "Asake, Travis Scott", durationMs = 1, kind = TrackKind.MUSIC)
+        val keche = Track("2", "No Dulling", artist = "Keche", durationMs = 1, kind = TrackKind.MUSIC)
+        val lofi = Track("3", "AIZO, but it's lofi hiphop", artist = "", durationMs = 1, kind = TrackKind.MUSIC)
+        val library = listOf(asake, keche, lofi)
+        assertEquals(listOf(asake), Track.search(library, "asake active"))
+        assertEquals(listOf(keche), Track.search(library, "dulling"))
+        assertEquals(listOf(lofi), Track.search(library, "LOFI"))
+        // Two artists named together find nothing, which is the point of an
+        // AND: an OR would flood the list with everything by either.
+        assertTrue(Track.search(library, "asake keche").isEmpty())
+    }
+
+    @Test
+    fun `an empty or messy query is the whole library in the scan's order`() {
+        val library = listOf(
+            Track("1", "No Dulling", artist = "Keche", durationMs = 1, kind = TrackKind.MUSIC),
+            Track("2", "Active", artist = "Asake", durationMs = 1, kind = TrackKind.MUSIC),
+        )
+        assertEquals(library, Track.search(library, ""))
+        assertEquals(library, Track.search(library, "   "))
+        // Doubled spaces and padding must not manufacture words.
+        assertEquals(listOf(library[0]), Track.search(library, "  no   dulling  "))
+    }
 }

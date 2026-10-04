@@ -346,7 +346,7 @@ private fun Done(onDone: () -> Unit) {
 }
 
 @Composable
-private fun Heading(text: String) {
+internal fun Heading(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.headlineMedium,

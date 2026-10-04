@@ -763,11 +763,13 @@ The song for calls: first 45 seconds, repeated until answered. "Feel a test call
 
 **Proof still owed:** a real call plays the chosen song's opening; with nothing chosen, `dumpsys vibrator_manager` shows no `com.mosman.thrum` entry for that call.
 
-### [ ] Task 20: ⚠ Music scan [8, 9, 12]
+### [~] Task 20: ⚠ Music scan [8, 9, 12] — **BUILT 2026-10-04, proof needs the phone**
 
 "Scan for music" asks for music access (`READ_MEDIA_AUDIO`, or `READ_EXTERNAL_STORAGE` on Android 12), then lists every song and audio file, with search. Refused access shows screen 12 and "pick one song" still works. Check Google Play's current policy for music access before writing the listing copy.
 
-**Proof:** the scan lists Mutalib's real songs with durations that match what Android itself reports (the Task 3 method); refusing access shows screen 12; the Play policy check is written into PROFILE §11 R13.
+**Built:** the Music tab is real. The request is made only when "Scan for music" is tapped; a refusal shows screen 12 (with "Turn on music access" going to the app's system settings, and "pick one song" on the file chooser, which needs no permission at all); a grant made in system settings is seen on return because the permission is polled. The scan reads **MediaStore** — Android's own index, so nothing is decoded and it finishes in well under a second, which is why screen 9's streaming list was not built — excluding alarms, notifications and ringtones, and writes `Track` rows into the Room library Task 17 built. Search filters title and artist, every typed word required (pure, tested: "asake active" finds one song, "asake keche" finds nothing). Picked single songs join the same library with their duration read from metadata, not decoded. Rows are deliberately not tappable: the player that would open is Task 21, and a row that looked like a button today would be a dead control. **The Play policy check is written into R13:** `READ_MEDIA_AUDIO` is a dangerous permission already handled correctly, the Console needs a permission declaration cross-checked against the Data Safety form, and the file-picker path is Google's own recommended alternative.
+
+**Proof still owed:** the scan lists Mutalib's real songs on the Pixel, durations matching what Android itself reports; refusing the request draws screen 12; "pick one song" lands a row without a permission.
 
 ### [ ] Task 21: The player [11, 14]
 

@@ -5,6 +5,19 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!--
+      Music access (Task 20). Asked only when the user taps "Scan for music",
+      never at launch. READ_MEDIA_AUDIO is the Android 13+ form; the storage
+      permission covers Android 12, this app's floor (minSdk 31), and stops
+      applying above it by maxSdkVersion. Audio only by construction — the
+      manifest never asks for anything that would let the app see photos,
+      or videos by scan.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!--
       Deliberately absent, and PROFILE.md Sacred Rule 3 keeps it that way:
       no INTERNET permission. Nothing this app touches leaves the phone.
     -->

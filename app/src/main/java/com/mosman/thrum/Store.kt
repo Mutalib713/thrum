@@ -154,6 +154,11 @@ class Store(ctx: Context) {
         get() = prefs.getBoolean(KEY_ONBOARDED, false)
         set(v) = prefs.edit().putBoolean(KEY_ONBOARDED, v).apply()
 
+    /** When the music scan last ran — the "Last scanned" line Settings shows (Task 26). */
+    var lastScanAtMs: Long
+        get() = prefs.getLong(KEY_LAST_SCAN, 0L)
+        set(v) = prefs.edit().putLong(KEY_LAST_SCAN, v).apply()
+
     fun events(): List<Event> = Event.decodeAll(prefs.getString(KEY_EVENTS, "") ?: "")
 
     fun addEvent(event: Event) {
@@ -173,5 +178,6 @@ class Store(ctx: Context) {
         const val KEY_DISTANCE = "distance"
         const val KEY_BODY = "body"
         const val KEY_ONBOARDED = "onboarded"
+        const val KEY_LAST_SCAN = "last_scan_at"
     }
 }
