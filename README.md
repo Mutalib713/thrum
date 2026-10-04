@@ -13,9 +13,8 @@ iPhones can do this. Android phones have the hardware for it and leave it switch
 - **Calls come first.** Pick one song for your calls. When the phone rings, you feel the first 45 seconds of it, repeated until you answer. It works in vibrate mode, and in ring mode too if you leave that switch on.
 - **Music.** Tap "Scan for music", say yes when Thrum asks, and it lists the songs and audio files on your phone. Play any of them and feel the beat from start to finish. Thrum can make every song's haptic in the background, or one at a time as you play them.
 - **Videos and audio files.** Pick a video or a recording and Thrum turns its sound into a haptic as well.
-- **Thrum Originals.** A few pieces made for Thrum and built into the app, so you can feel it the moment you open it, before giving any permission.
-- **A music catalog (planned).** Search and play music that isn't on your phone, with its vibration. It needs the internet, which Thrum doesn't use today, so it waits on that decision.
-- **Clean up the sound.** When a song is a squashed, low-quality copy, Thrum can make it sound clearer, on the phone.
+- **A built-in collection (planned).** Open-licence music and sounds chosen to be felt, shipped inside the app with their haptics ready, so you can feel Thrum before giving any permission. Nothing streams and nothing needs the internet.
+- **Clean up the sound (planned).** When a song is a squashed, low-quality copy, Thrum will offer to make it sound clearer, on the phone.
 - **My Haptics.** Everything you make, in one list. Use any of it for calls, tune how it feels, or export it.
 - **Tune the feel.** Three presets (Crisp, Full and Strong) and three dials: Intensity, Focus and Duration.
 - **Export.** Save one haptic or all of them as Thrum files, to back them up or open them in Thrum on another phone. Only the vibration goes in the file, never the song.
@@ -27,7 +26,8 @@ Thrum reads the song and finds where the beats land. Then it writes down how har
 ## Where it is now
 
 - **Working today on a Pixel 6 Pro: the calls feature.** Real incoming calls play a chosen song's rhythm, in vibrate mode and in ring mode. Thrum starts it within a second of the call arriving, usually in about a third of a second.
-- **Designed, not built yet: everything else on this page.** The screens are agreed (the picture above) and [PLAN.md](PLAN.md) lists the build, one task at a time.
+- **Built, not yet proven on the phone:** first launch, Home, the Music tab and its player, haptics made in the background, videos and files, My Haptics, tuning, export and import, and Settings. They run on an Android emulator, but an emulator has no vibration motor, so each one's test on a real phone is still owed in [PLAN.md](PLAN.md).
+- **Not built yet:** the built-in collection and Clean up.
 - **The open problem:** on the Pixel the rhythm still feels too much like a steady hum and not enough like a beat. That is the next task.
 - Not on the Play Store yet.
 
@@ -43,15 +43,12 @@ Built in this order, one task at a time, each one proven on a real phone before 
 | 4 | 18–19 | The new app: first launch, Home and calls |
 | 5 | 20–22 | Music: scanning, the player, making haptics |
 | 6 | 23–26 | Videos and files, My Haptics, tuning, export, settings |
-| 7 | 27–29 | Thrum Originals, the music catalog and Clean up |
+| 7 | 27–29 | The built-in collection and Clean up |
 | 8 | 10, 6, 13, 14 | A day-long reliability test, a cheap-phone test, the store listing, launch |
 
 ## Still to decide
 
-- **Whether Thrum may use the internet**, which the music catalog needs. Thrum has none today and promises it never will, so this is a real change.
-- **Where the catalog's music comes from.** It has to be licensed: nothing gets ripped from YouTube or Spotify.
-- **Who makes the Thrum Originals.**
-- **Five building choices**, each written up with a suggestion and an alternative in [PROFILE.md](PROFILE.md) §7.
+- **Which pieces go in the built-in collection.** Every one has to come with a licence that lets Thrum ship it; nothing gets ripped from YouTube or Spotify. The candidate sources are researched in [docs/research/open-collections.md](docs/research/open-collections.md), and none has been picked yet.
 
 ## What you need
 
@@ -60,7 +57,7 @@ Built in this order, one task at a time, each one proven on a real phone before 
 
 ## Privacy
 
-Thrum has no internet permission. Your music, your haptics and your calls stay on your phone, unless you export a haptic yourself, and an export holds only the vibration. Thrum asks before it looks at your music, and it only reads music and audio files. To notice a call, it checks one thing in your notifications: is this a call? It ignores the rest. If the planned catalog gets built, it will be the one part of Thrum that uses the internet, and this section will say exactly what it sends.
+Thrum has no internet permission. Your music, your haptics and your calls stay on your phone, unless you export a haptic yourself, and an export holds only the vibration. Thrum asks before it looks at your music, and it only reads music and audio files. To notice a call, it checks one thing in your notifications: is this a call? It ignores the rest.
 
 ## What it can't do
 

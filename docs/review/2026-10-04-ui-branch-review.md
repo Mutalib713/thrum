@@ -124,8 +124,21 @@ PROFILE's Sacred Rule 2 is that the app never lets anyone believe it works when 
 - **The hum is still the open problem.** A test song with a clean kick every 0.4 s came out as "1 hit, still 0%": one unbroken drive for 15 seconds. That is R9, Task 15's job, not this review's.
 - **The emulator is shared.** Something else launched Wird on it over `adb` during this review. Thrum was only brought forward briefly, once, to reproduce the crash.
 
-## What gets fixed
+## What was fixed
 
-Everything in A to F. The approach: keep Antigravity's look (cards, buttons, icons, layout), put back `main`'s honest behaviour and its reviewed strings, and replace every sample value with the user's real data, or nothing. Where a feature isn't built yet (the collection, Clean up), its screens come out rather than pretend. Group G stays as it is.
+Everything in A to F. The approach: keep Antigravity's look (cards, buttons, icons, layout), put back `main`'s honest behaviour and its reviewed strings, and replace every sample value with the user's real data, or nothing. Where a feature isn't built yet (the collection, Clean up), its screens came out rather than pretend. Group G stays as it is.
 
-Each group's fix is a separate commit, listed here when it lands.
+| Commit | What it fixed |
+|---|---|
+| `99b330f` | **A1–A7.** Every change to the waiting list is one locked read-change-write step (`Store.editQueue`); a list loaded from storage drops what the library has already made (`HapticQueue.restore`) instead of throwing. The walk makes songs for up to four minutes a run and hands over with `APPEND_OR_REPLACE`. The player takes a played song off the list before making it, so the walk never decodes it in parallel; its errors become a sentence, never a crash; a second tap cancels the first start. Rescans respect the mode; export and scan failures are caught. A walk left stalled by the old build resumes when the app opens. |
+| `68698a8` | **B–F.** The screens rebuilt on `main`'s behaviour and strings (233 of 252 in use, from 7), in Antigravity's layout. Light and dark from the palette's own roles; headings in Space Grotesk; lazy lists; Back on every screen; dead code out. Two things built rather than faked: **Recently played** from the player's real history, and the **Tune screen** that rebuilds and saves on every change. |
+
+**Proven on the emulator** (Android 14, Pixel-sized):
+
+- The crash first, on the old build, with the log above. The fixed build installed over that broken state repaired the list, finished the walk and played two songs back to back.
+- The full flow on the new build: first launch; Home with no call access, with no song, ready, and with the ring switch off; the scan; the background walk making all four songs across a hand-over between runs, with a song claimed by the player mid-walk and never put back; the player; Use for calls; Tune taking the stored call rhythm from 33 % still to 76 %; Settings; About; Phone check, including the buzz stopping on one tap (1,211 ms, `cancelled_by_user` in `dumpsys`); an export file holding 4 haptics and no file paths; dark mode.
+- Crash log empty throughout. 144 tests pass. Humanizer 100 on the new strings; design gate 0 block, 0 warn. The impeccable gate cannot read Kotlin, so it does not apply here.
+
+**Still owed on the Pixel**, unchanged by this review: every Task 18–26 proof in PLAN.md, and Task 16's spike (a whole song in pieces, and whether vibration survives screen-off). An emulator has no vibration motor, so no feel was judged here.
+
+**One mistake of mine on the way, caught on the emulator:** the rebuilt player closed itself on every tap, because it opened a frame before the song's details existed and treated that as "nothing is playing". Fixed before the commit.

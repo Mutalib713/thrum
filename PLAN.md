@@ -11,6 +11,8 @@ Read `PROFILE.md` first. It is canonical; this file only sequences the work.
 
 **Where this plan stands on 2026-10-03.** Mutalib turned Thrum into the full app (calls, music, videos, My Haptics, export); `PROFILE.md` §4 and `docs/design/screens/` describe it. Milestones 0–2 below are the record of how the calls feature got built, and they stay as written. **The next work is Milestone 4, from Task 15.** Milestone 3 (ship it) now comes after it: Tasks 11 and 12 are mostly done, but Tasks 13 and 14 have to be redone for the full app.
 
+**2026-10-04: Tasks 18–26 built, then reviewed and fixed.** The implementation landed on `main` (3–4 October), and Antigravity redrew every screen on the `ui-final-screens` branch. The review of that branch, `docs/review/2026-10-04-ui-branch-review.md`, found and reproduced the crash Mutalib reported: the background haptic queue (fixed in `99b330f`). It also found the redrawn screens showing the design board's sample data as the user's own, and fixed them in `68698a8`. Both were checked on the Android 14 emulator. Two things in the plan got built in that fix: Home's **Recently played** (Task 19) and the **Tune screen** that rebuilds on every change (Task 24). Every proof below that says it needs the phone still does: an emulator has no motor.
+
 ---
 
 ## Milestone 0 — Prove it's possible
