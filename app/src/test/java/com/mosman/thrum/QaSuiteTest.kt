@@ -1152,6 +1152,97 @@ class QaSuiteTest {
         )
     }
 
+    // --- The two switches that replaced Intensity and Focus (2026-10-06).
+    // --- Mutalib: "I usually don't feel any changes". Measured on AIZO,
+    // --- Intensity moved the average beat 169 to 207 across its whole travel
+    // --- and Focus moved nothing until its last step.
+
+    /** A whole-song haptic from a kick-and-hats bar, with the three saved numbers. */
+    private fun whole(punch: Int, distance: Int, bodyMs: Int = ScoreBuilder.BODY_MS): Score {
+        val samples = Fixture(44_100).apply { fourOnTheFloor(bars = 4, bpm = 120, hats = 7000) }.samples()
+        val builder = ScoreBuilder(44_100).apply { feed(samples, samples.size) }
+        return ScoreBuilder.wholeScore(builder.levels(), builder.stepMsUsed, "", punch, distance, bodyMs)
+    }
+
+    private fun meanOn(score: Score): Double = score.amplitudes.filter { it > 0 }.average()
+
+    @Test
+    fun `Softer turns every beat down by about a fifth and keeps the rhythm`() {
+        for (body in Tuning.ALL.map { it.bodyMs }) {
+            val normal = whole(Tuning.NORMAL_PUNCH, Tuning.EXTRA_TAPS_ON, body)
+            val softer = whole(Tuning.SOFTER_PUNCH, Tuning.EXTRA_TAPS_ON, body)
+            // Same beats in the same places: only their strength changes.
+            assertEquals(normal.amplitudes.map { it > 0 }, softer.amplitudes.map { it > 0 })
+            assertTrue(
+                "body $body: a step got stronger",
+                softer.amplitudes.zip(normal.amplitudes).all { (s, n) -> s <= n },
+            )
+            val ratio = meanOn(softer) / meanOn(normal)
+            assertTrue("body $body: Softer kept ${"%.2f".format(ratio)} of the strength", ratio in 0.70..0.85)
+        }
+    }
+
+    @Test
+    fun `Softer never turns a beat below what the motor can feel`() {
+        val normal = whole(Tuning.NORMAL_PUNCH, Tuning.EXTRA_TAPS_ON)
+        val softer = whole(Tuning.SOFTER_PUNCH, Tuning.EXTRA_TAPS_ON)
+        normal.amplitudes.zip(softer.amplitudes).forEach { (n, s) ->
+            if (n >= ScoreBuilder.SOFTER_FLOOR) {
+                assertTrue("$n softened to $s, under the felt floor", s >= ScoreBuilder.SOFTER_FLOOR)
+            } else {
+                assertEquals("a light tap of $n was changed", n, s)
+            }
+        }
+    }
+
+    @Test
+    fun `softening never lifts a quiet tap or wakes a still step`() {
+        val score = Score(20, listOf(0, 100, 130, 140, 200, 255))
+        assertEquals(listOf(0, 100, 130, 140, 150, 191), score.softened(0.75f, 140).amplitudes)
+    }
+
+    @Test
+    fun `Extra taps off leaves only the main beat`() {
+        val on = whole(Tuning.NORMAL_PUNCH, Tuning.EXTRA_TAPS_ON)
+        val off = whole(Tuning.NORMAL_PUNCH, Tuning.EXTRA_TAPS_OFF)
+        assertTrue(
+            "switching Extra taps off took nothing away",
+            off.amplitudes.count { it > 0 } < on.amplitudes.count { it > 0 },
+        )
+        // What is left is all kick: every step at the beat's own strength.
+        assertTrue(off.amplitudes.filter { it > 0 }.all { it >= ScoreBuilder.MIN_FELT })
+        assertTrue("on should carry the lighter taps", on.amplitudes.any { it in 1 until ScoreBuilder.MIN_FELT })
+    }
+
+    @Test
+    fun `settings saved by the old sliders read as the nearest switch`() {
+        // Focus 0 to 99 kept the light beats; only 100 switched them off.
+        assertTrue(Tuning.extraTaps(0))
+        assertTrue(Tuning.extraTaps(61))
+        assertTrue(Tuning.extraTaps(99))
+        assertTrue(!Tuning.extraTaps(100))
+        // Intensity under the felt floor was a softer setting; at or above it is not.
+        assertTrue(Tuning.softer(Tuning.SOFTER_PUNCH))
+        assertTrue(Tuning.softer(150))
+        assertTrue(!Tuning.softer(Tuning.NORMAL_PUNCH))
+        assertTrue(!Tuning.softer(210))
+    }
+
+    @Test
+    fun `an old Intensity above normal is still built as it was saved`() {
+        val samples = Fixture(44_100).apply { fourOnTheFloor(bars = 4, bpm = 120, hats = 7000) }.samples()
+        val builder = ScoreBuilder(44_100).apply { feed(samples, samples.size) }
+        val levels = builder.levels()
+        val expected = ScoreBuilder.toScore(
+            levels,
+            builder.stepMsUsed,
+            minFelt = 210,
+            bodyMs = ScoreBuilder.BODY_MS,
+            bodyCeiling = ScoreBuilder.ceilingFor(210, 61),
+        )
+        assertEquals(expected, ScoreBuilder.wholeScore(levels, builder.stepMsUsed, "", 210, 61, ScoreBuilder.BODY_MS))
+    }
+
     private fun analyse(
         sampleRate: Int = 44_100,
         detailCeiling: Int = ScoreBuilder.BODY_CEILING,

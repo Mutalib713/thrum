@@ -480,15 +480,45 @@ class ScoreBuilder(
          * stores and the player plays in pieces. No trim, no coarsening —
          * PROFILE §8; a call takes its own window from it.
          */
-        fun wholeScore(levels: Levels, stepMs: Int, name: String, punch: Int, distance: Int, bodyMs: Int): Score =
-            toScore(
+        fun wholeScore(levels: Levels, stepMs: Int, name: String, punch: Int, distance: Int, bodyMs: Int): Score {
+            // A Punch under the felt floor is the Softer switch (Tuning.kt):
+            // the score is built at the normal floor and then turned down,
+            // because lowering the floor itself only touched the quiet beats
+            // and moved the average by a few points. Above the floor, an old
+            // Intensity setting is honoured as it was saved.
+            val softer = isSofter(punch)
+            val floor = if (softer) MIN_FELT else punch
+            val built = toScore(
                 levels,
                 stepMs,
                 name,
-                minFelt = punch,
+                minFelt = floor,
                 bodyMs = bodyMs,
-                bodyCeiling = ceilingFor(punch, distance),
+                bodyCeiling = ceilingFor(floor, distance),
             )
+            return if (softer) built.softened(SOFTER_SCALE, SOFTER_FLOOR) else built
+        }
+
+        /** Whether a saved Punch means the Softer switch is on. */
+        fun isSofter(punch: Int): Boolean = punch < MIN_FELT
+
+        /**
+         * The Softer switch: every beat at three quarters of its strength.
+         *
+         * Measured on AIZO's 45-second call window, 2026-10-06, this makes the
+         * average beat 18 to 25 % gentler across all three presets and both
+         * Extra taps settings (190 to 148 out of 255 on Strong). The Intensity
+         * dial it replaces moved the average only from 169 to 207 across its
+         * whole travel, which is why it was barely felt.
+         */
+        const val SOFTER_SCALE = 0.75f
+
+        /**
+         * How far Softer may turn a beat down. Under about 140 the motor hums
+         * without moving (see [MIN_FELT]), so a softened beat stops here
+         * instead of disappearing. A light tap already below it is left alone.
+         */
+        const val SOFTER_FLOOR = 140
 
         /**
          * What a call plays: the first [RINGTONE_SECONDS] at full 20 ms

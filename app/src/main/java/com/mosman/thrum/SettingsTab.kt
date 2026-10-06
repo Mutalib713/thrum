@@ -110,7 +110,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
                 onClick = { openCallAccess(ctx) },
             )
             SettingsDivider()
-            SwitchRow(
+            ThrumSwitchRow(
                 name = stringResource(R.string.ring_mode_label),
                 help = stringResource(R.string.ring_mode_help),
                 checked = ringMode,
@@ -262,24 +262,6 @@ private fun SettingsRow(
         if (onClick != null) {
             ThrumIcon(name = "chev", tint = ThrumInk2, size = 16.dp, modifier = Modifier.padding(start = Space.S2))
         }
-    }
-}
-
-@Composable
-private fun SwitchRow(name: String, help: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Space.S4, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(name, style = ThrumType.row, color = ThrumInk)
-            Text(help, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
-        }
-        Spacer(Modifier.width(Space.S3))
-        ThrumSwitch(checked = checked, onCheckedChange = onChange)
     }
 }
 

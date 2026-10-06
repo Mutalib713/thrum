@@ -400,8 +400,8 @@ class LibraryTest {
         assertEquals(Tuning.STRONG, Tuning.matching(400))
         assertNull(Tuning.matching(305))
         assertEquals(3, Tuning.ALL.map { it.bodyMs }.toSet().size)
-        // "Reset to balanced" lands on the measured default: the only Duration
-        // that reached parity, the felt floor for Intensity, the whole kit for Focus.
+        // "Reset to default" lands on the measured default: Strong, the only
+        // preset that reached the buzz, at normal strength, with Extra taps on.
         assertEquals(Tuning.STRONG.bodyMs, Tuning.RESET_BODY)
         assertEquals(ScoreBuilder.MIN_FELT, Tuning.RESET_PUNCH)
         assertEquals(0, Tuning.RESET_DISTANCE)

@@ -1,5 +1,7 @@
 package com.mosman.thrum
 
+import kotlin.math.roundToInt
+
 /**
  * A vibration score: one strength value per fixed-length step of time.
  *
@@ -232,6 +234,24 @@ data class Score(
                 added++
             }
             i = at
+        }
+        return Score(stepMs, out, sourceName)
+    }
+
+    /**
+     * Every beat turned down to [scale] of its strength, never below [floor].
+     *
+     * The floor is a limit on the turning down, not a lift: a step already
+     * weaker than [floor] stays exactly as it was, and a still step stays
+     * still. Turning a quiet tap *up* to the floor would make "softer" louder
+     * in places, and turning a beat below the floor would hand the motor a
+     * strength it cannot produce.
+     */
+    fun softened(scale: Float, floor: Int): Score {
+        require(scale in 0f..1f) { "scale must be 0..1, was $scale" }
+        require(floor in 0..MAX_AMPLITUDE) { "floor must be 0..$MAX_AMPLITUDE, was $floor" }
+        val out = amplitudes.map { a ->
+            if (a == 0) 0 else maxOf(minOf(a, floor), (a * scale).roundToInt())
         }
         return Score(stepMs, out, sourceName)
     }

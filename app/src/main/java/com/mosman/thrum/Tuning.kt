@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,6 +40,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -52,8 +55,20 @@ import kotlinx.coroutines.withContext
  * more silence than the buzz, **Full** is nearly parity, **Strong** is past
  * it — the design's own words agree ("Strong: closest to a buzz"). No
  * measurement ever distinguished a Punch or a Distance per preset, so the
- * presets do not touch them: the fine-tune dials keep whatever the user has,
+ * presets do not touch them: the two switches keep whatever the user has,
  * and a preset changes exactly the axis that was measured.
+ *
+ * Re-measured 2026-10-06 with today's analyser (with the light beats on):
+ * 0.320, 0.392 and 0.502 — the same ladder, a little lower, with Strong
+ * level with the buzz rather than past it.
+ *
+ * **Why the screen has no sliders any more** (Mutalib, 2026-10-06: "I
+ * usually don't feel any changes"). The presets moved the motor's on-time
+ * from 46 % to 67 %, which is felt. Intensity moved the average beat only
+ * from 169 to 207 out of 255, and Focus moved nothing until its last step.
+ * So the presets are the main choice, Focus became [extraTaps], Intensity
+ * became [softer], and the Duration slider went because the presets are
+ * its only three points anyone measured.
  *
  * The final values are still Mutalib's hand to confirm (Task 15's second
  * half) — but they start from measurement, not from a guess.
@@ -66,28 +81,56 @@ object Tuning {
      */
     data class Preset(val nameRes: Int, val helpRes: Int, val bodyMs: Int, val pattern: String)
 
-    /** "Short taps with gaps." Still 54 % on the measured track — more than the buzz. */
+    /** "Short taps with space between." 0.320 sustained on AIZO — well under the buzz. */
     val CRISP = Preset(R.string.tune_preset_crisp, R.string.tune_preset_crisp_help, ScoreBuilder.BODY_MIN_MS, "pulse")
 
-    /** "Longer beats." 0.417 sustained — nearly parity with the buzz. */
+    /** "Longer taps." 0.392 sustained — most of the way to the buzz. */
     val FULL = Preset(R.string.tune_preset_full, R.string.tune_preset_full_help, 240, "heart")
 
-    /** "Closest to a buzz." 0.540 sustained, longest felt run 1,460 ms. */
+    /** "Closest to the phone's own buzz." 0.502 sustained, longest felt run 1,540 ms. */
     val STRONG = Preset(R.string.tune_preset_strong, R.string.tune_preset_strong_help, ScoreBuilder.BODY_MS, "buzz")
 
     val ALL = listOf(CRISP, FULL, STRONG)
 
-    /** The preset a Duration dial is currently sitting on, or null off-ladder. */
+    /** The preset a Duration is currently sitting on, or null for an old fine-tuned one. */
     fun matching(bodyMs: Int): Preset? = ALL.firstOrNull { it.bodyMs == bodyMs }
 
     /**
-     * "Reset to balanced": the app's own defaults — the felt floor for
-     * Intensity, the whole kit for Focus, and the only Duration that reached
-     * parity with the buzz on the measured track.
+     * The "Extra taps" switch, kept in the old Focus number so nothing saved
+     * has to change shape.
+     *
+     * Measured 2026-10-06 on AIZO's call window, Focus moved the score by
+     * under one point out of 255 anywhere from 0 to 99, and did something
+     * only at 100, where it switched the light beats off. So it was always a
+     * switch drawn as a slider; now it is drawn as what it is. Switching it
+     * off takes the motor from 46 % to 27 % of the time on Crisp, and from
+     * 67 % to 58 % on Strong.
      */
-    val RESET_PUNCH = ScoreBuilder.MIN_FELT
-    val RESET_DISTANCE = 0
-    val RESET_BODY = ScoreBuilder.BODY_MS
+    const val EXTRA_TAPS_ON = 0
+    const val EXTRA_TAPS_OFF = 100
+
+    /** Whether a saved Focus number means Extra taps is on. Anything under 100 kept the light beats. */
+    fun extraTaps(distance: Int): Boolean = distance < EXTRA_TAPS_OFF
+
+    /**
+     * The "Softer" switch, kept in the old Intensity number. Normal is the
+     * felt floor every haptic has always started from; Softer is any number
+     * under it, which [ScoreBuilder.wholeScore] reads as "turn every beat
+     * down". See [ScoreBuilder.SOFTER_SCALE] for what it measured.
+     */
+    const val NORMAL_PUNCH = ScoreBuilder.MIN_FELT
+    const val SOFTER_PUNCH = ScoreBuilder.SOFTER_FLOOR
+
+    fun softer(punch: Int): Boolean = ScoreBuilder.isSofter(punch)
+
+    /**
+     * "Reset": the app's own defaults — Strong, with the light beats, at
+     * normal strength. Strong is the only preset that reached the stock
+     * buzz on the measured track.
+     */
+    const val RESET_PUNCH = NORMAL_PUNCH
+    const val RESET_DISTANCE = EXTRA_TAPS_ON
+    const val RESET_BODY = ScoreBuilder.BODY_MS
 }
 
 /** What the Tune screen is tuning. */
@@ -108,11 +151,21 @@ sealed interface TuneTarget {
  *
  * **Changes apply straight away**, which is what the screen says. The song is
  * read once when the screen opens (about eight seconds); after that every
- * dial move rebuilds the rhythm from the kept analysis in milliseconds, and
- * the result is saved when a dial is let go. The first version of this
- * screen saved the new numbers beside the *old* rhythm and rebuilt nothing,
- * so the motor went on playing what it played before — the same split
- * between a score and its dials that was measured and fixed on 2026-09-21.
+ * change rebuilds the rhythm from the kept analysis in milliseconds and saves
+ * it. The first version of this screen saved the new numbers beside the *old*
+ * rhythm and rebuilt nothing, so the motor went on playing what it played
+ * before — the same split between a score and its dials that was measured
+ * and fixed on 2026-09-21.
+ *
+ * **A choice made while the song is still being read is kept.** It waits in
+ * `pending` and is saved the moment the reading finishes. Before, the save
+ * returned early and dropped it, so the screen showed one setting while the
+ * haptic kept the old one.
+ *
+ * **"Feel it" follows the controls.** A change while it plays restarts the
+ * new rhythm from the same moment, so the hand feels the difference without
+ * stopping and starting again. Mutalib, 2026-10-06: "I usually don't feel
+ * any changes" — part of that was a preview that kept playing the old rhythm.
  */
 @Composable
 fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
@@ -146,10 +199,18 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
     val ready = analysis as? HapticMaker.Analysis.Ok
     val reading = sourceUri != null && analysis == null
 
-    // What the dials make now: a call's first 45 seconds — for a song, its
+    // What the controls make now: a call's first 45 seconds — for a song, its
     // opening, which is the part a call would play and enough to feel.
-    val preview = ready?.let {
-        ScoreBuilder.callScore(it.levels, it.stepMs, sourceName, punch, distance, body)
+    val preview = remember(ready, punch, distance, body) {
+        ready?.let { ScoreBuilder.callScore(it.levels, it.stepMs, sourceName, punch, distance, body) }
+    }
+    // Each preset drawn on this song with the switches as they are.
+    val presetShapes = remember(ready, punch, distance) {
+        ready?.let { r ->
+            Tuning.ALL.associateWith {
+                ScoreBuilder.callScore(r.levels, r.stepMs, sourceName, punch, distance, it.bodyMs)
+            }
+        }
     }
 
     val problem: String? = when {
@@ -161,10 +222,15 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
             stringResource(R.string.tune_problem, (analysis as HapticMaker.Analysis.Failed).message)
         else -> null
     }
-    // With nothing armed and nothing to read, the dials set the default feel.
+    // With nothing armed and nothing to read, the controls set the default feel.
     val defaultsOnly = target == TuneTarget.Calls && !armed
 
-    /** Write what the dials say, to whatever this screen is tuning. */
+    var pending by remember { mutableStateOf(false) }
+    // Saves one at a time and in order, so two quick taps can't land the
+    // older one last.
+    val saving = remember { Mutex() }
+
+    /** Write what the controls say, to whatever this screen is tuning. */
     fun commit() {
         when (target) {
             TuneTarget.Calls -> {
@@ -172,47 +238,95 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
                     store.setDefaultTuning(punch, distance, body)
                     return
                 }
-                val built = ready ?: return
+                val built = ready ?: run {
+                    pending = true
+                    return
+                }
                 val call = ScoreBuilder.callScore(built.levels, built.stepMs, sourceName, punch, distance, body)
                 if (call.isSilent()) return
                 store.arm(call, sourceUri, punch, distance, body)
                 // The same song in the library takes the same feel, so its
                 // page and the call never disagree.
                 val uri = sourceUri ?: return
+                val p = punch
+                val d = distance
+                val b = body
                 scope.launch {
-                    val inLibrary = withContext(Dispatchers.IO) { LibraryDb.get(ctx).dao().hapticFor(uri) } != null
-                    if (inLibrary) {
-                        val whole = ScoreBuilder.wholeScore(built.levels, built.stepMs, sourceName, punch, distance, body)
-                        Player.retuned(ctx, HapticMaker.save(ctx, uri, whole, punch, distance, body))
+                    saving.withLock {
+                        val inLibrary = withContext(Dispatchers.IO) { LibraryDb.get(ctx).dao().hapticFor(uri) } != null
+                        if (inLibrary) {
+                            val whole = ScoreBuilder.wholeScore(built.levels, built.stepMs, sourceName, p, d, b)
+                            Player.retuned(ctx, HapticMaker.save(ctx, uri, whole, p, d, b))
+                        }
                     }
                 }
             }
 
             is TuneTarget.Song -> {
-                val built = ready ?: return
+                val built = ready ?: run {
+                    pending = true
+                    return
+                }
+                val p = punch
+                val d = distance
+                val b = body
                 scope.launch {
-                    val whole = ScoreBuilder.wholeScore(built.levels, built.stepMs, sourceName, punch, distance, body)
-                    if (whole.isSilent()) return@launch
-                    val saved = HapticMaker.save(ctx, target.track.sourceUri, whole, punch, distance, body)
-                    Player.retuned(ctx, saved)
-                    if (store.sourceUri == target.track.sourceUri) {
-                        store.arm(saved.callWindow(), saved.trackUri, punch, distance, body)
+                    saving.withLock {
+                        val whole = ScoreBuilder.wholeScore(built.levels, built.stepMs, sourceName, p, d, b)
+                        if (whole.isSilent()) return@withLock
+                        val saved = HapticMaker.save(ctx, target.track.sourceUri, whole, p, d, b)
+                        Player.retuned(ctx, saved)
+                        if (store.sourceUri == target.track.sourceUri) {
+                            store.arm(saved.callWindow(), saved.trackUri, p, d, b)
+                        }
                     }
                 }
             }
         }
     }
+    LaunchedEffect(ready) {
+        if (ready != null && pending) {
+            pending = false
+            commit()
+        }
+    }
 
-    // "Feel it": the rhythm the dials make, on the motor, with a playhead.
+    // "Feel it": the rhythm the controls make, on the motor, with a playhead.
     var progress by remember { mutableFloatStateOf(-1f) }
     var feelJob by remember { mutableStateOf<Job?>(null) }
+    var feelStartedAt by remember { mutableLongStateOf(0L) }
     fun stopFeel() {
         feelJob?.cancel()
         feelJob = null
         progress = -1f
         Haptics.stop(ctx)
     }
+
+    /** Play [score] on the motor from [fromMs], with the playhead following it. */
+    fun startFeel(score: Score, fromMs: Long) {
+        stopFeel()
+        if (fromMs >= score.durationMs) return
+        if (Haptics.play(ctx, score.from(fromMs)) != null) return
+        feelStartedAt = SystemClock.elapsedRealtime() - fromMs
+        feelJob = scope.launch {
+            while (true) {
+                val f = (SystemClock.elapsedRealtime() - feelStartedAt).toFloat() / score.durationMs
+                if (f >= 1f) break
+                progress = f
+                delay(Motion.FRAME)
+            }
+            progress = -1f
+            feelJob = null
+        }
+    }
     DisposableEffect(Unit) { onDispose { stopFeel() } }
+
+    // A change while "Feel it" plays: carry on from the same moment, in the
+    // new rhythm.
+    LaunchedEffect(preview) {
+        val now = preview ?: return@LaunchedEffect
+        if (feelJob != null) startFeel(now, SystemClock.elapsedRealtime() - feelStartedAt)
+    }
 
     ThrumPage {
         ThrumTopBar(title = stringResource(R.string.tune_title), onBack = onClose)
@@ -228,7 +342,7 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
             )
         }
 
-        // The rhythm itself, read once and redrawn on every dial move.
+        // The rhythm itself, read once and redrawn on every change.
         when {
             reading -> Row(
                 modifier = Modifier.padding(vertical = Space.S3),
@@ -244,18 +358,19 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
 
             preview != null -> ThrumCard(padding = PaddingValues(Space.S4)) {
                 PulseRibbon(score = preview, progress = progress, height = 88.dp, barWidth = 2.dp, barGap = 1.dp)
-                val still = preview.amplitudes.count { it == 0 } * 100 / preview.amplitudes.size.coerceAtLeast(1)
-                Text(
-                    stringResource(R.string.tech_row, preview.amplitudes.size, preview.stepMs, still),
-                    style = ThrumType.meta,
-                    color = ThrumInk2,
-                    modifier = Modifier.padding(top = Space.S2),
-                )
             }
         }
 
-        // The three presets: Duration only, the measured axis.
-        ThrumCard(modifier = Modifier.padding(top = Space.S3), padding = PaddingValues(0.dp)) {
+        Text(
+            stringResource(R.string.tune_intro),
+            style = ThrumType.body,
+            color = ThrumInk2,
+            modifier = Modifier.padding(top = Space.S4, bottom = Space.S2, start = Space.S1, end = Space.S1),
+        )
+
+        // The three presets: the main choice, and the one axis that was
+        // measured to change what a hand feels.
+        ThrumCard(padding = PaddingValues(0.dp)) {
             Tuning.ALL.forEachIndexed { index, preset ->
                 if (index > 0) HorizontalDivider(color = ThrumRule, thickness = 1.dp)
                 val selected = body == preset.bodyMs
@@ -278,9 +393,7 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
                     Box(Modifier.width(64.dp)) {
                         // This song with this preset, when there is a song;
                         // the preset's shape, when there is not.
-                        val shown = ready?.let {
-                            ScoreBuilder.callScore(it.levels, it.stepMs, sourceName, punch, distance, preset.bodyMs)
-                        }
+                        val shown = presetShapes?.get(preset)
                         if (shown != null) {
                             PulseRibbon(score = shown, limit = PRESET_RIBBON_STEPS, height = 26.dp, barWidth = 2.dp, barGap = 1.dp)
                         } else {
@@ -290,41 +403,40 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
                 }
             }
         }
+        // A Duration fine-tuned on the old slider sits between presets.
+        if (Tuning.matching(body) == null) {
+            Text(
+                stringResource(R.string.tune_custom),
+                style = ThrumType.meta,
+                color = ThrumInk2,
+                modifier = Modifier.padding(top = Space.S2, start = Space.S1, end = Space.S1),
+            )
+        }
 
         Overline(stringResource(R.string.tune_fine), modifier = Modifier.padding(top = 22.dp, bottom = Space.S2, start = 2.dp))
 
-        ThrumCard(padding = PaddingValues(Space.S4)) {
-            Column(verticalArrangement = Arrangement.spacedBy(Space.S4)) {
-                // Never to 255: see ScoreBuilder.MIN_HEADROOM. A floor at the
-                // ceiling leaves no room for loud and quiet beats.
-                ThrumSliderRow(
-                    title = stringResource(R.string.tune_intensity, punch),
-                    value = punch.toFloat(),
-                    valueRange = 120f..(Score.MAX_AMPLITUDE - ScoreBuilder.MIN_HEADROOM).toFloat(),
-                    onValueChange = { punch = it.toInt() },
-                    onValueChangeFinished = { commit() },
-                    help = stringResource(R.string.tune_intensity_help),
-                    enabled = problem == null,
-                )
-                ThrumSliderRow(
-                    title = stringResource(R.string.tune_duration, body),
-                    value = body.toFloat(),
-                    valueRange = ScoreBuilder.BODY_MIN_MS.toFloat()..ScoreBuilder.BODY_MAX_MS.toFloat(),
-                    onValueChange = { body = it.toInt() },
-                    onValueChangeFinished = { commit() },
-                    help = stringResource(R.string.tune_duration_help),
-                    enabled = problem == null,
-                )
-                ThrumSliderRow(
-                    title = stringResource(R.string.tune_focus, distance),
-                    value = distance.toFloat(),
-                    valueRange = 0f..100f,
-                    onValueChange = { distance = it.toInt() },
-                    onValueChangeFinished = { commit() },
-                    help = stringResource(R.string.tune_focus_help),
-                    enabled = problem == null,
-                )
-            }
+        ThrumCard(padding = PaddingValues(0.dp)) {
+            ThrumSwitchRow(
+                name = stringResource(R.string.tune_extra_taps),
+                help = stringResource(R.string.tune_extra_taps_help),
+                checked = Tuning.extraTaps(distance),
+                onChange = { on ->
+                    distance = if (on) Tuning.EXTRA_TAPS_ON else Tuning.EXTRA_TAPS_OFF
+                    commit()
+                },
+                enabled = problem == null,
+            )
+            HorizontalDivider(color = ThrumRule, thickness = 1.dp)
+            ThrumSwitchRow(
+                name = stringResource(R.string.tune_softer),
+                help = stringResource(R.string.tune_softer_help),
+                checked = Tuning.softer(punch),
+                onChange = { on ->
+                    punch = if (on) Tuning.SOFTER_PUNCH else Tuning.NORMAL_PUNCH
+                    commit()
+                },
+                enabled = problem == null,
+            )
         }
 
         problem?.let { message ->
@@ -358,36 +470,25 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             if (preview != null) {
+                val feeling = feelJob != null
                 SecondaryButton(
                     text = stringResource(
                         when {
-                            progress >= 0f -> R.string.ready_stop
+                            feeling -> R.string.ready_stop
                             target == TuneTarget.Calls -> R.string.ready_feel
                             else -> R.string.tune_feel
                         },
                     ),
-                    icon = if (progress >= 0f) null else "play",
+                    icon = if (feeling) null else "play",
                     small = true,
                     onClick = {
-                        if (progress >= 0f) {
+                        if (feeling) {
                             stopFeel()
                         } else {
                             // The player owns the motor too; it pauses rather
                             // than fight a preview for it.
                             if (Player.now?.playing == true) Player.togglePause(ctx)
-                            stopFeel()
-                            if (Haptics.play(ctx, preview) == null) {
-                                feelJob = scope.launch {
-                                    val started = SystemClock.elapsedRealtime()
-                                    while (true) {
-                                        val f = (SystemClock.elapsedRealtime() - started).toFloat() / preview.durationMs
-                                        if (f >= 1f) break
-                                        progress = f
-                                        delay(Motion.FRAME)
-                                    }
-                                    progress = -1f
-                                }
-                            }
+                            startFeel(preview, 0L)
                         }
                     },
                     modifier = Modifier.weight(1f),

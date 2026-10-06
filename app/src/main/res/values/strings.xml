@@ -112,36 +112,36 @@
     <string name="setup_unknown">Thrum can\'t read this phone\'s ringer setting, so it can\'t
         promise anything either way. It will still try when a call comes in.</string>
 
-    <!-- The technical row, for the kind of person who wants the numbers -->
-    <string name="tech_row">%1$d steps · %2$d ms each · still %3$d%% of the time</string>
-    <!-- Tune the feel. Task 24, screen 15. The dials carry their design names —
-            Intensity, Focus, Duration — and the presets are the three points the
-            2026-09-21 measurement actually walked: they change exactly the
-            Duration axis, and the final values are Mutalib's hand to confirm. -->
+    <!-- Tune the feel. Task 24, screen 15. Rebuilt 2026-10-06 after Mutalib said he
+         couldn't feel the dials: the presets are the main choice (the one axis that
+         measured as felt), Focus became the Extra taps switch and Intensity the
+         Softer switch. Explained for someone who isn't technical. -->
     <string name="tune_title">Tune the feel</string>
+    <string name="tune_intro">Pick how the beats feel. Tap Feel it to try it.</string>
     <string name="tune_preset_crisp">Crisp</string>
-    <string name="tune_preset_crisp_help">Short taps with gaps.</string>
+    <string name="tune_preset_crisp_help">Short taps with space between them.</string>
     <string name="tune_preset_full">Full</string>
-    <string name="tune_preset_full_help">Longer beats.</string>
+    <string name="tune_preset_full_help">Longer taps with more push.</string>
     <string name="tune_preset_strong">Strong</string>
-    <string name="tune_preset_strong_help">Closest to a buzz.</string>
-    <string name="tune_intensity">Intensity %1$d</string>
-    <string name="tune_intensity_help">How hard each beat lands. It also sets how far Focus can go, so raise this first if Focus runs out of room.</string>
-    <string name="tune_duration">Duration %1$d ms</string>
-    <string name="tune_duration_help">How long each beat is driven for. This is what decides whether a phone lying on a table moves: a longer drive pushes the table, a shorter one you only feel in your hand. Turn it up for a stronger alert, down to keep the beats crisp and separate.</string>
-    <string name="tune_focus">Focus %1$d</string>
-    <string name="tune_focus_help">Left lets the snare and hats through. Right keeps only the beat.</string>
-    <string name="tune_reset">Reset to balanced</string>
-    <string name="tune_note">Changes apply straight away. Play it to feel them.</string>
-    <!-- Shown beside the dials when a rebuild is impossible. Task 11: the source
+    <string name="tune_preset_strong_help">The longest taps, closest to your phone\'s own buzz.</string>
+    <!-- A beat length fine-tuned on the old Duration slider sits between presets. -->
+    <string name="tune_custom">You have a setting from an older version. Pick one above to replace it.</string>
+    <string name="tune_fine">Fine-tune</string>
+    <string name="tune_extra_taps">Extra taps</string>
+    <string name="tune_extra_taps_help">Feel the lighter sounds between the main beats too, like the snare and hi-hats. Turn it off to feel only the main beat.</string>
+    <string name="tune_softer">Softer</string>
+    <!-- "About a fifth": measured 18 to 25 % gentler across the presets on AIZO, 2026-10-06. -->
+    <string name="tune_softer_help">Every beat lands about a fifth gentler. Calls are easier to notice with it off.</string>
+    <string name="tune_reset">Reset to default</string>
+    <string name="tune_note">Changes save straight away. If Feel it is playing, it switches to the new feel.</string>
+    <!-- Shown beside the controls when a rebuild is impossible. Task 11: the source
          file can be deleted, or its permission withdrawn, between picking it and
-         moving a slider. The dial must not move and do nothing quietly. -->
-    <string name="tune_problem">The dials can\'t change this rhythm at the moment. %1$s</string>
+         changing a setting. A control must not change and do nothing quietly. -->
+    <string name="tune_problem">These settings can\'t change this rhythm right now. %1$s</string>
     <string name="tune_no_source">The file it was built from is no longer recorded, so there is
         nothing to rebuild it from. Choose the song again to change the feel.</string>
     <string name="tune_imported">This haptic came from a Thrum file, so there\'s no song to rebuild it from.</string>
     <string name="tune_defaults_note">There\'s no song for calls yet, so these set the feel every new haptic starts with.</string>
-    <string name="tune_fine">Fine-tune</string>
     <string name="tune_feel">Feel it</string>
     <string name="tune_done">Done</string>
     <string name="rate_title">How fast can this phone tap?</string>

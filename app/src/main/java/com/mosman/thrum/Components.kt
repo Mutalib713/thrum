@@ -40,8 +40,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -50,6 +48,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -516,20 +515,29 @@ fun ThrumRadio(selected: Boolean, modifier: Modifier = Modifier) {
 /**
  * A switch that says it is a switch, and whether it is on. The thumb stays
  * visible when off: the first one drew a dark thumb on a dark track.
+ *
+ * With [onCheckedChange] null it only draws, for a row that is itself the
+ * thing being tapped (see [ThrumSwitchRow]).
  */
 @Composable
 fun ThrumSwitch(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
+    val shape = RoundedCornerShape(Space.S4)
+    var box = modifier
+        .size(width = 52.dp, height = 32.dp)
+        .clip(shape)
+        .background(if (checked) ThrumAccent else ThrumSurface2)
+        .border(1.dp, if (checked) ThrumAccent else ThrumLine, shape)
+    if (onCheckedChange != null) {
+        box = box.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
+    }
     Box(
-        modifier = modifier
-            .size(width = 52.dp, height = 32.dp)
-            .clip(RoundedCornerShape(Space.S4))
-            .background(if (checked) ThrumAccent else ThrumSurface2)
-            .border(1.dp, if (checked) ThrumAccent else ThrumLine, RoundedCornerShape(Space.S4))
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+        modifier = box
+            .alpha(if (enabled) 1f else 0.5f)
             .padding(Space.S1),
         contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
@@ -542,33 +550,35 @@ fun ThrumSwitch(
     }
 }
 
+/**
+ * A setting that is on or off: its name, one line saying what it does, and
+ * the switch. The whole row is the tap target, so a thumb that lands on the
+ * words still flips it, and a screen reader hears one switch with its name
+ * rather than a nameless one beside some text.
+ */
 @Composable
-fun ThrumSliderRow(
-    title: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
+fun ThrumSwitchRow(
+    name: String,
     help: String,
-    valueRange: ClosedFloatingPointRange<Float>,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    onValueChangeFinished: (() -> Unit)? = null,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(title, style = ThrumType.row, color = if (enabled) ThrumInk else ThrumInk2)
-        Slider(
-            value = value.coerceIn(valueRange),
-            onValueChange = onValueChange,
-            onValueChangeFinished = onValueChangeFinished,
-            valueRange = valueRange,
-            enabled = enabled,
-            colors = SliderDefaults.colors(
-                thumbColor = ThrumAccent,
-                activeTrackColor = ThrumAccent,
-                inactiveTrackColor = ThrumRule,
-            ),
-            modifier = Modifier.heightIn(min = Touch.min),
-        )
-        Text(help, style = ThrumType.meta, color = ThrumInk2)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = Space.S4, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(name, style = ThrumType.row, color = if (enabled) ThrumInk else ThrumInk2)
+            Text(help, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
+        }
+        Spacer(Modifier.width(Space.S3))
+        ThrumSwitch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
 
