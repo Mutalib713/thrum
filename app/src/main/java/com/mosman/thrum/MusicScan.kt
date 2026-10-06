@@ -4,6 +4,8 @@ import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * The scan: Android's own index of the music on the phone, read into [Track]s.
@@ -25,6 +27,33 @@ import android.provider.MediaStore
  * Tracks it produces lives in pure code.
  */
 object MusicScan {
+
+    /** What one scan found: every song, and how many of them were not in the library before. */
+    data class Result(val found: Int, val new: Int)
+
+    /**
+     * One scan, wherever it is asked for: the phone's music read into the
+     * library, the time noted, and in background mode every song queued for
+     * its haptic. Null when Android refused, such as music access taken back
+     * mid-scan. The Music tab and Settings both come here, so the two cannot
+     * drift: Settings' "Scan for new songs" used to only open the Music tab
+     * and scan nothing (Mutalib, 2026-10-06).
+     */
+    suspend fun intoLibrary(ctx: Context): Result? {
+        val dao = LibraryDb.get(ctx).dao()
+        val before = withContext(Dispatchers.IO) { dao.allTrackUris() }.toSet()
+        val found = withContext(Dispatchers.IO) { runCatching { scan(ctx) }.getOrNull() } ?: return null
+        val now = System.currentTimeMillis()
+        withContext(Dispatchers.IO) { dao.upsertTracks(found.map { it.toEntity(now) }) }
+        val store = Store(ctx)
+        store.lastScanAtMs = now
+        // Background mode only: enqueue() leaves the list alone in "as I play
+        // them" mode, and before the question is answered nothing walks at all.
+        if (found.isNotEmpty() && store.hapticsMode != null) {
+            HapticsWorker.enqueue(ctx, found.map { it.sourceUri })
+        }
+        return Result(found = found.size, new = found.count { it.sourceUri !in before })
+    }
 
     fun scan(ctx: Context): List<Track> {
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)

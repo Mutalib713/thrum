@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +78,9 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
     var background by remember { mutableStateOf(store.hapticsMode == HapticsWorker.MODE_BACKGROUND) }
     val callSong = remember { store.armedScore?.sourceName }
     val body = remember { store.body }
+    var scanning by remember { mutableStateOf(false) }
+    var scanLine by remember { mutableStateOf<String?>(null) }
+    var lastScanAtMs by remember { mutableLongStateOf(store.lastScanAtMs) }
 
     ThrumPage(overTabs = true) {
         Text(
@@ -88,21 +93,21 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
         )
 
         SettingsSection(stringResource(R.string.settings_calls_section)) {
+            // The song's name under the label, where a long name has room.
             SettingsRow(
                 name = stringResource(R.string.settings_song_for_calls),
-                value = callSong ?: stringResource(R.string.settings_not_set),
+                sub = callSong ?: stringResource(R.string.settings_not_set),
                 onClick = onOpenHome,
             )
             SettingsDivider()
+            // Always a way in: Android switches access on and off, Thrum
+            // can't, so the row opens Android's own switch either way. On
+            // used to do nothing, and looked stuck (Mutalib, 2026-10-06).
             SettingsRow(
                 name = stringResource(R.string.settings_call_access),
+                sub = stringResource(R.string.settings_access_change),
                 value = stringResource(if (callAccess) R.string.settings_on else R.string.settings_off),
-                // On needs nothing; off is the state that needs a way out.
-                onClick = if (callAccess) {
-                    null
-                } else {
-                    { openCallAccess(ctx) }
-                },
+                onClick = { openCallAccess(ctx) },
             )
             SettingsDivider()
             SwitchRow(
@@ -119,22 +124,51 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
         SettingsSection(stringResource(R.string.settings_music_section)) {
             SettingsRow(
                 name = stringResource(R.string.settings_music_access),
+                sub = stringResource(R.string.settings_access_change),
                 value = stringResource(if (musicAccess) R.string.settings_on else R.string.settings_off),
-                onClick = if (musicAccess) null else { { openAppInfo(ctx) } },
+                onClick = { openAppInfo(ctx) },
             )
             SettingsDivider()
             SettingsRow(
                 name = stringResource(R.string.settings_scan_new),
-                sub = if (store.lastScanAtMs > 0) {
-                    stringResource(
+                sub = when {
+                    scanning -> stringResource(R.string.settings_scanning)
+                    scanLine != null -> scanLine
+                    lastScanAtMs > 0 -> stringResource(
                         R.string.settings_last_scanned,
-                        SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(store.lastScanAtMs)),
+                        SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(lastScanAtMs)),
                     )
-                } else {
-                    stringResource(R.string.settings_never_scanned)
+                    else -> stringResource(R.string.settings_never_scanned)
                 },
-                // The scan lives in the Music tab; one scan path, not two.
-                onClick = onOpenMusic,
+                onClick = {
+                    when {
+                        scanning -> Unit
+                        // The first scan asks how haptics get made, and without
+                        // music access it has to ask for that too: both live
+                        // in the Music tab.
+                        !musicAccess || store.hapticsMode == null -> onOpenMusic()
+                        else -> {
+                            scanning = true
+                            scanLine = null
+                            scope.launch {
+                                val result = MusicScan.intoLibrary(ctx)
+                                scanning = false
+                                lastScanAtMs = store.lastScanAtMs
+                                scanLine = if (result == null) {
+                                    ctx.getString(R.string.music_scan_failed)
+                                } else {
+                                    ctx.resources.getQuantityString(R.plurals.settings_scan_found, result.found, result.found) +
+                                        " · " +
+                                        if (result.new == 0) {
+                                            ctx.getString(R.string.settings_scan_nothing_new)
+                                        } else {
+                                            ctx.getString(R.string.settings_scan_new_count, result.new)
+                                        }
+                                }
+                            }
+                        }
+                    }
+                },
             )
             SettingsDivider()
             SettingsRow(
@@ -204,25 +238,29 @@ private fun SettingsRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        // The name keeps most of the row, whatever the value says. A long
+        // value used to be measured first and take the whole width, squeezing
+        // the name until its letters stacked one per line (Mutalib,
+        // 2026-10-06: "breaks into vertical"). Now a long value is cut short.
+        Column(modifier = Modifier.weight(1.6f)) {
             Text(name, style = ThrumType.row, color = ThrumInk)
             if (sub != null) Text(sub, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
         }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Space.S2),
-        ) {
-            if (value != null) {
-                Text(
-                    value,
-                    style = ThrumType.body,
-                    color = ThrumInk2,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = Space.S3),
-                )
-            }
-            if (onClick != null) ThrumIcon(name = "chev", tint = ThrumInk2, size = 16.dp)
+        if (value != null) {
+            Text(
+                value,
+                style = ThrumType.body,
+                color = ThrumInk2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .padding(start = Space.S3),
+            )
+        }
+        if (onClick != null) {
+            ThrumIcon(name = "chev", tint = ThrumInk2, size = 16.dp, modifier = Modifier.padding(start = Space.S2))
         }
     }
 }

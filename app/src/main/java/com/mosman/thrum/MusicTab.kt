@@ -101,24 +101,15 @@ fun MusicTab(onExport: () -> Unit) {
         scope.launch {
             // A scan can be refused mid-way — music access taken back while
             // it runs. That used to crash the app; now it says so.
-            val found = withContext(Dispatchers.IO) { runCatching { MusicScan.scan(ctx) }.getOrNull() }
+            val result = MusicScan.intoLibrary(ctx)
             scanning = false
-            if (found == null) {
+            if (result == null) {
                 scanFailed = true
                 return@launch
             }
-            val now = System.currentTimeMillis()
-            withContext(Dispatchers.IO) { db.dao().upsertTracks(found.map { it.toEntity(now) }) }
-            store.lastScanAtMs = now
-            if (found.isNotEmpty()) {
-                if (store.hapticsMode == null) {
-                    askMode = true
-                } else {
-                    // Background mode only: enqueue() leaves the list alone in
-                    // "as I play them" mode, where nothing walks it.
-                    HapticsWorker.enqueue(ctx, found.map { it.sourceUri })
-                }
-            }
+            // The first scan asks how haptics get made; until it is answered,
+            // nothing is queued (see MusicScan.intoLibrary).
+            if (result.found > 0 && store.hapticsMode == null) askMode = true
         }
     }
 

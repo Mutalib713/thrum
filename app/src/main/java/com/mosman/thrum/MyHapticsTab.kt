@@ -3,7 +3,7 @@ package com.mosman.thrum
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -72,25 +73,42 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MyHapticsTab(onGoToMusic: () -> Unit, onExport: () -> Unit) {
+fun MyHapticsTab(onExport: () -> Unit, makeRequested: Boolean = false, onMakeShown: () -> Unit = {}) {
     val ctx = LocalContext.current
     val db = remember { LibraryDb.get(ctx) }
     val store = remember { Store(ctx) }
     val scope = rememberCoroutineScope()
 
-    var haptics by remember { mutableStateOf<List<Haptic>>(emptyList()) }
-    var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var filterIndex by remember { mutableIntStateOf(0) }
-    var showCreate by remember { mutableStateOf(false) }
+    var showMake by remember { mutableStateOf(false) }
     var errorLine by remember { mutableStateOf<String?>(null) }
     var deleteRow by remember { mutableStateOf<MyHaptics.Row?>(null) }
     val callsUri = remember { store.sourceUri }
 
+    // The haptics and the tracks they came from, arriving together or not at
+    // all. Read as two lists, the tracks often landed a moment first, and for
+    // that moment every video and audio file said "Making its haptic" each
+    // time the tab came back (Mutalib, 2026-10-06).
+    // Coming back to the tab starts from the last list shown, so it appears
+    // at once and then quietly refreshes, instead of a blank moment.
+    var library by remember { mutableStateOf(lastLibrary) }
     LaunchedEffect(Unit) {
-        db.dao().observeHaptics().collect { rows -> haptics = rows.mapNotNull { it.toHaptic() } }
+        combine(db.dao().observeHaptics(), db.dao().observeTracks()) { h, t ->
+            h.mapNotNull { it.toHaptic() } to t.map { it.toTrack() }
+        }.collect {
+            library = it
+            lastLibrary = it
+        }
     }
-    LaunchedEffect(Unit) {
-        db.dao().observeTracks().collect { rows -> tracks = rows.map { it.toTrack() } }
+    val haptics = library?.first.orEmpty()
+    val tracks = library?.second.orEmpty()
+
+    // Home's Create card lands here with the choice already open.
+    LaunchedEffect(makeRequested) {
+        if (makeRequested) {
+            showMake = true
+            onMakeShown()
+        }
     }
 
     fun insertPicked(uri: Uri, kind: TrackKind) {
@@ -111,21 +129,21 @@ fun MyHapticsTab(onGoToMusic: () -> Unit, onExport: () -> Unit) {
         }
     }
 
-    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val videoPicker = rememberLauncherForActivityResult(OpenOnShelf(VIDEOS_SHELF)) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         runCatching { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        showCreate = false
+        showMake = false
         insertPicked(uri, TrackKind.VIDEO)
     }
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val audioPicker = rememberLauncherForActivityResult(OpenOnShelf(AUDIO_SHELF)) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         runCatching { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        showCreate = false
+        showMake = false
         insertPicked(uri, TrackKind.FILE)
     }
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        showCreate = false
+        showMake = false
         errorLine = null
         scope.launch {
             val text = withContext(Dispatchers.IO) { readSmallText(ctx, uri) }
@@ -138,22 +156,13 @@ fun MyHapticsTab(onGoToMusic: () -> Unit, onExport: () -> Unit) {
         }
     }
 
-    if (showCreate) {
-        CreateScreen(
-            onClose = { showCreate = false },
-            onPickVideo = { videoPicker.launch(arrayOf("video/*")) },
-            onPickFile = { filePicker.launch(arrayOf("audio/*")) },
-            onPickSong = {
-                showCreate = false
-                onGoToMusic()
-            },
-            // Any file: a Thrum file is saved as plain bytes, and the phone's
-            // chooser reports such files under different types on different
-            // phones. Anything that is not one is refused in a sentence.
-            onPickThrumFile = { importPicker.launch(arrayOf("*/*")) },
-        )
-        return
-    }
+    fun pickAudio() = audioPicker.launch(arrayOf("audio/*"))
+    fun pickVideo() = videoPicker.launch(arrayOf("video/*"))
+
+    // Any file: a Thrum file is saved as plain bytes, and the phone's chooser
+    // reports such files under different types on different phones. Anything
+    // that is not one is refused in a sentence.
+    fun pickThrumFile() = importPicker.launch(arrayOf("*/*"))
 
     val filter = MyHaptics.Filter.entries[filterIndex]
     val rows = MyHaptics.rows(haptics, tracks, callsUri, filter)
@@ -172,94 +181,142 @@ fun MyHapticsTab(onGoToMusic: () -> Unit, onExport: () -> Unit) {
         Player.playHere(ctx, trackByUri[row.uri] ?: row.asTrack(), playable)
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ThrumField)
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
-        contentPadding = PaddingValues(
-            start = Space.S5,
-            end = Space.S5,
-            top = 18.dp,
-            bottom = if (Player.now != null) 100.dp else Space.S6,
-        ),
-    ) {
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp, bottom = Space.S1),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.tab_haptics),
-                    style = ThrumType.statement,
-                    color = ThrumInk,
-                    modifier = Modifier.semantics { heading() },
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(ThrumField)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+            contentPadding = PaddingValues(
+                start = Space.S5,
+                end = Space.S5,
+                top = 18.dp,
+                bottom = if (Player.now != null) 100.dp else Space.S6,
+            ),
+        ) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp, bottom = Space.S1),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.tab_haptics),
+                        style = ThrumType.statement,
+                        color = ThrumInk,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    if (haptics.isNotEmpty()) {
+                        IconButtonBox(icon = "export", label = stringResource(R.string.export_title), onClick = onExport)
+                    }
+                }
+            }
+            item {
+                ThrumSegmentedControl(
+                    // In MyHaptics.Filter's order: All, Audio, Video.
+                    options = listOf(
+                        stringResource(R.string.haptics_filter_all),
+                        stringResource(R.string.haptics_filter_audio),
+                        stringResource(R.string.haptics_filter_video),
+                    ),
+                    selectedIndex = filterIndex,
+                    onSelect = { filterIndex = it },
+                    modifier = Modifier.padding(top = Space.S3, bottom = Space.S4),
                 )
-                if (haptics.isNotEmpty()) {
-                    IconButtonBox(icon = "export", label = stringResource(R.string.export_title), onClick = onExport)
+            }
+            // Making one sits at the top, and speaks for the filter it is under:
+            // All asks which kind, Audio and Video go straight to that kind
+            // (Mutalib, 2026-10-06). It used to wait below the whole list.
+            item {
+                when (filter) {
+                    MyHaptics.Filter.ALL -> MakeOption(
+                        icon = "plus",
+                        title = stringResource(R.string.haptics_make),
+                        subtitle = stringResource(R.string.haptics_make_help),
+                        onClick = { showMake = true },
+                    )
+                    MyHaptics.Filter.AUDIO -> MakeOption(
+                        icon = "music",
+                        title = stringResource(R.string.haptics_make_audio),
+                        subtitle = stringResource(R.string.make_audio_help),
+                        onClick = { pickAudio() },
+                    )
+                    MyHaptics.Filter.VIDEO -> MakeOption(
+                        icon = "video",
+                        title = stringResource(R.string.haptics_make_video),
+                        subtitle = stringResource(R.string.make_video_help),
+                        onClick = { pickVideo() },
+                    )
+                }
+                Spacer(Modifier.height(Space.S4))
+            }
+            // Said only once the list is known: an empty list a moment before
+            // the rows land is the flash this screen used to show.
+            if (library != null && rows.isEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.haptics_empty_body),
+                        style = ThrumType.lead,
+                        color = ThrumInk2,
+                        modifier = Modifier.padding(horizontal = Space.S1),
+                    )
+                }
+            }
+            itemsIndexed(rows, key = { _, row -> row.uri }) { index, row ->
+                HapticRow(
+                    row = row,
+                    haptic = hapticByUri[row.uri],
+                    first = index == 0,
+                    last = index == rows.lastIndex,
+                    onOpen = { open(row) },
+                    onPlayHere = { playHere(row) },
+                    onLongPress = { if (row.hasHaptic) deleteRow = row },
+                )
+            }
+            errorLine?.let { message ->
+                item {
+                    Text(message, style = ThrumType.body, color = ThrumWarn, modifier = Modifier.padding(top = Space.S3))
+                }
+            }
+            if (rows.isNotEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.haptics_empty_body),
+                        style = ThrumType.meta,
+                        color = ThrumInk2,
+                        modifier = Modifier.padding(horizontal = Space.S1, vertical = Space.S3),
+                    )
                 }
             }
         }
-        item {
-            ThrumSegmentedControl(
-                // In MyHaptics.Filter's order: All, Audio, Video.
-                options = listOf(
-                    stringResource(R.string.haptics_filter_all),
-                    stringResource(R.string.haptics_filter_audio),
-                    stringResource(R.string.haptics_filter_video),
-                ),
-                selectedIndex = filterIndex,
-                onSelect = { filterIndex = it },
-                modifier = Modifier.padding(top = Space.S3, bottom = Space.S4),
-            )
-        }
-        if (rows.isEmpty()) {
-            item {
+
+        // The three ways to make one, as a pop-up over the list rather than a
+        // screen of its own (Mutalib, 2026-10-06).
+        if (showMake) {
+            ThrumBottomSheet(onDismiss = { showMake = false }) {
                 Text(
-                    stringResource(R.string.haptics_empty_body),
-                    style = ThrumType.lead,
-                    color = ThrumInk2,
-                    modifier = Modifier.padding(horizontal = Space.S1),
+                    stringResource(R.string.haptics_make),
+                    style = ThrumType.heading,
+                    color = ThrumInk,
+                    modifier = Modifier.semantics { heading() },
                 )
-            }
-        }
-        itemsIndexed(rows, key = { _, row -> row.uri }) { index, row ->
-            HapticRow(
-                row = row,
-                haptic = hapticByUri[row.uri],
-                first = index == 0,
-                last = index == rows.lastIndex,
-                onOpen = { open(row) },
-                onPlayHere = { playHere(row) },
-                onLongPress = { if (row.hasHaptic) deleteRow = row },
-            )
-        }
-        errorLine?.let { message ->
-            item {
-                Text(message, style = ThrumType.body, color = ThrumWarn, modifier = Modifier.padding(top = Space.S3))
-            }
-        }
-        if (rows.isNotEmpty()) {
-            item {
+                Column(
+                    modifier = Modifier.padding(top = Space.S4),
+                    verticalArrangement = Arrangement.spacedBy(Space.S3),
+                ) {
+                    MakeOption("music", stringResource(R.string.make_audio), stringResource(R.string.make_audio_help)) { pickAudio() }
+                    MakeOption("video", stringResource(R.string.make_video), stringResource(R.string.make_video_help)) { pickVideo() }
+                    MakeOption("export", stringResource(R.string.make_thrum_file), stringResource(R.string.make_thrum_file_help)) { pickThrumFile() }
+                }
                 Text(
-                    stringResource(R.string.haptics_empty_body),
+                    stringResource(R.string.make_privacy),
                     style = ThrumType.meta,
                     color = ThrumInk2,
-                    modifier = Modifier.padding(horizontal = Space.S1, vertical = Space.S3),
+                    modifier = Modifier.padding(top = Space.S4, start = Space.S1, bottom = Space.S2),
                 )
             }
-        }
-        item {
-            Spacer(Modifier.height(Space.S5))
-            PrimaryButton(
-                text = stringResource(R.string.haptics_make),
-                icon = "plus",
-                onClick = { showCreate = true },
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 
@@ -387,46 +444,37 @@ private fun readSmallText(ctx: Context, uri: Uri): String? = runCatching {
 
 private const val MAX_IMPORT_BYTES = 64L * 1024 * 1024
 
-/** Screen 16: make a haptic from a video, an audio file, a song, or a Thrum file. */
-@Composable
-fun CreateScreen(
-    onClose: () -> Unit,
-    onPickVideo: () -> Unit,
-    onPickFile: () -> Unit,
-    onPickSong: () -> Unit,
-    onPickThrumFile: () -> Unit,
-) {
-    BackHandler(onBack = onClose)
-    ThrumPage(overTabs = true) {
-        ThrumTopBar(title = stringResource(R.string.home_card_create), onBack = onClose)
-        Text(
-            stringResource(R.string.create_title),
-            style = ThrumType.statement,
-            color = ThrumInk,
-            modifier = Modifier
-                .padding(top = 10.dp)
-                .semantics { heading() },
+/**
+ * The phone's file chooser, opened on one kind of file and, where the phone
+ * allows it, on that kind's own shelf: audio on Audio, videos on Videos
+ * (Mutalib, 2026-10-06: "audio should open to audio side"). A chooser that
+ * doesn't know the shelf opens where it usually does, still showing only
+ * that kind.
+ *
+ * The shelf's **root** address, not its document address: Android's docs
+ * ask for a document, but its own chooser (Android 14 emulator, 6 October)
+ * opened "Recent files" for the document and the Audio or Videos shelf for
+ * the root.
+ */
+private class OpenOnShelf(private val shelf: String) : ActivityResultContracts.OpenDocument() {
+    override fun createIntent(context: Context, input: Array<String>): Intent =
+        super.createIntent(context, input).putExtra(
+            DocumentsContract.EXTRA_INITIAL_URI,
+            DocumentsContract.buildRootUri(MEDIA_DOCUMENTS, shelf),
         )
-        Column(
-            modifier = Modifier.padding(top = Space.S5),
-            verticalArrangement = Arrangement.spacedBy(Space.S3),
-        ) {
-            CreateOption("video", stringResource(R.string.create_video), stringResource(R.string.create_video_help), onPickVideo)
-            CreateOption("file", stringResource(R.string.create_file), stringResource(R.string.create_file_help), onPickFile)
-            CreateOption("music", stringResource(R.string.create_song), stringResource(R.string.create_song_help), onPickSong)
-            CreateOption("export", stringResource(R.string.import_option), stringResource(R.string.import_option_help), onPickThrumFile)
-        }
-        Text(
-            stringResource(R.string.create_privacy),
-            style = ThrumType.meta,
-            color = ThrumInk2,
-            modifier = Modifier.padding(top = Space.S4, start = Space.S1),
-        )
-    }
 }
 
+/** The list My Haptics last showed, kept while the app runs (see MyHapticsTab). */
+private var lastLibrary: Pair<List<Haptic>, List<Track>>? = null
+
+/** Android's own media shelves, as its file chooser names them. */
+private const val MEDIA_DOCUMENTS = "com.android.providers.media.documents"
+private const val AUDIO_SHELF = "audio_root"
+private const val VIDEOS_SHELF = "videos_root"
+
+/** One way to make a haptic: in the pop-up, and at the top of the list. */
 @Composable
-private fun CreateOption(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
+private fun MakeOption(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
     ThrumCard(padding = PaddingValues(horizontal = Space.S4, vertical = 14.dp), onClick = onClick) {
         Row(
             modifier = Modifier.fillMaxWidth(),

@@ -79,6 +79,8 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
     // Null when closed; otherwise whether it opened on the song playing.
     var export by remember { mutableStateOf<Boolean?>(null) }
     var tuning by remember { mutableStateOf<TuneTarget?>(null) }
+    // Home's Create card: My Haptics opens with its "make a haptic" choice up.
+    var makeRequested by remember { mutableStateOf(false) }
 
     // Screens over the tabs, nearest first. Tune and Export open over the
     // player too, so closing them returns to the song, not to a tab.
@@ -110,12 +112,16 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
                 NavTab.HOME -> ThrumApp(
                     onDiagnostics = onDiagnostics,
                     onOpenMusic = { tab = NavTab.MUSIC },
-                    onOpenCreate = { tab = NavTab.HAPTICS },
+                    onOpenCreate = {
+                        makeRequested = true
+                        tab = NavTab.HAPTICS
+                    },
                     onOpenSettings = { tab = NavTab.SETTINGS },
                 )
                 NavTab.HAPTICS -> MyHapticsTab(
-                    onGoToMusic = { tab = NavTab.MUSIC },
                     onExport = { export = false },
+                    makeRequested = makeRequested,
+                    onMakeShown = { makeRequested = false },
                 )
                 NavTab.MUSIC -> MusicTab(onExport = { export = false })
                 NavTab.SETTINGS -> SettingsTab(

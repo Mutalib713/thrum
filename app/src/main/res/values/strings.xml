@@ -269,23 +269,26 @@
     <string name="haptics_filter_all">All</string>
     <string name="haptics_filter_audio">Audio</string>
     <string name="haptics_filter_video">Video</string>
-    <string name="haptics_empty_body">Every song you play gets a haptic, and so does every video or file you turn into one. They all live here.</string>
-    <string name="haptics_make">Make one from a video or file</string>
+    <string name="haptics_empty_body">Every song you play gets a haptic, and so does any audio or video you make one from. They all live here.</string>
+    <!-- My Haptics' make-a-haptic choice, at the top of the list and as a pop-up
+         (Mutalib, 2026-10-06: "from audio rather than song"). -->
+    <string name="haptics_make">Make a haptic</string>
+    <string name="haptics_make_help">From audio, a video or a Thrum file</string>
+    <string name="haptics_make_audio">Make a haptic from audio</string>
+    <string name="haptics_make_video">Make a haptic from a video</string>
+    <string name="make_audio">From audio</string>
+    <string name="make_audio_help">A song, voice note or ringtone on your phone</string>
+    <string name="make_video">From a video</string>
+    <string name="make_video_help">Feel the sound from any video</string>
+    <string name="make_thrum_file">Open a Thrum file</string>
+    <string name="make_thrum_file_help">A haptic someone exported from Thrum</string>
+    <string name="make_privacy">Thrum opens your phone\'s own file chooser and reads only the file you pick.</string>
     <string name="haptics_calls_badge">Calls</string>
     <string name="haptics_making">Making its haptic…</string>
     <string name="haptics_delete_title">Delete this haptic?</string>
     <string name="haptics_delete_body">The song stays in your library. The haptic is made again next time you play it.</string>
     <string name="haptics_delete_confirm">Delete</string>
     <string name="haptics_delete_cancel">Keep</string>
-    <string name="create_title">Make a haptic from</string>
-    <string name="create_video">A video</string>
-    <string name="create_file">An audio file</string>
-    <string name="create_song">A song</string>
-    <string name="create_privacy">Videos and files open your phone\'s own file chooser. Thrum reads only the one you pick.</string>
-    <string name="create_video_help">Feel the sound from any video</string>
-    <string name="create_file_help">A voice note, ringtone or recording</string>
-    <string name="create_song_help">Your music is already in the Music tab</string>
-    <string name="import_option_help">Open a haptic you exported</string>
 
     <!-- Export and import. Task 25, screen 17. The file holds the score and
             the tuning, never audio and never a URI — Rule 3's export
@@ -322,7 +325,6 @@
     <string name="export_saved">Saved.</string>
     <!-- 2026-10-04 review, A5: a failed save used to crash the app. -->
     <string name="export_failed">That didn\'t save, so nothing was written. Try again, or choose a different place.</string>
-    <string name="import_option">A Thrum file</string>
     <string name="import_failed">That file didn\'t open. It may not be a Thrum file.</string>
     <string name="player_imported_no_audio">The song isn\'t in a Thrum file — only the vibration is. Feel it on its own.</string>
 
@@ -334,11 +336,19 @@
     <string name="settings_song_for_calls">Song for calls</string>
     <string name="settings_not_set">Not set</string>
     <string name="settings_call_access">Call access</string>
+    <string name="settings_access_change">Change it in Android\'s settings</string>
     <string name="settings_music_section">Music</string>
     <string name="settings_music_access">Music access</string>
     <string name="settings_scan_new">Scan for new music</string>
     <string name="settings_last_scanned">Last scanned %1$s</string>
     <string name="settings_never_scanned">Never scanned</string>
+    <string name="settings_scanning">Looking for new songs</string>
+    <plurals name="settings_scan_found">
+        <item quantity="one">Found %d song</item>
+        <item quantity="other">Found %d songs</item>
+    </plurals>
+    <string name="settings_scan_new_count">%1$d new</string>
+    <string name="settings_scan_nothing_new">nothing new</string>
     <string name="settings_make_haptics">Make haptics</string>
     <string name="settings_mode_background">In the background</string>
     <string name="settings_mode_as_played">As I play them</string>
@@ -369,7 +379,7 @@
     <string name="home_card_music">Music</string>
     <string name="home_card_music_help">Play and feel your songs</string>
     <string name="home_card_create">Create</string>
-    <string name="home_card_create_help">From a video or file</string>
+    <string name="home_card_create_help">From audio or a video</string>
 
     <!-- Debug builds only -->
     <string name="diagnostics">Diagnostics</string>
