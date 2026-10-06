@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,7 +48,7 @@ import kotlinx.coroutines.withContext
  * it did not do.
  */
 @Composable
-fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
+fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit, uris: List<String>? = null) {
     val ctx = LocalContext.current
     val db = remember { LibraryDb.get(ctx) }
     val store = remember { Store(ctx) }
@@ -71,8 +73,30 @@ fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
     }
 
     val madeUris = haptics.map { it.trackUri }.toSet()
-    val missing = tracks.count { it.readable && it.sourceUri !in madeUris }
-    val chosen: List<Haptic> = if (exportAll) haptics else listOfNotNull(thisSong)
+    val missing = if (uris != null) 0 else tracks.count { it.readable && it.sourceUri !in madeUris }
+    val chosen: List<Haptic> = when {
+        uris != null -> haptics.filter { it.trackUri in uris }
+        exportAll -> haptics
+        else -> listOfNotNull(thisSong)
+    }
+
+    // Chosen rows (a ⋮ menu, or several picked at once): a song without a
+    // haptic gets one made here first, one at a time, because the user asked
+    // for exactly these. "Export all" over a whole library still leaves that
+    // to the background, where it can take as long as it needs.
+    var making by remember { mutableStateOf(0) }
+    LaunchedEffect(uris) {
+        if (uris == null) return@LaunchedEffect
+        val dao = db.dao()
+        val todo = withContext(Dispatchers.IO) {
+            uris.filter { dao.hapticFor(it) == null }.mapNotNull { dao.trackFor(it)?.toTrack() }.filter { it.readable }
+        }
+        todo.forEachIndexed { index, track ->
+            making = todo.size - index
+            HapticMaker.make(ctx, track)
+        }
+        making = 0
+    }
     val background = store.hapticsMode == HapticsWorker.MODE_BACKGROUND
 
     val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -88,7 +112,7 @@ fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
                     } != null
                 }.getOrDefault(false)
             }
-            if (exportAll && missing > 0) {
+            if (uris == null && exportAll && missing > 0) {
                 HapticsWorker.enqueue(ctx, tracks.map { it.sourceUri })
             }
             saved = wrote
@@ -109,7 +133,7 @@ fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
         )
 
         Overline(stringResource(R.string.export_what), modifier = Modifier.padding(bottom = Space.S2))
-        if (thisSong != null) {
+        if (thisSong != null && uris == null) {
             ThrumSegmentedControl(
                 options = listOf(stringResource(R.string.export_this_song), stringResource(R.string.export_all_songs)),
                 selectedIndex = if (exportAll) 1 else 0,
@@ -121,10 +145,11 @@ fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
             )
         }
         Text(
-            if (exportAll) {
-                pluralStringResource(R.plurals.export_count_all, haptics.size, haptics.size)
-            } else {
-                thisSong?.score?.sourceName.orEmpty()
+            when {
+                uris?.size == 1 -> chosen.firstOrNull()?.score?.sourceName.orEmpty()
+                uris != null -> pluralStringResource(R.plurals.export_count_all, chosen.size, chosen.size)
+                exportAll -> pluralStringResource(R.plurals.export_count_all, haptics.size, haptics.size)
+                else -> thisSong?.score?.sourceName.orEmpty()
             },
             style = ThrumType.body,
             color = ThrumInk2,
@@ -176,6 +201,14 @@ fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
         Spacer(Modifier.height(Space.S6))
 
         when {
+            making > 0 -> Row(
+                modifier = Modifier.padding(bottom = Space.S3),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.S3),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.5.dp, color = ThrumAccentInk)
+                Text(pluralStringResource(R.plurals.export_making, making, making), style = ThrumType.body, color = ThrumInk2)
+            }
             saved -> Text(stringResource(R.string.export_saved), style = ThrumType.row, color = ThrumAccentInk, modifier = Modifier.padding(bottom = Space.S3))
             failed -> Text(stringResource(R.string.export_failed), style = ThrumType.body, color = ThrumWarn, modifier = Modifier.padding(bottom = Space.S3))
             chosen.isEmpty() -> Text(stringResource(R.string.export_nothing), style = ThrumType.body, color = ThrumInk2, modifier = Modifier.padding(bottom = Space.S3))
@@ -183,14 +216,14 @@ fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
 
         PrimaryButton(
             text = stringResource(R.string.export_save),
-            enabled = chosen.isNotEmpty(),
+            enabled = chosen.isNotEmpty() && making == 0,
             onClick = {
                 saved = false
                 failed = false
-                val suggested = if (exportAll) {
-                    ThrumFile.fileNameFor(ctx.getString(R.string.export_file_name))
-                } else {
-                    ThrumFile.fileNameFor(thisSong?.score?.sourceName.orEmpty())
+                val suggested = when {
+                    chosen.size == 1 -> ThrumFile.fileNameFor(chosen[0].score.sourceName)
+                    uris != null || exportAll -> ThrumFile.fileNameFor(ctx.getString(R.string.export_file_name))
+                    else -> ThrumFile.fileNameFor(thisSong?.score?.sourceName.orEmpty())
                 }
                 saver.launch(suggested)
             },

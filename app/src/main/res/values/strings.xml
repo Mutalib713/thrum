@@ -286,7 +286,7 @@
     <string name="haptics_filter_all">All</string>
     <string name="haptics_filter_audio">Audio</string>
     <string name="haptics_filter_video">Video</string>
-    <string name="haptics_empty_body">Every song you play gets a haptic, and so does any audio or video you make one from. They all live here.</string>
+    <string name="haptics_empty_body">Haptics you make from audio, a video or a Thrum file live here. Your songs keep theirs in Music.</string>
     <!-- My Haptics' make-a-haptic choice, at the top of the list and as a pop-up
          (Mutalib, 2026-10-06: "from audio rather than song"). -->
     <string name="haptics_make">Make a haptic</string>
@@ -302,8 +302,52 @@
     <string name="make_privacy">Thrum opens your phone\'s own file chooser and reads only the file you pick.</string>
     <string name="haptics_calls_badge">Calls</string>
     <string name="haptics_making">Making its haptic…</string>
-    <string name="haptics_delete_title">Delete this haptic?</string>
-    <string name="haptics_delete_body">The song stays in your library. The haptic is made again next time you play it.</string>
+    <plurals name="delete_title">
+        <item quantity="one">Delete this haptic?</item>
+        <item quantity="other">Delete %1$d haptics?</item>
+    </plurals>
+    <!-- Since 2026-10-06 only what the user made is in My Haptics, so a deleted haptic is not made again. -->
+    <string name="haptics_delete_body">Your audio and video files stay on your phone. This only removes the haptic from Thrum, and it can\'t be undone.</string>
+
+    <!-- The rows of My Haptics and Music, their menu, and picking several (Mutalib, 2026-10-06). -->
+    <string name="row_play">Play %1$s</string>
+    <string name="row_pause">Pause %1$s</string>
+    <string name="row_more">More for %1$s</string>
+    <string name="menu_ringtone">Set as ringtone</string>
+    <string name="menu_ringtone_help">Your phone rings with this song and vibrates to it</string>
+    <string name="menu_calls">Use for calls</string>
+    <string name="menu_calls_help">Your phone vibrates to this on calls. It has no sound, so your ringtone stays the same</string>
+    <string name="menu_share">Share</string>
+    <string name="menu_share_help">Send the Thrum file to someone</string>
+    <string name="menu_export">Export</string>
+    <string name="menu_export_help">Save the Thrum file on this phone</string>
+    <string name="menu_rename">Rename</string>
+    <string name="menu_delete">Delete</string>
+    <string name="select_close">Stop selecting</string>
+    <plurals name="select_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <string name="select_all">Select all</string>
+    <string name="rename_title">Rename</string>
+    <string name="rename_save">Save</string>
+    <plurals name="share_title">
+        <item quantity="one">Share haptic</item>
+        <item quantity="other">Share %1$d haptics</item>
+    </plurals>
+    <string name="making_first">Making the haptic for %1$s first…</string>
+
+    <!-- Set as ringtone (PROFILE §4 item 17). The setting's name is Android's own words. -->
+    <string name="ringtone_ask_title">Make %1$s your ringtone?</string>
+    <string name="ringtone_ask_body">Your phone will ring with this song and Thrum will vibrate to it, so you hear and feel the same thing.</string>
+    <string name="ringtone_ask_how">Android asks you to allow this once. On the next screen, turn on \"Allow modifying system settings\", then come back.</string>
+    <string name="ringtone_ask_open">Open Android\'s setting</string>
+    <string name="ringtone_ask_vibration_only">Just the vibration</string>
+    <string name="ringtone_done">%1$s is now your ringtone.</string>
+    <string name="ringtone_no_sound">Thrum couldn\'t turn this sound into a ringtone, so your ringtone stays the same. Calls will vibrate to %1$s.</string>
+    <string name="ringtone_refused">Android didn\'t change your ringtone. Calls will still vibrate to %1$s.</string>
+    <string name="ringtone_not_allowed">Thrum still isn\'t allowed to change your ringtone, so nothing changed.</string>
+    <string name="calls_done">Calls will vibrate to %1$s.</string>
     <string name="haptics_delete_confirm">Delete</string>
     <string name="haptics_delete_cancel">Keep</string>
 
@@ -325,6 +369,10 @@
     <plurals name="export_missing_as_played">
         <item quantity="one">%1$d song doesn\'t have a haptic yet. Play it to make its haptic, then export again.</item>
         <item quantity="other">%1$d songs don\'t have a haptic yet. Play them to make their haptics, then export again.</item>
+    </plurals>
+    <plurals name="export_making">
+        <item quantity="one">Making %1$d haptic first…</item>
+        <item quantity="other">Making %1$d haptics first…</item>
     </plurals>
     <plurals name="export_count_all">
         <item quantity="one">%1$d haptic</item>

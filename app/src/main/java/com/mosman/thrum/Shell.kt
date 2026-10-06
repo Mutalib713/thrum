@@ -66,6 +66,12 @@ fun ThrumRoot(onDeveloperTools: (() -> Unit)? = null) {
     }
 }
 
+/**
+ * What Export opens on: the song playing first (from its page), every haptic
+ * ([uris] null), or exactly the rows chosen in a ⋮ menu or a selection.
+ */
+data class ExportRequest(val thisSongFirst: Boolean, val uris: List<String>? = null)
+
 enum class NavTab(val icon: String, val labelRes: Int) {
     HOME("home", R.string.tab_home),
     HAPTICS("library", R.string.tab_haptics),
@@ -76,8 +82,8 @@ enum class NavTab(val icon: String, val labelRes: Int) {
 @Composable
 private fun Tabs(onDeveloperTools: (() -> Unit)?) {
     var tab by rememberSaveable { mutableStateOf(NavTab.HOME) }
-    // Null when closed; otherwise whether it opened on the song playing.
-    var export by remember { mutableStateOf<Boolean?>(null) }
+    // Null when closed; otherwise what it opened on.
+    var export by remember { mutableStateOf<ExportRequest?>(null) }
     var tuning by remember { mutableStateOf<TuneTarget?>(null) }
     // Home's Create card: My Haptics opens with its "make a haptic" choice up.
     var makeRequested by remember { mutableStateOf(false) }
@@ -90,14 +96,14 @@ private fun Tabs(onDeveloperTools: (() -> Unit)?) {
         TuneScreen(target = target, onClose = { tuning = null })
         return
     }
-    export?.let { thisSongFirst ->
-        ExportScreen(thisSongFirst = thisSongFirst, onClose = { export = null })
+    export?.let { request ->
+        ExportScreen(thisSongFirst = request.thisSongFirst, uris = request.uris, onClose = { export = null })
         return
     }
     if (Player.open) {
         PlayerScreen(
             onTune = { target -> tuning = target },
-            onExport = { export = true },
+            onExport = { export = ExportRequest(thisSongFirst = true) },
         )
         return
     }
@@ -119,11 +125,15 @@ private fun Tabs(onDeveloperTools: (() -> Unit)?) {
                     onOpenSettings = { tab = NavTab.SETTINGS },
                 )
                 NavTab.HAPTICS -> MyHapticsTab(
-                    onExport = { export = false },
+                    onExport = { uris -> export = ExportRequest(thisSongFirst = false, uris = uris) },
+                    onTune = { target -> tuning = target },
                     makeRequested = makeRequested,
                     onMakeShown = { makeRequested = false },
                 )
-                NavTab.MUSIC -> MusicTab(onExport = { export = false })
+                NavTab.MUSIC -> MusicTab(
+                    onExport = { uris -> export = ExportRequest(thisSongFirst = false, uris = uris) },
+                    onTune = { target -> tuning = target },
+                )
                 NavTab.SETTINGS -> SettingsTab(
                     onOpenMusic = { tab = NavTab.MUSIC },
                     onOpenHome = { tab = NavTab.HOME },

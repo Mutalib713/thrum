@@ -362,6 +362,52 @@ private fun DrawScope.drawIcon(name: String, tint: Color, s: Float, stroke: Stro
             drawPath(path, color = tint, style = stroke)
         }
 
+        // The overflow menu: three filled dots, one above the other.
+        "more" -> {
+            drawCircle(tint, radius = 1.9f * s, center = p(12f, 5f))
+            drawCircle(tint, radius = 1.9f * s, center = p(12f, 12f))
+            drawCircle(tint, radius = 1.9f * s, center = p(12f, 19f))
+        }
+
+        "share" -> {
+            drawCircle(tint, radius = 2.6f * s, center = p(18f, 5f), style = stroke)
+            drawCircle(tint, radius = 2.6f * s, center = p(6f, 12f), style = stroke)
+            drawCircle(tint, radius = 2.6f * s, center = p(18f, 19f), style = stroke)
+            drawLine(tint, p(8.3f, 10.8f), p(15.7f, 6.4f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(tint, p(8.3f, 13.2f), p(15.7f, 17.6f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+        }
+
+        "edit" -> {
+            val pen = Path().apply {
+                moveTo(4f * s, 20f * s)
+                lineTo(8f * s, 20f * s)
+                lineTo(19f * s, 9f * s)
+                lineTo(15f * s, 5f * s)
+                lineTo(4f * s, 16f * s)
+                close()
+                moveTo(13f * s, 7f * s)
+                lineTo(17f * s, 11f * s)
+            }
+            drawPath(pen, color = tint, style = stroke)
+        }
+
+        // A ringtone: a bell.
+        "bell" -> {
+            val bell = Path().apply {
+                moveTo(6f * s, 16.5f * s)
+                lineTo(6f * s, 11f * s)
+                cubicTo(6f * s, 7.7f * s, 8.7f * s, 5f * s, 12f * s, 5f * s)
+                cubicTo(15.3f * s, 5f * s, 18f * s, 7.7f * s, 18f * s, 11f * s)
+                lineTo(18f * s, 16.5f * s)
+                lineTo(20f * s, 18.5f * s)
+                lineTo(4f * s, 18.5f * s)
+                close()
+            }
+            drawPath(bell, color = tint, style = stroke)
+            drawLine(tint, p(10f, 21.5f), p(14f, 21.5f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(tint, p(12f, 3f), p(12f, 5f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+        }
+
         "x" -> {
             drawLine(tint, p(6f, 6f), p(18f, 18f), strokeWidth = stroke.width, cap = StrokeCap.Round)
             drawLine(tint, p(18f, 6f), p(6f, 18f), strokeWidth = stroke.width, cap = StrokeCap.Round)

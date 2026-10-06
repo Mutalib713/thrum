@@ -47,9 +47,14 @@ object MusicScan {
         val gone = Track.missingAfterScan(before, found.map { it.sourceUri }, scannedPrefix())
         withContext(Dispatchers.IO) {
             dao.upsertTracks(found.map { it.toEntity(now) })
-            // The song row goes; a haptic made from it stays in My Haptics,
-            // where it is the user's to keep or delete.
-            gone.forEach { dao.removeTrack(it) }
+            // The song and its haptic go together. A song's haptic is shown
+            // only beside the song (My Haptics lists what the user made), so
+            // one left behind would be invisible. The song for calls is
+            // unaffected: its rhythm is kept apart, in Store.
+            gone.forEach {
+                dao.removeTrack(it)
+                dao.removeHaptic(it)
+            }
         }
         val store = Store(ctx)
         store.lastScanAtMs = now

@@ -7,17 +7,21 @@ package com.mosman.thrum
  * how the filters behave are decisions, and decisions live where the PC can
  * check them. The composable only draws what this returns.
  *
- * The list is mostly haptics — one per song, video or file — but a video or
- * file **picked and not yet made** appears too, saying "making" or "can't
- * read": a pick that vanishes into nothing is the dead-control problem in
- * its oldest costume.
+ * **Only the haptics the user made** (Mutalib, 2026-10-06): from an audio
+ * file or a video picked through Make a haptic, or opened from a Thrum file.
+ * A song's haptic, made because the song was scanned or played, stays with
+ * the song in the Music tab and is not listed here.
+ *
+ * A video or file **picked and not yet made** appears too, saying "making"
+ * or "can't read": a pick that vanishes into nothing is the dead-control
+ * problem in its oldest costume.
  */
 object MyHaptics {
 
     /**
      * All, Audio, Video: Mutalib's three on 2026-10-04 ("remove the file …
      * it's just the audio and video"). Audio is every sound a haptic came
-     * from, scanned songs and audio files picked one at a time alike. A
+     * from by hand (songs keep theirs in Music since 2026-10-06). A
      * haptic imported from a Thrum file came with no sound or picture at
      * all, so only All shows it.
      */
@@ -39,6 +43,16 @@ object MyHaptics {
         TrackKind.FILE -> "Audio"
     }
 
+    /**
+     * Whether a haptic belongs in My Haptics: the user made it. An imported
+     * one always; one with a picked audio file or video behind it. A song's
+     * haptic does not, and neither does one whose song has left the library
+     * (it was a song's: picked files and videos leave only by being deleted
+     * here, and that removes the haptic with them).
+     */
+    fun isMade(uri: String, track: Track?): Boolean =
+        ThrumFile.isImported(uri) || (track != null && track.kind != TrackKind.MUSIC)
+
     /** What a row says it came from: an imported haptic has no source to name. */
     private fun sourceLabel(uri: String, kind: TrackKind): String =
         if (ThrumFile.isImported(uri)) "Imported" else kindLabel(kind)
@@ -55,7 +69,7 @@ object MyHaptics {
         filter: Filter,
     ): List<Row> {
         val byUri = tracks.associateBy { it.sourceUri }
-        val made = haptics.map { haptic ->
+        val made = haptics.filter { isMade(it.trackUri, byUri[it.trackUri]) }.map { haptic ->
             val track = byUri[haptic.trackUri]
             Row(
                 uri = haptic.trackUri,

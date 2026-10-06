@@ -1,6 +1,7 @@
 package com.mosman.thrum
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -69,7 +70,7 @@ import kotlinx.coroutines.withContext
  * has a single piece in it, it is not drawn.
  */
 @Composable
-fun MusicTab(onExport: () -> Unit) {
+fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
     val ctx = LocalContext.current
     val db = remember { LibraryDb.get(ctx) }
     val store = remember { Store(ctx) }
@@ -82,7 +83,18 @@ fun MusicTab(onExport: () -> Unit) {
     var deniedByUser by remember { mutableStateOf(false) }
     var askMode by remember { mutableStateOf(false) }
     var choice by remember { mutableStateOf(HapticsWorker.MODE_BACKGROUND) }
-    val callsUri = remember { store.sourceUri }
+    // Polled: Set as ringtone changes it from this tab's own menu.
+    val callsUri by rememberPolled(store.sourceUri) { Store(it).sourceUri }
+    var selected by remember { mutableStateOf(emptySet<String>()) }
+    val actions = rememberRowActions(onTune)
+    BackHandler(enabled = selected.isNotEmpty()) { selected = emptySet() }
+
+    // Each song's haptic, so its row can draw its rhythm (since 2026-10-06,
+    // songs' haptics live here rather than in My Haptics).
+    var haptics by remember { mutableStateOf(emptyMap<String, Haptic>()) }
+    LaunchedEffect(Unit) {
+        db.dao().observeHaptics().collect { rows -> haptics = rows.mapNotNull { it.toHaptic() }.associateBy { it.trackUri } }
+    }
 
     val granted by rememberPolled(hasMusicAccess(ctx)) { hasMusicAccess(it) }
     // The walk's progress, polled: the worker writes it from another thread.
@@ -92,7 +104,9 @@ fun MusicTab(onExport: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        db.dao().observeTracks().collect { rows -> tracks = rows.map { it.toTrack() } }
+        // Songs only: an audio file or video picked in My Haptics is listed
+        // there, with what the user made (Mutalib, 2026-10-06).
+        db.dao().observeTracks().collect { rows -> tracks = rows.map { it.toTrack() }.filter { it.kind == TrackKind.MUSIC } }
     }
 
     fun runScan() {
@@ -143,19 +157,24 @@ fun MusicTab(onExport: () -> Unit) {
         if (listed != null) {
             SongList(
                 tracks = listed,
+                haptics = haptics,
                 query = query,
                 onQuery = { query = it },
                 callsUri = callsUri,
                 walkDone = walk.first,
                 walkLeft = walk.second,
                 walking = store.hapticsMode == HapticsWorker.MODE_BACKGROUND,
-                onExport = onExport,
+                onExportAll = { onExport(null) },
                 onOpen = { track, queue -> Player.openSong(ctx, track, queue) },
                 onPlayHere = { track, queue -> Player.playHere(ctx, track, queue) },
+                actions = actions,
+                onExportSome = onExport,
+                selected = selected,
+                onSelected = { selected = it },
             )
         } else {
             ThrumPage(overTabs = true) {
-                Header(showExport = false, onExport = onExport)
+                Header(showExport = false, onExport = { onExport(null) })
                 when {
                     // Screen 12. Granting in system settings flips this back by
                     // itself, because access is polled.
@@ -267,6 +286,8 @@ fun MusicTab(onExport: () -> Unit) {
             }
         }
 
+        RowActionsHost(actions)
+
         // Screen 10: asked once, after the first scan that finds songs.
         if (askMode) {
             ThrumBottomSheet(onDismiss = { askMode = false }) {
@@ -355,17 +376,42 @@ private fun Header(showExport: Boolean, onExport: () -> Unit) {
 @Composable
 private fun SongList(
     tracks: List<Track>,
+    haptics: Map<String, Haptic>,
     query: String,
     onQuery: (String) -> Unit,
     callsUri: String?,
     walkDone: Int,
     walkLeft: Int,
     walking: Boolean,
-    onExport: () -> Unit,
+    onExportAll: () -> Unit,
     onOpen: (Track, List<Track>) -> Unit,
     onPlayHere: (Track, List<Track>) -> Unit,
+    actions: RowActions,
+    onExportSome: (List<String>) -> Unit,
+    selected: Set<String>,
+    onSelected: (Set<String>) -> Unit,
 ) {
     val shown = Track.search(tracks, query)
+    val selecting = selected.isNotEmpty()
+    // A song's menu: no Rename and no Delete here, Mutalib's pick. These are
+    // the phone's own songs, and a scan would bring a renamed one back.
+    val menuRingtone = stringResource(R.string.menu_ringtone)
+    val menuRingtoneHelp = stringResource(R.string.menu_ringtone_help)
+    val menuTune = stringResource(R.string.tune_title)
+    val menuShare = stringResource(R.string.menu_share)
+    val menuShareHelp = stringResource(R.string.menu_share_help)
+    val menuExport = stringResource(R.string.menu_export)
+    val menuExportHelp = stringResource(R.string.menu_export_help)
+    fun menuFor(track: Track): List<RowMenuItem> = if (!track.readable) {
+        emptyList()
+    } else {
+        listOf(
+            RowMenuItem("bell", menuRingtone, menuRingtoneHelp) { actions.setAsRingtone(track) },
+            RowMenuItem("tune", menuTune) { actions.tune(track) },
+            RowMenuItem("share", menuShare, menuShareHelp) { actions.share(listOf(track)) },
+            RowMenuItem("export", menuExport, menuExportHelp) { onExportSome(listOf(track.sourceUri)) },
+        )
+    }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -378,8 +424,22 @@ private fun SongList(
             bottom = if (Player.now != null) 100.dp else Space.S6,
         ),
     ) {
-        item { Header(showExport = true, onExport = onExport) }
-        item { SearchField(query = query, onQuery = onQuery) }
+        item {
+            if (selecting) {
+                SelectionBar(
+                    count = selected.size,
+                    total = shown.size,
+                    onClose = { onSelected(emptySet()) },
+                    onSelectAll = { onSelected(shown.filter { it.readable }.map { it.sourceUri }.toSet()) },
+                    onShare = { actions.share(shown.filter { it.sourceUri in selected }) },
+                    onExport = { onExportSome(selected.toList()) },
+                    onDelete = null,
+                )
+            } else {
+                Header(showExport = true, onExport = onExportAll)
+            }
+        }
+        if (!selecting) item { SearchField(query = query, onQuery = onQuery) }
         if (walking && walkLeft > 0) {
             item {
                 ThrumCard(
@@ -410,13 +470,29 @@ private fun SongList(
             }
         }
         itemsIndexed(shown, key = { _, t -> t.sourceUri }) { index, track ->
-            SongRow(
-                track = track,
+            val sub = listOfNotNull(track.artist.ifEmpty { null }, track.durationMs.takeIf { it > 0 }?.let(::clockOf))
+            LibraryRow(
+                name = track.name,
+                subtitle = sub.joinToString(" · "),
+                score = haptics[track.sourceUri]?.score,
+                kindIcon = "music",
                 first = index == 0,
                 last = index == shown.lastIndex,
+                canPlay = track.readable,
+                playing = Player.now?.track?.sourceUri == track.sourceUri && Player.now?.playing == true,
+                selecting = selecting,
+                selected = track.sourceUri in selected,
+                onPlay = { onPlayHere(track, shown) },
+                onOpen = { if (track.readable) onOpen(track, shown) },
+                onSelect = {
+                    if (track.readable) {
+                        onSelected(if (track.sourceUri in selected) selected - track.sourceUri else selected + track.sourceUri)
+                    }
+                },
+                menu = menuFor(track),
                 isCalls = track.sourceUri == callsUri,
-                onOpen = { onOpen(track, shown) },
-                onPlayHere = { onPlayHere(track, shown) },
+                note = if (!track.readable) stringResource(R.string.player_unreadable) else null,
+                noteWarn = true,
             )
         }
     }
@@ -454,73 +530,6 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
                 .fillMaxWidth()
                 .padding(start = 28.dp),
         )
-    }
-}
-
-/**
- * One song. The first and last rows round the list's corners, so the rows
- * read as one card the way the design draws them. A file the phone cannot
- * read stays in the list and says so; tapping it could only fail.
- *
- * The row opens the song's page; its play button plays it here, without
- * leaving the list (Mutalib, 2026-10-04).
- */
-@Composable
-private fun SongRow(
-    track: Track,
-    first: Boolean,
-    last: Boolean,
-    isCalls: Boolean,
-    onOpen: () -> Unit,
-    onPlayHere: () -> Unit,
-) {
-    val corner = Radius.large
-    val shape = when {
-        first && last -> RoundedCornerShape(corner)
-        first -> RoundedCornerShape(topStart = corner, topEnd = corner)
-        last -> RoundedCornerShape(bottomStart = corner, bottomEnd = corner)
-        else -> RectangleShape
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThrumSurface)
-            .then(if (track.readable) Modifier.clickable(role = Role.Button, onClick = onOpen) else Modifier),
-    ) {
-        if (!first) HorizontalDivider(color = ThrumRule, thickness = 1.dp)
-        Row(
-            modifier = Modifier.padding(horizontal = Space.S4, vertical = Space.S3),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            IconCircle(icon = "music", size = 40.dp, iconSize = 18.dp)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    track.name,
-                    style = ThrumType.row,
-                    color = if (track.readable) ThrumInk else ThrumInk2,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val sub = listOfNotNull(track.artist.ifEmpty { null }, track.durationMs.takeIf { it > 0 }?.let(::clockOf))
-                if (sub.isNotEmpty()) {
-                    Text(sub.joinToString(" · "), style = ThrumType.meta, color = ThrumInk2, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                if (!track.readable) {
-                    Text(stringResource(R.string.player_unreadable), style = ThrumType.meta, color = ThrumWarn)
-                }
-            }
-            if (isCalls) ThrumChip(text = stringResource(R.string.haptics_calls_badge), hasDot = true)
-            if (track.readable) {
-                CirclePlayButton(
-                    playing = Player.now?.track?.sourceUri == track.sourceUri && Player.now?.playing == true,
-                    size = 38.dp,
-                    iconSize = 13.dp,
-                    onClick = onPlayHere,
-                )
-            }
-        }
     }
 }
 

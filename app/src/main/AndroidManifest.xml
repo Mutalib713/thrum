@@ -6,6 +6,15 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!--
+      Set as ringtone (PROFILE §4 item 17). Not granted by installing: the user
+      switches it on themselves on Android's "Modify system settings" page,
+      and Thrum explains why first. Only the ringtone is ever changed.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!--
       Music access (Task 20). Asked only when the user taps "Scan for music",
       never at launch. READ_MEDIA_AUDIO is the Android 13+ form; the storage
       permission covers Android 12, this app's floor (minSdk 31), and stops
@@ -67,6 +76,17 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Share hands one Thrum file at a time to the app the user picks. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_files" />
+        </provider>
 
         <!--
           The player's notification and lock-screen controls. Exported because

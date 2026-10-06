@@ -4,11 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,13 +22,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,14 +36,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
@@ -68,12 +59,21 @@ import kotlinx.coroutines.withContext
  * filled it with three made-up rows instead — one of them marked as the song
  * for calls — whose buttons did nothing.
  *
- * Long-press deletes a haptic, with a confirmation: a long-press that
- * silently destroys work is how people learn to distrust a list.
+ * Since 2026-10-06 (Mutalib): only what the user **made** is listed here;
+ * songs keep their haptics in Music. Each row is drawn as he picked from
+ * the sketch: the rhythm picture plays, the name opens the page, and ⋮ has
+ * the rest (Set as ringtone, Tune, Share, Export, Rename, Delete). A
+ * long-press picks several to share, export or delete together. A delete
+ * always asks first: one that silently destroys work is how people learn to
+ * distrust a list.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MyHapticsTab(onExport: () -> Unit, makeRequested: Boolean = false, onMakeShown: () -> Unit = {}) {
+fun MyHapticsTab(
+    onExport: (List<String>?) -> Unit,
+    onTune: (TuneTarget) -> Unit,
+    makeRequested: Boolean = false,
+    onMakeShown: () -> Unit = {},
+) {
     val ctx = LocalContext.current
     val db = remember { LibraryDb.get(ctx) }
     val store = remember { Store(ctx) }
@@ -82,8 +82,16 @@ fun MyHapticsTab(onExport: () -> Unit, makeRequested: Boolean = false, onMakeSho
     var filterIndex by remember { mutableIntStateOf(0) }
     var showMake by remember { mutableStateOf(false) }
     var errorLine by remember { mutableStateOf<String?>(null) }
-    var deleteRow by remember { mutableStateOf<MyHaptics.Row?>(null) }
-    val callsUri = remember { store.sourceUri }
+    var deleting by remember { mutableStateOf<Set<String>?>(null) }
+    var renaming by remember { mutableStateOf<MyHaptics.Row?>(null) }
+    var selected by remember { mutableStateOf(emptySet<String>()) }
+    val selecting = selected.isNotEmpty()
+    val actions = rememberRowActions(onTune)
+    // Polled: Set as ringtone and Rename both change it from here.
+    val callsUri by rememberPolled(store.sourceUri) { Store(it).sourceUri }
+
+    // Back leaves picking several before it leaves the tab.
+    BackHandler(enabled = selecting) { selected = emptySet() }
 
     // The haptics and the tracks they came from, arriving together or not at
     // all. Read as two lists, the tracks often landed a moment first, and for
@@ -181,6 +189,41 @@ fun MyHapticsTab(onExport: () -> Unit, makeRequested: Boolean = false, onMakeSho
         Player.playHere(ctx, trackByUri[row.uri] ?: row.asTrack(), playable)
     }
 
+    fun toggle(row: MyHaptics.Row) {
+        selected = if (row.uri in selected) selected - row.uri else selected + row.uri
+    }
+
+    fun trackOf(row: MyHaptics.Row): Track = trackByUri[row.uri] ?: row.asTrack()
+
+    // The menu: what a row can do depends on what it is. An imported
+    // haptic has no sound, so it can be used for calls but can't be a
+    // ringtone, and has no song to tune from. A file still being made, or
+    // one the phone can't read, can only be renamed or deleted.
+    val menuRingtone = stringResource(R.string.menu_ringtone)
+    val menuRingtoneHelp = stringResource(R.string.menu_ringtone_help)
+    val menuCalls = stringResource(R.string.menu_calls)
+    val menuCallsHelp = stringResource(R.string.menu_calls_help)
+    val menuTune = stringResource(R.string.tune_title)
+    val menuShare = stringResource(R.string.menu_share)
+    val menuShareHelp = stringResource(R.string.menu_share_help)
+    val menuExport = stringResource(R.string.menu_export)
+    val menuExportHelp = stringResource(R.string.menu_export_help)
+    val menuRename = stringResource(R.string.menu_rename)
+    val menuDelete = stringResource(R.string.menu_delete)
+    fun menuFor(row: MyHaptics.Row): List<RowMenuItem> {
+        val imported = ThrumFile.isImported(row.uri)
+        val ready = row.hasHaptic && row.readable
+        return buildList {
+            if (ready && imported) add(RowMenuItem("phone", menuCalls, menuCallsHelp) { actions.useForCalls(trackOf(row)) })
+            if (ready && !imported) add(RowMenuItem("bell", menuRingtone, menuRingtoneHelp) { actions.setAsRingtone(trackOf(row)) })
+            if (ready && !imported) add(RowMenuItem("tune", menuTune) { actions.tune(trackOf(row)) })
+            if (ready) add(RowMenuItem("share", menuShare, menuShareHelp) { actions.share(listOf(trackOf(row))) })
+            if (ready) add(RowMenuItem("export", menuExport, menuExportHelp) { onExport(listOf(row.uri)) })
+            add(RowMenuItem("edit", menuRename) { renaming = row })
+            add(RowMenuItem("trash", menuDelete, warn = true) { deleting = setOf(row.uri) })
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
@@ -195,21 +238,41 @@ fun MyHapticsTab(onExport: () -> Unit, makeRequested: Boolean = false, onMakeSho
             ),
         ) {
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp, bottom = Space.S1),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.tab_haptics),
-                        style = ThrumType.statement,
-                        color = ThrumInk,
-                        modifier = Modifier.semantics { heading() },
+                if (selecting) {
+                    SelectionBar(
+                        count = selected.size,
+                        total = rows.size,
+                        onClose = { selected = emptySet() },
+                        onSelectAll = { selected = rows.map { it.uri }.toSet() },
+                        onShare = {
+                            actions.share(rows.filter { it.uri in selected && it.hasHaptic }.map { trackOf(it) })
+                        },
+                        onExport = { onExport(selected.toList()) },
+                        onDelete = { deleting = selected },
                     )
-                    if (haptics.isNotEmpty()) {
-                        IconButtonBox(icon = "export", label = stringResource(R.string.export_title), onClick = onExport)
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp, bottom = Space.S1),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.tab_haptics),
+                            style = ThrumType.statement,
+                            color = ThrumInk,
+                            modifier = Modifier.semantics { heading() },
+                        )
+                        val made = MyHaptics.rows(haptics, tracks, callsUri, MyHaptics.Filter.ALL).filter { it.hasHaptic }
+                        if (made.isNotEmpty()) {
+                            // Everything listed here: what the user made.
+                            IconButtonBox(
+                                icon = "export",
+                                label = stringResource(R.string.export_title),
+                                onClick = { onExport(made.map { it.uri }) },
+                            )
+                        }
                     }
                 }
             }
@@ -229,7 +292,7 @@ fun MyHapticsTab(onExport: () -> Unit, makeRequested: Boolean = false, onMakeSho
             // Making one sits at the top, and speaks for the filter it is under:
             // All asks which kind, Audio and Video go straight to that kind
             // (Mutalib, 2026-10-06). It used to wait below the whole list.
-            item {
+            if (!selecting) item {
                 when (filter) {
                     MyHaptics.Filter.ALL -> MakeOption(
                         icon = "plus",
@@ -265,14 +328,28 @@ fun MyHapticsTab(onExport: () -> Unit, makeRequested: Boolean = false, onMakeSho
                 }
             }
             itemsIndexed(rows, key = { _, row -> row.uri }) { index, row ->
-                HapticRow(
-                    row = row,
-                    haptic = hapticByUri[row.uri],
+                LibraryRow(
+                    name = row.name,
+                    subtitle = row.subtitle,
+                    score = hapticByUri[row.uri]?.score,
+                    kindIcon = kindIcon(row.kind),
                     first = index == 0,
                     last = index == rows.lastIndex,
+                    canPlay = row.hasHaptic && row.readable,
+                    playing = Player.now?.track?.sourceUri == row.uri && Player.now?.playing == true,
+                    selecting = selecting,
+                    selected = row.uri in selected,
+                    onPlay = { playHere(row) },
                     onOpen = { open(row) },
-                    onPlayHere = { playHere(row) },
-                    onLongPress = { if (row.hasHaptic) deleteRow = row },
+                    onSelect = { toggle(row) },
+                    menu = menuFor(row),
+                    isCalls = row.uri == callsUri,
+                    note = when {
+                        !row.readable -> stringResource(R.string.player_unreadable)
+                        !row.hasHaptic -> stringResource(R.string.haptics_making)
+                        else -> null
+                    },
+                    noteWarn = !row.readable,
                 )
             }
             errorLine?.let { message ->
@@ -320,96 +397,28 @@ fun MyHapticsTab(onExport: () -> Unit, makeRequested: Boolean = false, onMakeSho
         }
     }
 
-    deleteRow?.let { row ->
-        AlertDialog(
-            onDismissRequest = { deleteRow = null },
-            title = { Text(stringResource(R.string.haptics_delete_title), style = ThrumType.title, color = ThrumInk) },
-            text = { Text(stringResource(R.string.haptics_delete_body), style = ThrumType.body, color = ThrumInkSoft) },
-            containerColor = ThrumSurface,
-            confirmButton = {
-                ThrumTextButton(
-                    text = stringResource(R.string.haptics_delete_confirm),
-                    color = ThrumWarn,
-                    onClick = {
-                        scope.launch { withContext(Dispatchers.IO) { db.dao().removeHaptic(row.uri) } }
-                        deleteRow = null
-                    },
-                )
-            },
-            dismissButton = {
-                ThrumTextButton(
-                    text = stringResource(R.string.haptics_delete_cancel),
-                    color = ThrumInk2,
-                    onClick = { deleteRow = null },
-                )
+    RowActionsHost(actions)
+
+    deleting?.let { uris ->
+        DeleteDialog(
+            count = uris.size,
+            onDismiss = { deleting = null },
+            onDelete = {
+                scope.launch { LibraryActions.delete(ctx, uris) }
+                selected = selected - uris
+                deleting = null
             },
         )
     }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun HapticRow(
-    row: MyHaptics.Row,
-    haptic: Haptic?,
-    first: Boolean,
-    last: Boolean,
-    onOpen: () -> Unit,
-    onPlayHere: () -> Unit,
-    onLongPress: () -> Unit,
-) {
-    val corner = Radius.large
-    val shape = when {
-        first && last -> RoundedCornerShape(corner)
-        first -> RoundedCornerShape(topStart = corner, topEnd = corner)
-        last -> RoundedCornerShape(bottomStart = corner, bottomEnd = corner)
-        else -> RectangleShape
-    }
-    val canPlay = row.hasHaptic && row.readable
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThrumSurface)
-            .combinedClickable(role = Role.Button, onClick = onOpen, onLongClick = onLongPress),
-    ) {
-        if (!first) HorizontalDivider(color = ThrumRule, thickness = 1.dp)
-        Row(
-            modifier = Modifier.padding(horizontal = Space.S4, vertical = Space.S3),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Box(Modifier.width(60.dp)) {
-                if (haptic != null) {
-                    PulseRibbon(score = haptic.score, limit = ROW_RIBBON_STEPS, height = 28.dp, barWidth = 2.dp, barGap = 1.dp)
-                } else {
-                    IconCircle(icon = kindIcon(row.kind), size = 40.dp, iconSize = 18.dp)
-                }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    row.name,
-                    style = ThrumType.row,
-                    color = if (row.readable) ThrumInk else ThrumInk2,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(row.subtitle, style = ThrumType.meta, color = ThrumInk2, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                when {
-                    !row.readable -> Text(stringResource(R.string.player_unreadable), style = ThrumType.meta, color = ThrumWarn)
-                    !row.hasHaptic -> Text(stringResource(R.string.haptics_making), style = ThrumType.meta, color = ThrumInk2)
-                }
-            }
-            if (row.isCalls) ThrumChip(text = stringResource(R.string.haptics_calls_badge), hasDot = true)
-            if (canPlay) {
-                CirclePlayButton(
-                    playing = Player.now?.track?.sourceUri == row.uri && Player.now?.playing == true,
-                    size = 38.dp,
-                    iconSize = 13.dp,
-                    onClick = onPlayHere,
-                )
-            }
-        }
+    renaming?.let { row ->
+        RenameDialog(
+            current = row.name,
+            onDismiss = { renaming = null },
+            onRename = { name ->
+                scope.launch { LibraryActions.rename(ctx, row.uri, name) }
+                renaming = null
+            },
+        )
     }
 }
 

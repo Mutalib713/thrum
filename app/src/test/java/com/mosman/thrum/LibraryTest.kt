@@ -565,46 +565,49 @@ class LibraryTest {
 
     @Test
     fun `my haptics joins haptics with their tracks and flags the calls song`() {
-        val song = Track("song", "No Dulling", artist = "Keche", durationMs = 238_000, kind = TrackKind.MUSIC)
+        val file = Track("file", "Keche - No Dulling", durationMs = 238_000, kind = TrackKind.FILE)
         val video = Track("video", "Clip", durationMs = 9_000, kind = TrackKind.VIDEO)
-        val haptics = listOf(hapticOf("song", "No Dulling", madeAt = 2_000))
-        val rows = MyHaptics.rows(haptics, listOf(song, video), callsUri = "song", filter = MyHaptics.Filter.ALL)
+        val haptics = listOf(hapticOf("file", "Keche - No Dulling", madeAt = 2_000))
+        val rows = MyHaptics.rows(haptics, listOf(file, video), callsUri = "file", filter = MyHaptics.Filter.ALL)
         // Two rows: the made haptic and the picked-but-unmade video — a pick
         // that vanished into nothing would be a dead control in list form.
         assertEquals(2, rows.size)
-        val songRow = rows.first { it.uri == "song" }
-        assertTrue(songRow.hasHaptic)
-        assertTrue(songRow.isCalls)
-        assertTrue(songRow.subtitle.contains("Music"))
-        assertTrue(songRow.subtitle.contains("Keche"))
+        val fileRow = rows.first { it.uri == "file" }
+        assertTrue(fileRow.hasHaptic)
+        assertTrue(fileRow.isCalls)
+        assertTrue(fileRow.subtitle.contains("Audio"))
         val videoRow = rows.first { it.uri == "video" }
         assertTrue(!videoRow.hasHaptic)
         assertEquals(MyHaptics.kindLabel(TrackKind.VIDEO), videoRow.subtitle.substringBefore(" ·"))
     }
 
     @Test
-    fun `a haptic whose track is gone keeps its name from the score`() {
-        val rows = MyHaptics.rows(
-            haptics = listOf(hapticOf("vanished", "Keche - No Dulling", madeAt = 1_000)),
-            tracks = emptyList(),
-            callsUri = null,
-            filter = MyHaptics.Filter.ALL,
+    fun `my haptics lists only what was made, not the songs' own haptics`() {
+        // Mutalib, 2026-10-06: a song's haptic stays with the song in Music.
+        // So does one whose song left the library: picked files and videos
+        // only leave by being deleted from My Haptics, haptic and all.
+        val song = Track("song", "No Dulling", artist = "Keche", durationMs = 238_000, kind = TrackKind.MUSIC)
+        val file = Track("file", "Voice note", durationMs = 9_000, kind = TrackKind.FILE)
+        val imported = ThrumFile.IMPORTED_SCHEME + "abc"
+        val haptics = listOf(
+            hapticOf("song", "No Dulling", 1_000),
+            hapticOf("file", "Voice note", 2_000),
+            hapticOf(imported, "Gift", 3_000),
+            hapticOf("vanished", "Keche - Pressure", 4_000),
         )
-        assertEquals(1, rows.size)
-        assertEquals("Keche - No Dulling", rows[0].name)
+        val rows = MyHaptics.rows(haptics, listOf(song, file), null, MyHaptics.Filter.ALL)
+        assertEquals(setOf("file", imported), rows.map { it.uri }.toSet())
     }
 
     @Test
     fun `the filters are all, audio and video`() {
-        val music = Track("m", "Song", durationMs = 1, kind = TrackKind.MUSIC)
         val video = Track("v", "Clip", durationMs = 1, kind = TrackKind.VIDEO)
         val file = Track("f", "Note", durationMs = 1, kind = TrackKind.FILE)
         val imported = ThrumFile.IMPORTED_SCHEME + "abc"
-        val haptics = listOf(hapticOf("m", "Song", 1_000), hapticOf("v", "Clip", 2_000), hapticOf(imported, "Gift", 3_000))
-        val tracks = listOf(music, video, file)
-        assertEquals(4, MyHaptics.rows(haptics, tracks, null, MyHaptics.Filter.ALL).size)
-        // A scanned song and an audio file picked by hand are both audio.
-        assertEquals(setOf("m", "f"), MyHaptics.rows(haptics, tracks, null, MyHaptics.Filter.AUDIO).map { it.uri }.toSet())
+        val haptics = listOf(hapticOf("f", "Note", 1_000), hapticOf("v", "Clip", 2_000), hapticOf(imported, "Gift", 3_000))
+        val tracks = listOf(video, file)
+        assertEquals(3, MyHaptics.rows(haptics, tracks, null, MyHaptics.Filter.ALL).size)
+        assertEquals(listOf("f"), MyHaptics.rows(haptics, tracks, null, MyHaptics.Filter.AUDIO).map { it.uri })
         assertEquals(listOf("v"), MyHaptics.rows(haptics, tracks, null, MyHaptics.Filter.VIDEO).map { it.uri })
     }
 
