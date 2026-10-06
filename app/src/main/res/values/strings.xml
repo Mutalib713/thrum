@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Thrum</string>
 
     <!-- Blocked: the motor cannot vary strength. Terminal, and honest about it (Sacred
@@ -45,7 +45,10 @@
     <string name="error_action">Choose a different song</string>
 
     <!-- Ready -->
-    <string name="ready_meta">%1$s · %2$d hits</string>
+    <plurals name="ready_meta">
+        <item quantity="one">%1$s · %2$d hit</item>
+        <item quantity="other">%1$s · %2$d hits</item>
+    </plurals>
     <!-- Renamed in Task 19: "feel it on its own" became the test call, and the
         name matters — a test call plays exactly what a call plays, through the
         same route, so on Silent it stays silent and the test never lies. -->
@@ -87,7 +90,10 @@
     <string name="home_none_music">Or find one in Music</string>
     <string name="home_change">Change</string>
     <string name="home_recent">Recently played</string>
-    <string name="ribbon_label">The rhythm: %1$d hits over %2$s</string>
+    <plurals name="ribbon_label">
+        <item quantity="one">The rhythm: %1$d hit over %2$s</item>
+        <item quantity="other">The rhythm: %1$d hits over %2$s</item>
+    </plurals>
 
     <!-- Setup. Task 9, and it is short on purpose: the supersede measurement
          (PROFILE.md §11 R2) removed almost everything this screen was going to
@@ -154,7 +160,10 @@
         one long buzz. That speed is this phone\'s limit, and there is no point asking it for
         anything faster.</string>
     <string name="rate_run">Run the tap test</string>
-    <string name="rate_playing">%1$d taps a second</string>
+    <plurals name="rate_playing">
+        <item quantity="one">%1$d tap a second</item>
+        <item quantity="other">%1$d taps a second</item>
+    </plurals>
     <string name="ring_mode_label">Also when the ringer is on</string>
     <string name="ring_mode_help">Your phone plays its own ringtone and Thrum vibrates your track
         over it. Unless they are the same file, you hear one song and feel another.</string>
@@ -245,7 +254,11 @@
     <string name="player_use_calls">Use for calls</string>
     <string name="player_using_calls">This is your song for calls. Home shows it, and a test call plays its first 45 seconds.</string>
     <string name="player_unreadable">This phone can\'t read this file.</string>
-    <string name="player_hits">%1$d hits · still %2$d%%</string>
+    <!-- "still 54%" went on 2026-10-06, like Tune's technical line: a number nobody was told the meaning of. -->
+    <plurals name="player_hits">
+        <item quantity="one">%1$d hit</item>
+        <item quantity="other">%1$d hits</item>
+    </plurals>
     <!-- The final screens' own word. "Tune the feel" did not fit beside "Use for calls". -->
     <string name="player_tune">Tune</string>
 
@@ -264,7 +277,7 @@
     <string name="make_as_played_help">Each song waits about 8 seconds the first time you play it.</string>
     <string name="make_changeable">You can change this later in Settings.</string>
     <string name="make_continue">Continue</string>
-    <string name="make_progress">Making haptics · %1$d of %2$d done</string>
+    <string name="make_progress" tools:ignore="PluralsCandidate">Making haptics · %1$d of %2$d done</string>
     <string name="make_progress_help">Carries on in the background. Songs you play go first.</string>
 
     <!-- My Haptics and the Create flow. Task 23: videos and files arrive one
@@ -351,7 +364,7 @@
         <item quantity="one">Found %d song</item>
         <item quantity="other">Found %d songs</item>
     </plurals>
-    <string name="settings_scan_new_count">%1$d new</string>
+    <string name="settings_scan_new_count" tools:ignore="PluralsCandidate">%1$d new</string>
     <string name="settings_scan_nothing_new">nothing new</string>
     <string name="settings_make_haptics">Make haptics</string>
     <string name="settings_mode_background">In the background</string>

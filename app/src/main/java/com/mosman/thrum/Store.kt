@@ -266,8 +266,6 @@ class Store(ctx: Context) {
         prefs.edit().putString(KEY_EVENTS, Event.encodeAll(updated)).apply()
     }
 
-    fun clearEvents() = prefs.edit().remove(KEY_EVENTS).apply()
-
     private companion object {
         const val KEY_RING_MODE = "fire_in_ring_mode"
         const val KEY_EVENTS = "events"

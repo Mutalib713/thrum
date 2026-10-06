@@ -363,6 +363,31 @@ class LibraryTest {
         assertEquals(20_000L, shown.first().atMs)
     }
 
+    // --- A rescan drops songs deleted from the phone (code check, 2026-10-06).
+
+    private val scanned = "content://media/external/audio/media/"
+
+    @Test
+    fun `a rescan drops scanned songs that are gone and nothing else`() {
+        val before = listOf(
+            scanned + "1",
+            scanned + "2", // deleted from the phone since
+            "content://com.android.providers.media.documents/document/audio%3A9", // picked by hand
+            "content://com.android.providers.media.documents/document/video%3A4", // a video
+            "thrum-imported://abc", // an imported Thrum file
+            "asset://originals/heartbeat.ogg", // the collection
+        )
+        val found = listOf(scanned + "1", scanned + "3")
+        assertEquals(listOf(scanned + "2"), Track.missingAfterScan(before, found, scanned))
+    }
+
+    @Test
+    fun `a scan that finds nothing removes nothing`() {
+        // Storage that isn't ready yet looks exactly like this, and wiping the
+        // whole Music list on it would be far worse than keeping a stale row.
+        assertEquals(emptyList<String>(), Track.missingAfterScan(listOf(scanned + "1"), emptyList(), scanned))
+    }
+
     // --- The Music tab's search (Task 20).
 
     @Test

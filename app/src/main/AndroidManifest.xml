@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- The whole point of the app. -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -70,11 +71,14 @@
         <!--
           The player's notification and lock-screen controls. Exported because
           the phone's own controls (the notification shade, Bluetooth
-          headphones, a car) connect to it from outside the app.
+          headphones, a car) connect to it from outside the app. No permission
+          on purpose: those controls hold none to ask for, and all a caller can
+          do is play, pause and skip songs already in Thrum's player.
         -->
         <service
             android:name=".PlaybackService"
             android:exported="true"
+            tools:ignore="ExportedService"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />

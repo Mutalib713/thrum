@@ -1,5 +1,6 @@
 package com.mosman.thrum
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -137,6 +138,9 @@ object Haptics {
      * Each pair is a primitive id (e.g. [VibrationEffect.Composition.PRIMITIVE_THUD])
      * and a scale in 0..1. Unsupported primitives are reported rather than thrown.
      */
+    // The ids arrive as Composition.PRIMITIVE_* constants inside a Pair,
+    // which lint can't follow, so it can't prove they are valid.
+    @SuppressLint("WrongConstant")
     fun playPrimitives(ctx: Context, vararg idAndScale: Pair<Int, Float>): String? {
         if (idAndScale.isEmpty()) return "No primitives to play."
         val v = vibrator(ctx)

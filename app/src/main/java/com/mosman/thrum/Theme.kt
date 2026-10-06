@@ -1,6 +1,5 @@
 package com.mosman.thrum
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -352,7 +351,8 @@ fun ThrumTheme(
 ) {
     val ctx = LocalContext.current
     val scheme = when {
-        wallpaperColours && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+        // minSdk is 31 (Android 12), so wallpaper colours always exist.
+        wallpaperColours ->
             if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
 
         dark -> DarkScheme

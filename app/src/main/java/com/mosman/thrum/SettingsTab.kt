@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -79,7 +80,21 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
     val callSong = remember { store.armedScore?.sourceName }
     val body = remember { store.body }
     var scanning by remember { mutableStateOf(false) }
-    var scanLine by remember { mutableStateOf<String?>(null) }
+    // The last scan's outcome, worded at drawing time rather than when the
+    // scan finished, so the words follow the phone's language and font size.
+    var scanResult by remember { mutableStateOf<MusicScan.Result?>(null) }
+    var scanFailed by remember { mutableStateOf(false) }
+    val scanLine = when {
+        scanFailed -> stringResource(R.string.music_scan_failed)
+        else -> scanResult?.let { r ->
+            pluralStringResource(R.plurals.settings_scan_found, r.found, r.found) + " · " +
+                if (r.new == 0) {
+                    stringResource(R.string.settings_scan_nothing_new)
+                } else {
+                    stringResource(R.string.settings_scan_new_count, r.new)
+                }
+        }
+    }
     var lastScanAtMs by remember { mutableLongStateOf(store.lastScanAtMs) }
 
     ThrumPage(overTabs = true) {
@@ -149,22 +164,14 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
                         !musicAccess || store.hapticsMode == null -> onOpenMusic()
                         else -> {
                             scanning = true
-                            scanLine = null
+                            scanResult = null
+                            scanFailed = false
                             scope.launch {
                                 val result = MusicScan.intoLibrary(ctx)
                                 scanning = false
                                 lastScanAtMs = store.lastScanAtMs
-                                scanLine = if (result == null) {
-                                    ctx.getString(R.string.music_scan_failed)
-                                } else {
-                                    ctx.resources.getQuantityString(R.plurals.settings_scan_found, result.found, result.found) +
-                                        " · " +
-                                        if (result.new == 0) {
-                                            ctx.getString(R.string.settings_scan_nothing_new)
-                                        } else {
-                                            ctx.getString(R.string.settings_scan_new_count, result.new)
-                                        }
-                                }
+                                scanResult = result
+                                scanFailed = result == null
                             }
                         }
                     }
@@ -397,7 +404,7 @@ private fun PhoneCheckScreen(onClose: () -> Unit) {
             Text(stringResource(R.string.rate_help), style = ThrumType.body, color = ThrumInkSoft)
             if (ratePlaying > 0) {
                 Text(
-                    stringResource(R.string.rate_playing, ratePlaying),
+                    pluralStringResource(R.plurals.rate_playing, ratePlaying, ratePlaying),
                     style = ThrumType.figure,
                     color = ThrumAccentInk,
                     modifier = Modifier.padding(top = Space.S3),

@@ -1,5 +1,6 @@
 package com.mosman.thrum
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
@@ -63,6 +64,7 @@ import androidx.media3.common.Player as Engine
  * player, the player screen and the notification all show the same truth:
  * there is one player in the app.
  */
+@SuppressLint("StaticFieldLeak") // It holds only the application context: see [motor].
 object Player {
 
     data class Now(
@@ -103,7 +105,13 @@ object Player {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main + guard)
 
-    /** The app's context. The motor is started and stopped through it and nothing else. */
+    /**
+     * The app's context. The motor is started and stopped through it and
+     * nothing else. Always the *application* context, which lives exactly as
+     * long as the process, so holding it here leaks no screen — lint can't
+     * tell which context it is and warns anyway.
+     */
+    @SuppressLint("StaticFieldLeak")
     private var motor: Context? = null
     private var engine: ExoPlayer? = null
     private var session: MediaSession? = null
@@ -243,6 +251,10 @@ object Player {
         start(ctx, queue[target], now?.hearAndFeel ?: hearAndFeelChoice)
     }
 
+    // setMediaSource is Media3 "unstable API": it may change between
+    // versions. Fine here because the version is pinned (1.11.1); re-check
+    // this call when Media3 is upgraded.
+    @OptIn(UnstableApi::class)
     private fun start(ctx: Context, track: Track, requestedHearAndFeel: Boolean) {
         val app = ctx.applicationContext
         motor = app
@@ -523,6 +535,8 @@ object Player {
      * Their play, pause, next and previous take the same paths as Thrum's own
      * buttons, so the motor is never left behind.
      */
+    // ForwardingPlayer is Media3 "unstable API" too; same reasoning as start().
+    @OptIn(UnstableApi::class)
     private class Remote(engine: ExoPlayer) : ForwardingPlayer(engine) {
         override fun getAvailableCommands(): Engine.Commands = super.getAvailableCommands().buildUpon()
             .addAll(

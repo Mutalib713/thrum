@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -133,9 +134,7 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
                 }
 
                 // Where the song is, what its haptic carries, how long it is.
-                val still = remember(haptic) {
-                    haptic.score.amplitudes.count { it == 0 } * 100 / haptic.score.amplitudes.size.coerceAtLeast(1)
-                }
+                val hits = remember(haptic) { haptic.score.pulseCount() }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -144,7 +143,7 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(clockOf(now.positionMs), style = ThrumType.body, color = ThrumInk2)
-                    Text(stringResource(R.string.player_hits, haptic.score.pulseCount(), still), style = ThrumType.body, color = ThrumInk2)
+                    Text(pluralStringResource(R.plurals.player_hits, hits, hits), style = ThrumType.body, color = ThrumInk2)
                     Text(clockOf(now.durationMs), style = ThrumType.body, color = ThrumInk2)
                 }
 

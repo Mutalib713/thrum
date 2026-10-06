@@ -44,7 +44,13 @@ object MusicScan {
         val before = withContext(Dispatchers.IO) { dao.allTrackUris() }.toSet()
         val found = withContext(Dispatchers.IO) { runCatching { scan(ctx) }.getOrNull() } ?: return null
         val now = System.currentTimeMillis()
-        withContext(Dispatchers.IO) { dao.upsertTracks(found.map { it.toEntity(now) }) }
+        val gone = Track.missingAfterScan(before, found.map { it.sourceUri }, scannedPrefix())
+        withContext(Dispatchers.IO) {
+            dao.upsertTracks(found.map { it.toEntity(now) })
+            // The song row goes; a haptic made from it stays in My Haptics,
+            // where it is the user's to keep or delete.
+            gone.forEach { dao.removeTrack(it) }
+        }
         val store = Store(ctx)
         store.lastScanAtMs = now
         // Background mode only: enqueue() leaves the list alone in "as I play
@@ -54,6 +60,10 @@ object MusicScan {
         }
         return Result(found = found.size, new = found.count { it.sourceUri !in before })
     }
+
+    /** The start of every address [scan] hands out, e.g. `content://media/external/audio/media/`. */
+    private fun scannedPrefix(): String =
+        MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL).toString().trimEnd('/') + "/"
 
     fun scan(ctx: Context): List<Track> {
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)

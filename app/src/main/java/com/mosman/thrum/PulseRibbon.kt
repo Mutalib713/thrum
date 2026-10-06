@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -58,7 +59,7 @@ fun PulseRibbon(
     // A real score is described to a screen reader; a preset shape is
     // decoration and stays silent ("Rhythm pattern afro" told nobody anything).
     val label = score?.let {
-        stringResource(R.string.ribbon_label, it.pulseCount(), clockOf(it.durationMs))
+        it.pulseCount().let { hits -> pluralStringResource(R.plurals.ribbon_label, hits, hits, clockOf(it.durationMs)) }
     }
 
     Canvas(

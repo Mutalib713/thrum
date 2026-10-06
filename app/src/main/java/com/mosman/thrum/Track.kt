@@ -43,6 +43,26 @@ data class Track(
 
     companion object {
         /**
+         * Songs an earlier scan found that this scan no longer does: deleted
+         * from the phone, or renumbered when Android rebuilt its media list.
+         * Before 2026-10-06 a rescan only ever added, so a deleted song stayed
+         * in the Music list for good and failed when tapped — and a renumbered
+         * one showed twice.
+         *
+         * Only scanned songs can go, recognised by the address the scan gives
+         * them ([scannedPrefix]). A file or video picked by hand, an imported
+         * Thrum file and the collection's pieces live at other addresses and
+         * are never touched. A scan that finds nothing removes nothing: that
+         * is far more likely to be storage that isn't ready than a phone with
+         * every song deleted.
+         */
+        fun missingAfterScan(before: Collection<String>, found: Collection<String>, scannedPrefix: String): List<String> {
+            if (found.isEmpty()) return emptyList()
+            val still = found.toSet()
+            return before.filter { it.startsWith(scannedPrefix) && it !in still }
+        }
+
+        /**
          * The search box over the library. Every word typed must appear in the
          * title or the artist, so "asake active" finds one song and "asake
          * keche" finds nothing — an OR would flood the list with everything
