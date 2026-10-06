@@ -67,7 +67,7 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 fun ThrumApp(
-    onDiagnostics: (() -> Unit)? = null,
+    onDeveloperTools: (() -> Unit)? = null,
     onOpenMusic: () -> Unit,
     onOpenCreate: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -378,10 +378,10 @@ fun ThrumApp(
 
         RecentlyPlayed()
 
-        if (onDiagnostics != null) {
+        if (onDeveloperTools != null) {
             Spacer(Modifier.height(Space.S4))
-            TextButton(onClick = onDiagnostics) {
-                Text(stringResource(R.string.diagnostics), style = ThrumType.meta, color = ThrumInk2)
+            TextButton(onClick = onDeveloperTools) {
+                Text(stringResource(R.string.developer_tools), style = ThrumType.meta, color = ThrumInk2)
             }
         }
     }

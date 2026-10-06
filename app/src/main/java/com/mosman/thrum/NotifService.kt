@@ -74,7 +74,7 @@ class NotifService : NotificationListenerService() {
         if (activeKey != null &&
             (sbn.key == activeKey || SystemClock.uptimeMillis() - lastFireAt < DEDUPE_WINDOW_MS)
         ) {
-            record(Event.Kind.SKIPPED, ringer, latency, "duplicate notification, already playing")
+            record(Event.Kind.SKIPPED, ringer, latency, Home.NOTE_DUPLICATE)
             return
         }
 
@@ -83,12 +83,12 @@ class NotifService : NotificationListenerService() {
                 Event.Kind.SKIPPED,
                 ringer,
                 latency,
-                "ring mode — the system already handles stock ringtones",
+                "${Home.NOTE_RINGER_ON} — the system already handles stock ringtones",
             )
             return
         }
         if (!Haptics.capability(this).usable) {
-            record(Event.Kind.SKIPPED, ringer, latency, "motor cannot vary strength")
+            record(Event.Kind.SKIPPED, ringer, latency, Home.NOTE_PHONE_CANNOT)
             return
         }
 
@@ -107,17 +107,20 @@ class NotifService : NotificationListenerService() {
                 Event.Kind.SKIPPED,
                 ringer,
                 latency,
-                "no song for calls — the phone's own buzz plays",
+                "${Home.NOTE_NO_SONG} — the phone's own buzz plays",
             )
             return
         }
 
-        val loop = store.loopWhileRinging
+        // A call always repeats until it is answered (PROFILE §4 item 3).
+        // This was a "Loop while ringing" switch on the diagnostics page,
+        // shown nowhere else, that could quietly turn the repeat off; it went
+        // with that page on 2026-10-06.
         activeKey = sbn.key
         lastFireAt = SystemClock.uptimeMillis()
-        val failure = Haptics.play(this, armed, loop = loop)
+        val failure = Haptics.play(this, armed, loop = true)
         if (failure != null) {
-            record(Event.Kind.SKIPPED, ringer, latency, failure)
+            record(Event.Kind.SKIPPED, ringer, latency, Home.NOTE_FAILED + failure)
             activeKey = null
             return
         }
@@ -125,7 +128,7 @@ class NotifService : NotificationListenerService() {
             Event.Kind.FIRED,
             ringer,
             latency,
-            "armed: ${armed.sourceName}" + if (loop) " · looping" else " · once",
+            "armed: ${armed.sourceName} · looping",
         )
 
         // In ring mode, keep asking.
@@ -146,7 +149,7 @@ class NotifService : NotificationListenerService() {
         // waveform every two seconds for nothing is not free.
         if (ringer == "ring") {
             handler.removeCallbacksAndMessages(REASSERT_TOKEN)
-            scheduleReassert(armed, loop, SystemClock.uptimeMillis())
+            scheduleReassert(armed, SystemClock.uptimeMillis())
         }
 
         // Safety cap. A looping waveform runs until something cancels it, and if
@@ -169,7 +172,7 @@ class NotifService : NotificationListenerService() {
      * Replay the score from where it should be by now, over and over, until the
      * call ends. See [onIncoming] for why ring mode needs this.
      */
-    private fun scheduleReassert(score: Score, loop: Boolean, startedAt: Long) {
+    private fun scheduleReassert(score: Score, startedAt: Long) {
         handler.postAtTime(
             {
                 if (activeKey != null) {
@@ -180,8 +183,8 @@ class NotifService : NotificationListenerService() {
                     // again, and with looping off it played out and left the rest
                     // of the ring silent. `rotated` keeps the whole score and
                     // still starts at the right moment in the music.
-                    Haptics.play(this, score.rotated(into), loop = loop)
-                    scheduleReassert(score, loop, startedAt)
+                    Haptics.play(this, score.rotated(into), loop = true)
+                    scheduleReassert(score, startedAt)
                 }
             },
             REASSERT_TOKEN,

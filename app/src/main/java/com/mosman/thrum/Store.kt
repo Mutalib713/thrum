@@ -30,11 +30,6 @@ class Store(ctx: Context) {
         get() = prefs.getBoolean(KEY_RING_MODE, true)
         set(v) = prefs.edit().putBoolean(KEY_RING_MODE, v).apply()
 
-    /** Loop the score while the phone rings, rather than playing it once. */
-    var loopWhileRinging: Boolean
-        get() = prefs.getBoolean(KEY_LOOP, true)
-        set(v) = prefs.edit().putBoolean(KEY_LOOP, v).apply()
-
     /**
      * The armed score — what a real call plays.
      *
@@ -275,7 +270,6 @@ class Store(ctx: Context) {
 
     private companion object {
         const val KEY_RING_MODE = "fire_in_ring_mode"
-        const val KEY_LOOP = "loop_while_ringing"
         const val KEY_EVENTS = "events"
         const val KEY_SCORE = "armed_score"
         const val KEY_URI = "source_uri"

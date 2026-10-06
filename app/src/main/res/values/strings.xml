@@ -375,12 +375,22 @@
     <string name="phonecheck_yes">Yes</string>
     <string name="phonecheck_no">No</string>
     <string name="phonecheck_none">None</string>
+    <!-- Phone check: what Thrum did on each recent call. Moved from the old
+         diagnostics page on 2026-10-06. One sentence per call, newest first. -->
+    <string name="phonecheck_calls_title">Your last calls</string>
+    <string name="phonecheck_calls_empty">No calls yet. After someone calls you, this shows what Thrum did.</string>
+    <string name="call_played">Played your song, %1$s after it started ringing.</string>
+    <string name="call_played_silent">Your phone was on Silent, so Android let nothing vibrate.</string>
+    <string name="call_ringer_on">Your ringer was on, so Thrum stayed quiet. You can change this in Settings.</string>
+    <string name="call_no_song">No song for calls yet, so your phone\'s own buzz played.</string>
+    <string name="call_phone_cannot">This phone\'s motor can\'t play a rhythm.</string>
+    <string name="call_failed">Android didn\'t let Thrum start the vibration.</string>
     <string name="phonecheck_buzz_title">Your phone\'s own buzz</string>
     <string name="home_card_music">Music</string>
     <string name="home_card_music_help">Play and feel your songs</string>
     <string name="home_card_create">Create</string>
     <string name="home_card_create_help">From audio or a video</string>
 
-    <!-- Debug builds only -->
-    <string name="diagnostics">Diagnostics</string>
+    <!-- Test builds only: the link from Home to DeveloperTools.kt -->
+    <string name="developer_tools">Developer tools</string>
 </resources>

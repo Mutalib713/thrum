@@ -314,6 +314,7 @@ private fun PhoneCheckScreen(onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val callAccess by rememberPolled(hasCallAccess(ctx)) { hasCallAccess(it) }
     val musicAccess by rememberPolled(hasMusicAccess(ctx)) { hasMusicAccess(it) }
+    val calls by rememberPolled(emptyList<Home.CallLine>()) { Home.recentCalls(Store(it).events()) }
 
     // One test at a time owns the motor; leaving the screen ends it.
     var ratePlaying by remember { mutableIntStateOf(0) }
@@ -366,6 +367,26 @@ private fun PhoneCheckScreen(onClose: () -> Unit) {
                 value = stringResource(if (musicAccess) R.string.settings_on else R.string.settings_off),
                 ok = musicAccess,
             )
+        }
+
+        // What Thrum did on each recent call — moved here from the old
+        // diagnostics page, which only a test build could open. "Is it
+        // working?" is a question every user can have.
+        Overline(stringResource(R.string.phonecheck_calls_title), modifier = Modifier.padding(top = Space.S5, bottom = Space.S2, start = 2.dp))
+        if (calls.isEmpty()) {
+            Text(
+                stringResource(R.string.phonecheck_calls_empty),
+                style = ThrumType.body,
+                color = ThrumInk2,
+                modifier = Modifier.padding(horizontal = Space.S1),
+            )
+        } else {
+            ThrumCard(padding = PaddingValues(0.dp)) {
+                calls.forEachIndexed { index, call ->
+                    if (index > 0) SettingsDivider()
+                    CallRow(call)
+                }
+            }
         }
 
         // The tap test. Nothing here claims a speed: the user's own hand
@@ -453,6 +474,43 @@ private fun CheckRow(name: String, value: String, ok: Boolean, sub: String? = nu
             if (sub != null) Text(sub, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
         }
         Text(value, style = ThrumType.body, color = ThrumInk2)
+    }
+}
+
+/** One call: what happened, in a sentence, and when. */
+@Composable
+private fun CallRow(call: Home.CallLine) {
+    val played = call.outcome == Home.CallOutcome.PLAYED
+    val what = when (call.outcome) {
+        Home.CallOutcome.PLAYED -> stringResource(R.string.call_played, Home.latencyWords(call.latencyMs))
+        Home.CallOutcome.PLAYED_ON_SILENT -> stringResource(R.string.call_played_silent)
+        Home.CallOutcome.RINGER_ON -> stringResource(R.string.call_ringer_on)
+        Home.CallOutcome.NO_SONG -> stringResource(R.string.call_no_song)
+        Home.CallOutcome.PHONE_CANNOT -> stringResource(R.string.call_phone_cannot)
+        Home.CallOutcome.FAILED -> stringResource(R.string.call_failed)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.S4, vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(Space.S3),
+    ) {
+        ThrumIcon(
+            name = if (played) "check" else "x",
+            tint = if (played) ThrumAccentInk else ThrumInk2,
+            size = 18.dp,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(what, style = ThrumType.row, color = ThrumInk)
+            Text(
+                Home.callWords(call.atMs),
+                style = ThrumType.meta,
+                color = ThrumInk2,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
     }
 }
 

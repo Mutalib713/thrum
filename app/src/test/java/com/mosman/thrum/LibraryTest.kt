@@ -310,6 +310,59 @@ class LibraryTest {
         assertEquals("10 s", Home.latencyWords(10_000))
     }
 
+    // --- Phone check's "Your last calls" (moved from diagnostics, 2026-10-06).
+
+    @Test
+    fun `each call reads as what Thrum did, newest first`() {
+        val events = listOf(
+            Event(1_000, Event.Kind.FIRED, "vibrate", 273, "armed: AIZO · looping"),
+            Event(2_000, Event.Kind.STOPPED, "vibrate", 0, "answered"),
+            Event(3_000, Event.Kind.SKIPPED, "ring", 120, "ring mode — the system already handles stock ringtones"),
+            Event(4_000, Event.Kind.SKIPPED, "vibrate", 90, "no song for calls — the phone's own buzz plays"),
+            Event(5_000, Event.Kind.FIRED, "silent", 300, "armed: AIZO · looping"),
+            Event(6_000, Event.Kind.SKIPPED, "vibrate", 0, Home.NOTE_FAILED + "That score is 9000 steps"),
+            Event(7_000, Event.Kind.SKIPPED, "vibrate", 0, Home.NOTE_PHONE_CANNOT),
+        )
+        assertEquals(
+            listOf(
+                Home.CallOutcome.PHONE_CANNOT,
+                Home.CallOutcome.FAILED,
+                Home.CallOutcome.PLAYED_ON_SILENT,
+                Home.CallOutcome.NO_SONG,
+                Home.CallOutcome.RINGER_ON,
+                Home.CallOutcome.PLAYED,
+            ),
+            Home.recentCalls(events).map { it.outcome },
+        )
+        assertEquals(273L, Home.recentCalls(events).last().latencyMs)
+    }
+
+    @Test
+    fun `things that are not calls never show up as calls`() {
+        // A dialer's second notification for the same ring, the listener
+        // connecting, a call ending, and what the old diagnostics page wrote
+        // (file reads, step-limit probes) are not calls. An unknown line is
+        // dropped, not guessed at: a made-up "couldn't play" sends someone
+        // looking for a fault that isn't there.
+        val events = listOf(
+            Event(1_000, Event.Kind.SKIPPED, "vibrate", 0, Home.NOTE_DUPLICATE),
+            Event(2_000, Event.Kind.LISTENER, "vibrate", 0, "connected"),
+            Event(3_000, Event.Kind.STOPPED, "vibrate", 0, "answered"),
+            Event(4_000, Event.Kind.CAPPED, "vibrate", 0, "safety cap hit"),
+            Event(5_000, Event.Kind.DECODED, "vibrate", 900, "AIZO.mp3 · audio/mpeg"),
+            Event(6_000, Event.Kind.SKIPPED, "vibrate", 8000, "R8 probe: sent 8000 steps"),
+        )
+        assertEquals(emptyList<Home.CallLine>(), Home.recentCalls(events))
+    }
+
+    @Test
+    fun `the call list stops at its limit`() {
+        val events = (1..20).map { Event(it * 1_000L, Event.Kind.FIRED, "vibrate", 250) }
+        val shown = Home.recentCalls(events)
+        assertEquals(Home.RECENT_CALLS, shown.size)
+        assertEquals(20_000L, shown.first().atMs)
+    }
+
     // --- The Music tab's search (Task 20).
 
     @Test

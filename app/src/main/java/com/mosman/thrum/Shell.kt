@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
  * come first. Tabs in exact order: Home, My Haptics, Music, Settings.
  */
 @Composable
-fun ThrumRoot(onDiagnostics: (() -> Unit)? = null) {
+fun ThrumRoot(onDeveloperTools: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val store = remember { Store(ctx) }
     var onboarded by remember { mutableStateOf(store.onboarded) }
@@ -56,7 +56,7 @@ fun ThrumRoot(onDiagnostics: (() -> Unit)? = null) {
 
     Surface(modifier = Modifier.fillMaxSize(), color = ThrumField) {
         if (onboarded) {
-            Tabs(onDiagnostics)
+            Tabs(onDeveloperTools)
         } else {
             OnboardingFlow(onDone = {
                 store.onboarded = true
@@ -74,7 +74,7 @@ enum class NavTab(val icon: String, val labelRes: Int) {
 }
 
 @Composable
-private fun Tabs(onDiagnostics: (() -> Unit)?) {
+private fun Tabs(onDeveloperTools: (() -> Unit)?) {
     var tab by rememberSaveable { mutableStateOf(NavTab.HOME) }
     // Null when closed; otherwise whether it opened on the song playing.
     var export by remember { mutableStateOf<Boolean?>(null) }
@@ -110,7 +110,7 @@ private fun Tabs(onDiagnostics: (() -> Unit)?) {
         Box(modifier = Modifier.weight(1f)) {
             when (tab) {
                 NavTab.HOME -> ThrumApp(
-                    onDiagnostics = onDiagnostics,
+                    onDeveloperTools = onDeveloperTools,
                     onOpenMusic = { tab = NavTab.MUSIC },
                     onOpenCreate = {
                         makeRequested = true
