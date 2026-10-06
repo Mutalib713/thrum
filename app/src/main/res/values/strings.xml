@@ -2,12 +2,16 @@
 <resources>
     <string name="app_name">Thrum</string>
 
-    <!-- Blocked: the motor cannot vary strength. Terminal, and honest about it. -->
-    <string name="blocked_title">This phone can\'t do it</string>
-    <string name="blocked_body">Thrum needs a motor that can change strength. Yours has one
-        speed. Every rhythm would reach you as the same flat buzz your phone already makes, and
-        no setting, update, or future version of this app will change that.</string>
-    <string name="blocked_detail">Motor: %1$s. Strength control: %2$s.</string>
+    <!-- Blocked: the motor cannot vary strength. Terminal, and honest about it (Sacred
+         Rule 2), in kinder words since 2026-10-06. It shows before any permission is
+         asked, which is what makes "hasn't changed anything" true. -->
+    <string name="blocked_title">This phone can\'t play rhythms</string>
+    <string name="blocked_body">Thrum turns music into a beat you can feel. That needs a vibration
+        motor that can go softer and stronger, and this phone\'s motor has only one strength, so
+        every song would feel like the same plain buzz. It\'s how the phone was built, and no
+        setting can change it.</string>
+    <string name="blocked_safe">Thrum hasn\'t changed anything on your phone, so it\'s safe to uninstall.</string>
+    <string name="blocked_detail">What Thrum checked: vibration motor, %1$s. Strength control, %2$s.</string>
 
     <!-- Permission -->
     <string name="permission_title">Thrum has to see your call notifications</string>
@@ -314,12 +318,12 @@
         <item quantity="other">%1$d haptics</item>
     </plurals>
     <string name="export_nothing">Nothing to export yet. Play a song or make a haptic first.</string>
-    <string name="export_as">As</string>
+    <string name="export_as">Saved as</string>
     <string name="export_file_name">Thrum haptics</string>
-    <string name="export_format_files">Thrum pattern files</string>
-    <string name="export_format_files_help">Back them up, or open them in Thrum on another phone.</string>
-    <string name="export_format_ringtone">Ringtones with the vibration inside</string>
-    <string name="export_format_ringtone_help">Not built yet. It\'s the hardest part of Thrum, planned for later.</string>
+    <!-- Renamed from "Thrum pattern files" on 2026-10-06: Mutalib didn't know what a
+         pattern file was. Thrum is Android only, so an iPhone can't open one. -->
+    <string name="export_format_files">Thrum file (vibration only)</string>
+    <string name="export_format_files_help">A small file with the rhythm and no sound. Keep it as a backup, or send it to someone with Thrum on an Android phone. They feel the rhythm, but the song doesn\'t go with it.</string>
     <string name="export_privacy">Only the vibration is exported. Your songs stay where they are.</string>
     <string name="export_save">Save to my phone</string>
     <string name="export_saved">Saved.</string>
@@ -368,7 +372,7 @@
     <string name="about_version">Version %1$s</string>
     <string name="phonecheck_title">Phone check</string>
     <string name="phonecheck_good_title">Your phone can do it</string>
-    <string name="phonecheck_bad_title">This phone can\'t do it</string>
+    <string name="phonecheck_bad_title">This phone can\'t play rhythms</string>
     <string name="phonecheck_motor">Vibration motor</string>
     <string name="phonecheck_amplitude">Strength control</string>
     <string name="phonecheck_amplitude_help">The part rhythm needs</string>

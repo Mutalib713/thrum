@@ -486,6 +486,7 @@ private fun CapabilityDeadEnd(capability: Haptics.Capability) {
                 .semantics { heading() },
         )
         Lead(stringResource(R.string.blocked_body))
+        Lead(stringResource(R.string.blocked_safe))
         Text(
             stringResource(
                 R.string.blocked_detail,

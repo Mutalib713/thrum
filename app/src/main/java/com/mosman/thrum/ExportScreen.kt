@@ -21,7 +21,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -144,30 +143,19 @@ fun ExportScreen(thisSongFirst: Boolean, onClose: () -> Unit) {
             )
         }
 
+        // One kind of file, so a card that says what you get rather than a
+        // choice of one. "Ringtones with the vibration inside" used to sit
+        // under it greyed out; Mutalib agreed on 2026-10-06 to hide it until
+        // it exists (v2, option B in PLAN.md) — an option that does nothing
+        // only confuses.
         Overline(stringResource(R.string.export_as), modifier = Modifier.padding(top = 22.dp, bottom = Space.S2))
-        ThrumCard(borderColor = ThrumAccentInk) {
+        ThrumCard {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                ThrumRadio(selected = true, modifier = Modifier.padding(top = 2.dp))
+                ThrumIcon(name = "file", tint = ThrumAccentInk, size = 20.dp, modifier = Modifier.padding(top = 2.dp))
                 Column {
                     Text(stringResource(R.string.export_format_files), style = ThrumType.row, color = ThrumInk)
                     Text(
                         stringResource(R.string.export_format_files_help),
-                        style = ThrumType.meta,
-                        color = ThrumInk2,
-                        modifier = Modifier.padding(top = Space.S1),
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(Space.S3))
-        // The v2 encoder, shown as what it is: not built yet. Not a choice.
-        ThrumCard(modifier = Modifier.alpha(0.55f)) {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                ThrumRadio(selected = false, modifier = Modifier.padding(top = 2.dp))
-                Column {
-                    Text(stringResource(R.string.export_format_ringtone), style = ThrumType.row, color = ThrumInk)
-                    Text(
-                        stringResource(R.string.export_format_ringtone_help),
                         style = ThrumType.meta,
                         color = ThrumInk2,
                         modifier = Modifier.padding(top = Space.S1),
