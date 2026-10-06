@@ -15,6 +15,18 @@ Read `PROFILE.md` first. It is canonical; this file only sequences the work.
 
 **2026-10-04, later: an APK file is not a way to give Thrum to people.** On Android 13 and later, an app installed from a file has its notification access locked until its owner unlocks it in App info. Mutalib hit this on his Pixel, and Thrum now walks the user through the unlock. On other phones the install itself fails: Play Protect blocks an app that comes from a browser, a messaging app or a file manager and declares notification-listener access, and Google says this runs in 185 markets ([blog.google, 19 Feb 2026](https://blog.google/security/keeping-google-play-android-app-ecosystem-safe-2025/)). Google doesn't publish the list, so Ghana is likely but unconfirmed. Thrum declares that access, which is why the friends he sent the APK to could not install it. An app installed from Google Play meets neither wall. Testers therefore need the Play internal-testing track, and that needs a Play developer account, which is Mutalib's decision.
 
+**2026-10-04 to 06: what Mutalib decided in the bug round.** The player moved to Media3 and gained notification and lock-screen controls, which he brought into v1 (Sacred Rule 1, his yes on 4 October). Lists play a song where you are, the mini player has back, pause and next, a finished song moves on to the next, Home's test call offers Hear and feel or Feel only, and My Haptics filters by All, Audio and Video.
+
+Then, on 6 October, after talking each one through:
+
+- **Tune.** Measured on AIZO's call window, the presets change how long the motor runs from 46 % to 67 % of the time, which is felt. Intensity moves the average strength only from 169 to 207 out of 255, which is barely felt, and Focus changes less than one point between 0 and 99 and does something only at its very end, where it switches the light beats off. Decided: the presets are the main choice; Focus becomes an "Extra taps" switch; Intensity becomes Strength (Gentle, Normal, Hard), each step measured to be at least a fifth stronger than the one before; "Feel it" follows the controls live; the technical line goes.
+- **Diagnostics.** It shrinks to a test-build-only "Developer tools" page with the table test and the step-limit probe. The call log moves to Settings, under Phone check. The "Loop while ringing" switch goes, because calls always repeat until answered.
+- **Export.** The first option becomes "Thrum file (vibration only)". The ringtone option stays hidden until it exists.
+- **Phones that can't do it.** The honest dead end stays, in plainer words. Task 6's budget-phone test is still owed.
+- **My Haptics.** "Make a haptic" sits at the top. On All it asks: From audio, From a video, or Open a Thrum file. On Audio and Video it opens the phone's picker on that kind of file. The options open as a pop-up.
+
+Still his to decide: the collection's section name and where its pieces come from (CC0 ringtones as the rules stand, credit-required music only with a Rule 4 change, Ghanaian pieces made for Thrum), and ringtones with the vibration inside, which put audio in an export and so need a Rule 3 change. The dial redesign (F with D's blocks) waits until this round is finished.
+
 ---
 
 ## Milestone 0 — Prove it's possible
