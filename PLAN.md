@@ -44,7 +44,7 @@ Then, on 6 October, after talking each one through:
 
 Everything talked about up to 7 October, in one place (Mutalib asked for it). The parked list above is folded in here.
 
-**Who does what (Mutalib, 7 October: Claude takes the hard implementation, Antigravity the rest and the UI).** Claude: Tasks 31–35, 37 and 38. Antigravity: Task 36, then Task 39, from `docs/handoff/antigravity-2026-10-07.md`; it asks Mutalib the design questions itself. Task 37 stayed with Claude because adding ringtones touches the data layer in two places that would otherwise delete them on the next scan or file them under My Haptics.
+**Who does what (Mutalib, 7 October: Claude takes the hard implementation, Antigravity the rest and the UI).** Claude: Tasks 31–35, 37 and 38, from `docs/handoff/claude-2026-10-07.md`. Antigravity: Task 36, then Task 39, from `docs/handoff/antigravity-2026-10-07.md`; it asks Mutalib the design questions itself. Task 37 stayed with Claude because adding ringtones touches the data layer in two places that would otherwise delete them on the next scan or file them under My Haptics.
 
 **Doing now (his yes, 7 October)**
 
