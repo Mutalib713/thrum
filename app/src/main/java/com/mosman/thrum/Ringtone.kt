@@ -90,9 +90,15 @@ object Ringtone {
         // Noted only once it worked: "Go back" should never show for a
         // ringtone that didn't change.
         if (before != null) {
+            // A song picked through the file chooser has a second address in
+            // the media library, and that is the one a ringtone would hold.
+            val previousInLibrary = previousSong?.let { song ->
+                runCatching { MediaStore.getMediaUri(ctx, Uri.parse(song))?.toString() }.getOrNull()
+            }
             val thrums = isThrumClip(ctx, before) ||
                 RingtoneRules.sameAddress(before, store.thrumRingtone) ||
-                RingtoneRules.sameAddress(before, previousSong)
+                RingtoneRules.sameAddress(before, previousSong) ||
+                RingtoneRules.sameAddress(before, previousInLibrary)
             if (RingtoneRules.shouldRemember(store.oldRingtone, thrums)) store.oldRingtone = before
         }
         store.thrumRingtone = now
