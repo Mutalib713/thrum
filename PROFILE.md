@@ -93,7 +93,7 @@ Decisions no future session may reopen without Mutalib saying so:
 2. **Never let a user believe the app works when their hardware cannot do it.** The capability check runs before anything else and its verdict is honest, not hedged. A one-star review saying "does nothing" is worse than a user who never installs.
 3. **Everything runs on the phone. No server, no network, ever.** No audio, score or file leaves the phone unless the user exports it themselves, and an export never contains audio. This keeps running costs at zero regardless of user count, and means there is no privacy story to get wrong.
 4. **Never ship audio Thrum doesn't own outright, and never host or redistribute anyone else's.** The app converts files that are already on the user's device, plus the Thrum Originals, which Thrum owns. Stock ringtones are Google's property; converting one locally for personal use is fine, distributing it is how apps get pulled.
-5. **Never claim or attempt system-wide audio haptics.** Android gives no app access to another app's audio. Spotify, YouTube Music, WhatsApp calls and TikTok are permanently out of reach. Thrum's own player only plays files that are on the phone, inside Thrum. Do not design around a workaround for this; there isn't one.
+5. **Thrum does not do system-wide audio haptics.** It works only with sound it can open itself: files on the phone and the Thrum Originals. Android 10 and later can let an app capture other apps' sound with the user's permission (playback capture), but Spotify blocks it, calls can never be captured, and building on it would be a different product. This is a deliberate choice, not an Android limit; reopening it needs Mutalib's say-so. Thrum's own player only plays files that are on the phone, inside Thrum.
 6. **Prove it on hardware before building around it.** Every assumption about how the system ringer behaves gets tested on a real phone with a real incoming call. Emulators cannot test vibration and this machine has none anyway.
 7. **The feature flag is not a strategy.** `enableRingtoneHapticsCustomization` may be flippable via adb on Mutalib's own phone, but a Play Store app can never flip it. The app must work with that flag OFF.
 8. **Plain-language first, always** — in the app's copy and in every conversation about it. See the user memory `explain-plainly-always`.
@@ -108,6 +108,8 @@ Decisions no future session may reopen without Mutalib saying so:
 | 4 | Never ship, host, or redistribute audio. | Never ship audio Thrum doesn't own outright, and never host or redistribute anyone else's. *(Changed later the same day, when Mutalib said yes to Thrum Originals.)* |
 
 Rules 2, 6, 7 and 8 are untouched.
+
+**Rule 5 reworded with Mutalib's approval on 2026-10-07.** The old text said "Android gives no app access to another app's audio … there isn't one", which is false: Android 10+ has playback capture (`docs/research/sound-to-haptics.md`). The rule itself is unchanged — Thrum still does not do system-wide haptics — and now says why honestly: a deliberate product choice, not a platform limit.
 
 **Brought into v1 by Mutalib after 2026-10-03** (Rule 1 decisions, each his explicit yes): notification and lock-screen player controls (2026-10-04); **Set as ringtone**, changing the phone's real ringtone as well as Thrum's call vibration (2026-10-06, §4 item 17).
 
