@@ -81,7 +81,11 @@ fun ThrumApp(
     var score by remember { mutableStateOf(store.armedScore) }
     var reading by remember { mutableStateOf<String?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
-    var ringMode by remember { mutableStateOf(store.fireInRingMode) }
+    // Whether the phone rings with the song Thrum vibrates to: then Ring mode
+    // plays too (Task 31). Asked again and again, because the user can change
+    // the ringtone in Android's settings at any time.
+    val ringtoneIsSong by rememberPolled(false) { Ringtone.isTheSong(it) }
+    val actions = rememberRowActions(onTune = {})
 
     val permitted by rememberPolled(true) { hasCallAccess(it) }
     val mayBeLocked = remember { callAccessMayBeLocked(ctx) }
@@ -136,6 +140,9 @@ fun ThrumApp(
                         // never disagree after a restart (Store.arm).
                         store.arm(built, uri.toString(), store.punch, store.distance, store.body)
                         score = built
+                        // Then the ringtone, so the phone rings with what it
+                        // vibrates to (Task 31). The vibration is set already.
+                        actions.setAsRingtone(Track(uri.toString(), name.ifEmpty { "Thrum" }, durationMs = 0, kind = TrackKind.FILE), armed = true)
                     }
                 }
             }
@@ -216,7 +223,7 @@ fun ThrumApp(
             IconButtonBox(icon = "gear", label = stringResource(R.string.tab_settings), onClick = onOpenSettings)
         }
 
-        val verdict = Setup.verdict(ringer, ringMode)
+        val verdict = Setup.verdict(ringer, ringtoneIsSong)
         val current = score
         val blocked = !capability.usable || !permitted || (current != null && verdict.blocked)
 
@@ -318,10 +325,16 @@ fun ThrumApp(
                     verdict = verdict,
                     progress = progress,
                     failure = failure,
-                    ringMode = ringMode,
-                    onRingMode = { on ->
-                        ringMode = on
-                        store.fireInRingMode = on
+                    ringtoneIsSong = ringtoneIsSong,
+                    // A song with sound behind it can become the ringtone; an
+                    // imported haptic has none.
+                    onSetRingtone = store.sourceUri?.takeIf { !ThrumFile.isImported(it) }?.let { source ->
+                        {
+                            actions.setAsRingtone(
+                                Track(source, current.sourceName.ifEmpty { "Thrum" }, durationMs = 0, kind = TrackKind.FILE),
+                                armed = true,
+                            )
+                        }
                     },
                     onTest = { if (testJob != null) stopTest() else playTestCall(current) },
                     // An imported haptic has no song to hear: feel only, and no choice to offer.
@@ -378,6 +391,7 @@ fun ThrumApp(
         }
 
         RecentlyPlayed()
+        RowActionsHost(actions)
 
         if (onDeveloperTools != null) {
             Spacer(Modifier.height(Space.S4))
@@ -395,8 +409,8 @@ private fun ColumnScope.ReadyCard(
     verdict: Setup.Verdict,
     progress: Float,
     failure: String?,
-    ringMode: Boolean,
-    onRingMode: (Boolean) -> Unit,
+    ringtoneIsSong: Boolean,
+    onSetRingtone: (() -> Unit)?,
     onTest: () -> Unit,
     onChange: () -> Unit,
     onSoundSettings: () -> Unit,
@@ -444,13 +458,17 @@ private fun ColumnScope.ReadyCard(
             )
         }
         Setup.Verdict.WONT_FIRE_RING_OFF -> {
-            // The sentence says the switch is "below" — so it is, right here.
+            // The fix sits right under the sentence that names it.
             CardBody(stringResource(R.string.setup_ring_off))
-            SwitchLine(
-                title = stringResource(R.string.ring_mode_label),
-                checked = ringMode,
-                onChange = onRingMode,
-            )
+            if (onSetRingtone != null) {
+                SecondaryButton(
+                    text = stringResource(R.string.menu_ringtone),
+                    icon = "bell",
+                    small = true,
+                    onClick = onSetRingtone,
+                    modifier = Modifier.padding(top = Space.S3),
+                )
+            }
             CardNote(stringResource(R.string.setup_ring_off_help))
         }
     }
@@ -480,9 +498,12 @@ private fun ColumnScope.ReadyCard(
         )
         ThrumTextButton(text = stringResource(R.string.home_change), onClick = onChange)
     }
-    // Hearing the song in a test must not suggest a call will play it.
-    if (canHear && hearAndFeel) CardNote(stringResource(R.string.home_test_sound_note))
-    CardNote(stringResource(R.string.home_calls_window))
+    // Hearing the song in a test must not suggest a call will play it, unless
+    // it is the ringtone, and then it will.
+    if (canHear && hearAndFeel) {
+        CardNote(stringResource(if (ringtoneIsSong) R.string.home_test_sound_ringtone else R.string.home_test_sound_note))
+    }
+    CardNote(stringResource(if (ringtoneIsSong) R.string.home_calls_window else R.string.home_calls_window_vibration))
     failure?.let { CardNote(it, color = ThrumWarn) }
 }
 
@@ -499,21 +520,6 @@ private fun CardBody(text: String) {
 @Composable
 private fun CardNote(text: String, color: androidx.compose.ui.graphics.Color = ThrumInk2) {
     Text(text, style = ThrumType.meta, color = color, modifier = Modifier.padding(top = 10.dp))
-}
-
-@Composable
-private fun SwitchLine(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = Space.S3),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, style = ThrumType.row, color = ThrumInk, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(Space.S3))
-        ThrumSwitch(checked = checked, onCheckedChange = onChange)
-    }
 }
 
 @Composable

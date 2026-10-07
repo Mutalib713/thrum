@@ -14,21 +14,36 @@ class Store(ctx: Context) {
         .getSharedPreferences("thrum", Context.MODE_PRIVATE)
 
     /**
-     * Whether to also play a score when the phone is in normal ring mode.
+     * The ringtone Thrum set last, as Android stores it (Task 31). Thrum plays
+     * in Ring mode only while the phone's ringtone is still this one and it
+     * was made from the song calls vibrate to ([RingtoneRules.ringtoneIsTheSong]),
+     * so the user never hears one song and feels another.
      *
-     * **On by default since 2026-08-01, at Mutalib's request.** It was off
-     * originally on the assumption that our vibration would fight the ringtone's
-     * own — Task 2 disproved that: the last `RINGTONE` vibration wins, so ours
-     * supersedes the system's cleanly.
-     *
-     * The honest caveat, surfaced in the UI rather than buried here: with the
-     * ringer on, the user hears their *ringtone* and feels their *chosen track*.
-     * Unless those are the same file, sound and vibration are playing different
-     * music. That is why it stays a switch.
+     * This replaced the "Also when the ringer is on" switch on 2026-10-07.
+     * The switch existed because the ringtone and the vibration could be two
+     * different songs; with one "Set as ringtone" action they no longer are.
      */
-    var fireInRingMode: Boolean
-        get() = prefs.getBoolean(KEY_RING_MODE, true)
-        set(v) = prefs.edit().putBoolean(KEY_RING_MODE, v).apply()
+    var thrumRingtone: String?
+        get() = prefs.getString(KEY_THRUM_RINGTONE, null)
+        set(value) = putOrRemove(KEY_THRUM_RINGTONE, value)
+
+    /** The song [thrumRingtone] was made from. */
+    var thrumRingtoneFor: String?
+        get() = prefs.getString(KEY_THRUM_RINGTONE_FOR, null)
+        set(value) = putOrRemove(KEY_THRUM_RINGTONE_FOR, value)
+
+    /**
+     * The user's own ringtone from before Thrum first changed it, so Settings
+     * can put it back: an address, [RingtoneRules.NO_RINGTONE] when it was
+     * "None", or null when nothing has been noted.
+     */
+    var oldRingtone: String?
+        get() = prefs.getString(KEY_OLD_RINGTONE, null)
+        set(value) = putOrRemove(KEY_OLD_RINGTONE, value)
+
+    private fun putOrRemove(key: String, value: String?) = prefs.edit().apply {
+        if (value == null) remove(key) else putString(key, value)
+    }.apply()
 
     /**
      * The armed score — what a real call plays.
@@ -135,6 +150,14 @@ class Store(ctx: Context) {
             .putInt(KEY_DISTANCE, distance.coerceIn(0, 100))
             .putInt(KEY_BODY, body.coerceIn(ScoreBuilder.BODY_MIN_MS, ScoreBuilder.BODY_MAX_MS))
             .apply()
+    }
+
+    /**
+     * Nothing for calls: Android's own buzz again. The dials stay, since they
+     * are the feel every new haptic starts from ([setDefaultTuning]).
+     */
+    fun disarm() {
+        prefs.edit().remove(KEY_SCORE).remove(KEY_URI).apply()
     }
 
     /**
@@ -267,7 +290,9 @@ class Store(ctx: Context) {
     }
 
     private companion object {
-        const val KEY_RING_MODE = "fire_in_ring_mode"
+        const val KEY_THRUM_RINGTONE = "thrum_ringtone"
+        const val KEY_THRUM_RINGTONE_FOR = "thrum_ringtone_for"
+        const val KEY_OLD_RINGTONE = "old_ringtone"
         const val KEY_EVENTS = "events"
         const val KEY_SCORE = "armed_score"
         const val KEY_URI = "source_uri"

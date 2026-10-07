@@ -1408,7 +1408,7 @@ class QaSuiteTest {
     //
     // The reason this decision lives in pure Kotlin is so it can be proved here,
     // on the PC, with no phone in the room. Every combination of ringer mode and
-    // switch is covered rather than the two happy ones, because the failures are
+    // ringtone is covered rather than the two happy ones, because the failures are
     // the entire reason the screen exists.
     //
     // What cannot be tested here is whether `AudioManager` really reports
@@ -1416,37 +1416,37 @@ class QaSuiteTest {
     // the app says the right thing about it.
 
     @Test
-    fun `vibrate fires whatever the ring-mode switch says`() {
-        // The switch is about ring mode. It must not be able to reach into the
-        // one case this whole app is for.
+    fun `vibrate fires whatever the ringtone is`() {
+        // The ringtone only matters in ring mode. It must not be able to reach
+        // into the one case this whole app is for.
         for (switch in listOf(true, false)) {
             assertEquals(Setup.Verdict.WILL_FIRE, Setup.verdict(Setup.Ringer.VIBRATE, switch))
         }
     }
 
     @Test
-    fun `silent never fires, whatever the ring-mode switch says`() {
+    fun `silent never fires, whatever the ringtone is`() {
         // The measured one, and the reason the screen is worth building. Android
         // discards a RINGTONE vibration outright when the ringer is silent, so no
-        // switch in this app can rescue it — and a verdict that let the switch
-        // appear to would be a promise the motor cannot keep.
+        // ringtone can rescue it — and a verdict that let one appear to would be
+        // a promise the motor cannot keep.
         for (switch in listOf(true, false)) {
             assertEquals(Setup.Verdict.WONT_FIRE_SILENT, Setup.verdict(Setup.Ringer.SILENT, switch))
         }
     }
 
     @Test
-    fun `ring mode follows the user's switch, both ways`() {
+    fun `ring mode plays only when the ringtone is the song, both ways`() {
         // The same rule NotifService.onIncoming applies at call time. If these two
         // ever disagree, the screen is describing a different app than the one
-        // that answers the phone.
+        // that answers the phone. Task 31: this was the ring-mode switch.
         assertEquals(
             Setup.Verdict.WILL_FIRE_IN_RING,
-            Setup.verdict(Setup.Ringer.RING, fireInRingMode = true),
+            Setup.verdict(Setup.Ringer.RING, ringtoneIsTheSong = true),
         )
         assertEquals(
             Setup.Verdict.WONT_FIRE_RING_OFF,
-            Setup.verdict(Setup.Ringer.RING, fireInRingMode = false),
+            Setup.verdict(Setup.Ringer.RING, ringtoneIsTheSong = false),
         )
     }
 
@@ -1455,7 +1455,7 @@ class QaSuiteTest {
         // AudioManager reports a mode this app does not know on some OEM builds.
         // Claiming it will work would be inventing a fact; claiming it will not
         // would be crying wolf. It has to be neither.
-        val verdict = Setup.verdict(Setup.Ringer.UNKNOWN, fireInRingMode = true)
+        val verdict = Setup.verdict(Setup.Ringer.UNKNOWN, ringtoneIsTheSong = true)
         assertEquals(Setup.Verdict.UNKNOWN, verdict)
         assertTrue("an unknown ringer must not read as working", !verdict.fires)
         assertTrue("an unknown ringer must not read as broken", !verdict.blocked)
@@ -1480,8 +1480,8 @@ class QaSuiteTest {
 
     @Test
     fun `only silent sends the user out to system settings`() {
-        // Ring mode has a switch on the screen the verdict sits on, so it needs a
-        // sentence rather than a button. Silent mode has nothing, and never will:
+        // Ring mode has its fix, Set as ringtone, on the screen the verdict sits
+        // on, so it needs no trip to the system. Silent mode has nothing, and never will:
         // PROFILE.md §9 — the app explains and deep-links, and does not edit a
         // setting on anyone's behalf.
         for (verdict in Setup.Verdict.values()) {
@@ -1491,7 +1491,7 @@ class QaSuiteTest {
     }
 
     @Test
-    fun `every combination of ringer and switch lands on exactly one verdict`() {
+    fun `every combination of ringer and ringtone lands on exactly one verdict`() {
         // The table is total. A ringer mode with no verdict would be a screen with
         // nothing to say at the moment it matters most.
         val reached = mutableSetOf<Setup.Verdict>()

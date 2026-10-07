@@ -25,55 +25,66 @@ class RowActions(
     private val scope: CoroutineScope,
     private val onTune: (TuneTarget) -> Unit,
 ) {
-    /** The song the ringtone question is about, while it is showing. */
-    var asking by mutableStateOf<Track?>(null)
+    /** The ringtone question, while it is showing. */
+    var asking by mutableStateOf<RingtoneAsk?>(null)
         internal set
 
     /** Sent to Android's settings page to allow it; finished on the way back. */
-    internal var waiting: Track? = null
+    internal var waiting: RingtoneAsk? = null
 
     /**
-     * Set as ringtone: the phone's ringtone and the call vibration, one song.
-     * A haptic with no sound behind it can only be used for calls; one with
-     * sound needs Android's permission first, asked for in words (sketch I).
+     * Set as ringtone: the phone rings with the song and Thrum vibrates to
+     * it. Since 2026-10-07 the one way to choose what calls play (Task 31),
+     * from Home, the player and every ⋮ menu. The ringtone needs Android's
+     * permission first, asked for in words (sketch I); "Just the vibration"
+     * stays as the way out.
+     *
+     * @param armed true when calls already vibrate to [track] (Home arms its
+     *   own pick as it reads it), so only the ringtone is left to set.
      */
-    fun setAsRingtone(track: Track) {
+    fun setAsRingtone(track: Track, armed: Boolean = false) {
+        val ask = RingtoneAsk(track, armed)
         when {
-            ThrumFile.isImported(track.sourceUri) -> useForCalls(track)
-            Ringtone.canChange(ctx) -> applyRingtone(track)
-            else -> asking = track
+            // No sound inside: the vibration is all there is to set.
+            ThrumFile.isImported(track.sourceUri) -> vibrationOnly(ask)
+            Ringtone.canChange(ctx) -> applyRingtone(ask)
+            else -> asking = ask
         }
     }
 
-    internal fun applyRingtone(track: Track) {
+    internal fun applyRingtone(ask: RingtoneAsk) {
         scope.launch {
-            val haptic = withHaptic(track) ?: return@launch
-            val outcome = Ringtone.setFrom(ctx, track)
-            // The vibration is set whatever happened to the sound: it never
-            // needed a permission, and it is what Thrum is for.
-            LibraryActions.useForCalls(ctx, haptic)
-            when (outcome) {
-                Ringtone.Outcome.Set -> {
-                    // Hearing and feeling the same song happens with the
-                    // ringer on, so Thrum vibrates then too.
-                    Store(ctx).fireInRingMode = true
-                    say(ctx, ctx.getString(R.string.ringtone_done, track.name))
-                }
-                Ringtone.Outcome.NoSound -> say(ctx, ctx.getString(R.string.ringtone_no_sound, track.name))
+            val previous = Store(ctx).sourceUri
+            if (!ask.armed) {
+                val haptic = withHaptic(ask.track) ?: return@launch
+                LibraryActions.useForCalls(ctx, haptic)
+            }
+            say(ctx, ctx.getString(R.string.ringtone_making, ask.track.name))
+            // The vibration is set whatever happens to the sound: it never
+            // needed a permission. Without the sound, Thrum plays on vibrate
+            // only, so the user never hears one song and feels another.
+            when (Ringtone.setFrom(ctx, ask.track, previous)) {
+                Ringtone.Outcome.Set -> say(ctx, ctx.getString(R.string.ringtone_done, ask.track.name))
+                Ringtone.Outcome.NoSound -> say(ctx, ctx.getString(R.string.ringtone_no_sound, ask.track.name))
                 Ringtone.Outcome.Refused, Ringtone.Outcome.NoPermission ->
-                    say(ctx, ctx.getString(R.string.ringtone_refused, track.name))
+                    say(ctx, ctx.getString(R.string.ringtone_refused, ask.track.name))
             }
         }
     }
 
-    /** Only the vibration: what a call plays, with the ringtone left alone. */
-    fun useForCalls(track: Track) {
+    /** Only the vibration: calls vibrate to it on vibrate, and the ringtone stays as it is. */
+    fun vibrationOnly(ask: RingtoneAsk) {
         scope.launch {
-            val haptic = withHaptic(track) ?: return@launch
-            LibraryActions.useForCalls(ctx, haptic)
-            say(ctx, ctx.getString(R.string.calls_done, track.name))
+            if (!ask.armed) {
+                val haptic = withHaptic(ask.track) ?: return@launch
+                LibraryActions.useForCalls(ctx, haptic)
+            }
+            say(ctx, ctx.getString(R.string.calls_done, ask.track.name))
         }
     }
+
+    /** For an imported haptic's menu item, "Vibrate for calls". */
+    fun useForCalls(track: Track) = vibrationOnly(RingtoneAsk(track, armed = false))
 
     fun tune(track: Track) {
         scope.launch {
@@ -135,10 +146,10 @@ fun RowActionsHost(actions: RowActions) {
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                actions.waiting?.let { track ->
+                actions.waiting?.let { ask ->
                     actions.waiting = null
                     if (Ringtone.canChange(ctx)) {
-                        actions.applyRingtone(track)
+                        actions.applyRingtone(ask)
                     } else {
                         say(ctx, ctx.getString(R.string.ringtone_not_allowed))
                     }
@@ -149,20 +160,23 @@ fun RowActionsHost(actions: RowActions) {
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
 
-    actions.asking?.let { track ->
+    actions.asking?.let { ask ->
         RingtoneAskSheet(
-            name = track.name,
+            name = ask.track.name,
             onOpenSettings = {
                 actions.asking = null
-                actions.waiting = track
+                actions.waiting = ask
                 runCatching { ctx.startActivity(Ringtone.permissionIntent(ctx)) }
                     .onFailure { actions.waiting = null }
             },
             onVibrationOnly = {
                 actions.asking = null
-                actions.useForCalls(track)
+                actions.vibrationOnly(ask)
             },
             onDismiss = { actions.asking = null },
         )
     }
 }
+
+/** A Set as ringtone in progress: the song, and whether calls already vibrate to it. */
+data class RingtoneAsk(val track: Track, val armed: Boolean)

@@ -78,12 +78,16 @@ class NotifService : NotificationListenerService() {
             return
         }
 
-        if (ringer == "ring" && !store.fireInRingMode) {
+        // Ring mode only when the phone rings with the song Thrum vibrates to
+        // (Task 31, Mutalib 2026-10-07: never hear one song and feel another).
+        // Otherwise the phone's own ringtone and buzz play, as its maker built
+        // them. This was the "Also when the ringer is on" switch.
+        if (ringer == "ring" && !Ringtone.isTheSong(this, store)) {
             record(
                 Event.Kind.SKIPPED,
                 ringer,
                 latency,
-                "${Home.NOTE_RINGER_ON} — the system already handles stock ringtones",
+                "${Home.NOTE_RINGER_ON} — the ringtone isn't the Thrum song",
             )
             return
         }
@@ -116,9 +120,14 @@ class NotifService : NotificationListenerService() {
         // This was a "Loop while ringing" switch on the diagnostics page,
         // shown nowhere else, that could quietly turn the repeat off; it went
         // with that page on 2026-10-06.
+        // In Ring mode the ringtone started before Thrum heard about the call,
+        // so the vibration starts as far into the rhythm as it is late, and
+        // lands where the sound already is. Vibrate mode has no sound to keep
+        // up with and starts from the top.
+        val caughtUp = if (ringer == "ring") RingtoneRules.catchUpMs(latency, armed.durationMs) else 0L
         activeKey = sbn.key
         lastFireAt = SystemClock.uptimeMillis()
-        val failure = Haptics.play(this, armed, loop = true)
+        val failure = Haptics.play(this, if (caughtUp > 0) armed.rotated(caughtUp) else armed, loop = true)
         if (failure != null) {
             record(Event.Kind.SKIPPED, ringer, latency, Home.NOTE_FAILED + failure)
             activeKey = null
@@ -128,7 +137,7 @@ class NotifService : NotificationListenerService() {
             Event.Kind.FIRED,
             ringer,
             latency,
-            "armed: ${armed.sourceName} · looping",
+            "armed: ${armed.sourceName} · looping · caught up $caughtUp ms",
         )
 
         // In ring mode, keep asking.
@@ -149,7 +158,7 @@ class NotifService : NotificationListenerService() {
         // waveform every two seconds for nothing is not free.
         if (ringer == "ring") {
             handler.removeCallbacksAndMessages(REASSERT_TOKEN)
-            scheduleReassert(armed, SystemClock.uptimeMillis())
+            scheduleReassert(armed, SystemClock.uptimeMillis() - caughtUp)
         }
 
         // Safety cap. A looping waveform runs until something cancels it, and if

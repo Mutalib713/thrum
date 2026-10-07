@@ -22,8 +22,9 @@ package com.mosman.thrum
  *   person "silent" and "vibrate" are both just *no sound*, and the wrong one
  *   makes the app look broken.
  *
- * - **Ring mode with the switch off.** The user's own choice and one tap to undo,
- *   but from the outside it is indistinguishable from a broken app.
+ * - **Ring mode when the ringtone isn't the Thrum song.** Thrum stays quiet so
+ *   the user never hears one song and feels another (Task 31), and one tap of
+ *   Set as ringtone undoes it; but from the outside it looks like a broken app.
  *
  * Pure Kotlin, no Android imports, for the same reason [Score] has none
  * (`PROFILE.md` §7): this is a decision table, and a decision table is the part
@@ -73,14 +74,17 @@ object Setup {
         WILL_FIRE,
 
         /**
-         * Ring mode with the switch on. It fires — but the user *hears* their
-         * ringtone and *feels* the track they picked, which are two different
-         * songs unless they happen to be the same file. True, and worth saying
-         * out loud rather than reporting a bare yes.
+         * Ring mode, and the phone's ringtone is the song Thrum vibrates to:
+         * the user hears and feels the same song (Task 31).
          */
         WILL_FIRE_IN_RING,
 
-        /** Ring mode with the switch off. Dead by the user's own setting. */
+        /**
+         * Ring mode, but the ringtone is something else, so Thrum stays quiet
+         * rather than play one song over another. Fixed by Set as ringtone,
+         * or by switching to vibrate. Before 2026-10-07 this was "the switch
+         * is off".
+         */
         WONT_FIRE_RING_OFF,
 
         /** Silent mode. Android drops the vibration before it reaches the motor. */
@@ -106,7 +110,7 @@ object Setup {
             get() = this == WONT_FIRE_SILENT || this == WONT_FIRE_RING_OFF
 
         /**
-         * True when the only fix is a system setting, rather than a switch on
+         * True when the only fix is a system setting, rather than a button on
          * this screen. Silent mode is the sole case: there is no in-app control
          * that can talk Android out of discarding the vibration, and there never
          * will be.
@@ -119,15 +123,15 @@ object Setup {
      * The whole decision, in one expression.
      *
      * Deliberately not `when (ringer) { SILENT -> false; else -> true }` plus a
-     * second check for the switch: the two interact (ring mode depends on the
-     * switch, vibrate mode does not) and splitting them across two call sites is
+     * second check for the ringtone: the two interact (ring mode depends on
+     * the ringtone, vibrate mode does not) and splitting them across two call sites is
      * how a screen ends up disagreeing with the listener. [NotifService.onIncoming]
      * makes the same decision at call time; this is the same table, shown to the
      * user in advance.
      */
-    fun verdict(ringer: Ringer, fireInRingMode: Boolean): Verdict = when (ringer) {
+    fun verdict(ringer: Ringer, ringtoneIsTheSong: Boolean): Verdict = when (ringer) {
         Ringer.VIBRATE -> Verdict.WILL_FIRE
-        Ringer.RING -> if (fireInRingMode) Verdict.WILL_FIRE_IN_RING else Verdict.WONT_FIRE_RING_OFF
+        Ringer.RING -> if (ringtoneIsTheSong) Verdict.WILL_FIRE_IN_RING else Verdict.WONT_FIRE_RING_OFF
         Ringer.SILENT -> Verdict.WONT_FIRE_SILENT
         Ringer.UNKNOWN -> Verdict.UNKNOWN
     }

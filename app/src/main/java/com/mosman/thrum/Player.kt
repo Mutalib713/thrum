@@ -446,18 +446,6 @@ object Player {
     fun isCallSong(ctx: Context): Boolean =
         now?.track?.sourceUri?.let { it == Store(ctx).sourceUri } == true
 
-    /** "Use for calls": this song's first 45 seconds become what a call plays. */
-    fun useForCalls(ctx: Context) {
-        val ready = haptic ?: return
-        Store(ctx).arm(
-            ready.callWindow(),
-            ready.trackUri,
-            ready.punch,
-            ready.distance,
-            ready.bodyMs,
-        )
-    }
-
     // --- The engine, and what the rest of the phone sees of it. -------------
 
     private fun engineFor(ctx: Context): ExoPlayer = engine ?: ExoPlayer.Builder(ctx.applicationContext)

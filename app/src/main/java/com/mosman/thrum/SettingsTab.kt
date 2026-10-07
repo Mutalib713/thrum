@@ -16,6 +16,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -72,12 +73,12 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
 
     val callAccess by rememberPolled(hasCallAccess(ctx)) { hasCallAccess(it) }
     val musicAccess by rememberPolled(hasMusicAccess(ctx)) { hasMusicAccess(it) }
-    // Held here as well as written to the store, so a tap redraws at once.
-    // The first build wrote the store and nothing else, and the switch looked
-    // as if it ignored the tap.
-    var ringMode by remember { mutableStateOf(store.fireInRingMode) }
+    // The ringtone Thrum replaced, by name, once there is one (Task 31).
+    var oldRingtone by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { oldRingtone = Ringtone.oldRingtoneName(ctx) }
+    val restoreScope = rememberCoroutineScope()
     var background by remember { mutableStateOf(store.hapticsMode == HapticsWorker.MODE_BACKGROUND) }
-    val callSong = remember { store.armedScore?.sourceName }
+    var callSong by remember { mutableStateOf(store.armedScore?.sourceName) }
     val body = remember { store.body }
     var scanning by remember { mutableStateOf(false) }
     // The last scan's outcome, worded at drawing time rather than when the
@@ -124,16 +125,26 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
                 value = stringResource(if (callAccess) R.string.settings_on else R.string.settings_off),
                 onClick = { openCallAccess(ctx) },
             )
-            SettingsDivider()
-            ThrumSwitchRow(
-                name = stringResource(R.string.ring_mode_label),
-                help = stringResource(R.string.ring_mode_help),
-                checked = ringMode,
-                onChange = {
-                    ringMode = it
-                    store.fireInRingMode = it
-                },
-            )
+            // The way back to the phone as it was before Thrum: its own
+            // ringtone and its own buzz (Mutalib, 2026-10-07).
+            oldRingtone?.let { name ->
+                SettingsDivider()
+                SettingsRow(
+                    name = stringResource(R.string.settings_old_ringtone),
+                    sub = name,
+                    onClick = {
+                        restoreScope.launch {
+                            if (Ringtone.restoreOld(ctx)) {
+                                oldRingtone = null
+                                callSong = null
+                                say(ctx, ctx.getString(R.string.old_ringtone_back, name))
+                            } else {
+                                say(ctx, ctx.getString(R.string.old_ringtone_failed))
+                            }
+                        }
+                    },
+                )
+            }
         }
 
         SettingsSection(stringResource(R.string.settings_music_section)) {

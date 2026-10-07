@@ -20,9 +20,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +51,7 @@ import androidx.compose.ui.unit.dp
 fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
     val ctx = LocalContext.current
     val now = Player.now
+    val actions = rememberRowActions(onTune)
 
     BackHandler { Player.open = false }
 
@@ -62,7 +61,10 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
     // every tap. Back still works, because it is handled above.
     if (now == null) return
     val haptic = Player.haptic
-    var isCallSong by remember(now.track.sourceUri) { mutableStateOf(Player.isCallSong(ctx)) }
+    // Asked again and again: the ringtone question can end either way, and
+    // the user can change the ringtone in Android's settings at any time.
+    val isCallSong by rememberPolled(Player.isCallSong(ctx)) { Player.isCallSong(it) }
+    val isRingtone by rememberPolled(false) { Player.isCallSong(it) && Ringtone.isTheSong(it) }
 
     ThrumPage {
         Row(
@@ -187,7 +189,7 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
 
                 if (isCallSong) {
                     Text(
-                        stringResource(R.string.player_using_calls),
+                        stringResource(if (isRingtone) R.string.player_using_calls else R.string.player_using_calls_vibration),
                         style = ThrumType.body,
                         color = ThrumInk2,
                         modifier = Modifier.padding(bottom = Space.S3),
@@ -203,14 +205,11 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
                         onClick = { onTune(TuneTarget.Song(now.track, haptic)) },
                         modifier = Modifier.weight(1f),
                     )
-                    if (!isCallSong) {
+                    if (!isRingtone) {
                         PrimaryButton(
                             text = stringResource(R.string.player_use_calls),
-                            icon = "phone",
-                            onClick = {
-                                Player.useForCalls(ctx)
-                                isCallSong = true
-                            },
+                            icon = "bell",
+                            onClick = { actions.setAsRingtone(now.track) },
                             modifier = Modifier.weight(1.4f),
                         )
                     }
@@ -223,6 +222,7 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
         now.error?.let { message ->
             Text(message, style = ThrumType.lead, color = ThrumWarn, modifier = Modifier.padding(top = Space.S4))
         }
+        RowActionsHost(actions)
     }
 }
 
