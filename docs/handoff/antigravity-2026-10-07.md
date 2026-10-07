@@ -2,6 +2,8 @@
 
 **For Mutalib, in plain words.** The task list in `PLAN.md` (Tasks 31–39) is split in two. Claude does the parts that are hard to get right underneath: calls, the ringtone, timing and measuring. Antigravity does the wording round and the whole visual round: light mode, liquid glass, the dial and the bars. Antigravity asks you every design question itself, shows you the options side by side, and waits for your pick before building.
 
+**Start when Mutalib says so.** He'll tell you; until then, read and ask questions only.
+
 **For Antigravity.** Read these first, in this order: `C:\Users\USER\MyClaudeProjects\AGENTS.md` (workspace rules), `thrum/CLAUDE.md`, `thrum/PROFILE.md` (canonical; §4 says what each screen does, §6 holds the Sacred Rules), the task list at the end of the 7 October entries in `PLAN.md`, then this file. If anything here disagrees with `PROFILE.md`, `PROFILE.md` wins. Ask Mutalib, don't guess.
 
 ## Who does what
@@ -100,7 +102,7 @@ A test-build-only screen, opened from Developer tools, that shows the candidate 
   1. **Haze** (`chrisbanes/haze`, Apache-2.0, 2.0.1 released 2026-09-29, updated 2026-10-06 when checked). Blurs whatever is behind a surface; version 2 adds ready-made Glass styles and a fallback for phones that can't blur. Closest to frosted glass.
   2. **Backdrop / AndroidLiquidGlass** (`Kyant0/AndroidLiquidGlass`, Apache-2.0, 2.0.1 released 2026-08-26). Draws the bending, lens-like edge of Apple's Liquid Glass, so it's closest to "the one on iPhone". It only gives you the effect, not ready-made parts: you build the buttons and tabs yourself from its examples. **Check the lowest Android version it supports against Thrum's (Android 12, minSdk 31) before suggesting it.**
   3. **No library:** a see-through tinted surface with a thin light edge and no real blur. Nothing to add, cheapest on budget phones, and the least like glass.
-  Claude's suggestion: try 1 and 2 on placement A in the Look lab on his Pixel, on a release build, and let him feel which one looks right and scrolls smoothly.
+- Claude's suggestion: try 1 and 2 on placement A in the Look lab on his Pixel, on a release build, and let him feel which one looks right and scrolls smoothly.
 - Glass sits on the floating layer only (the bottom navigation, the mini player and floating buttons for A) unless he picks B or C. Never glass on glass.
 - Text on glass: 4.5:1 against the worst background that can scroll under it. Measure it on screenshots with a bright and a dark song cover behind.
 - Performance (the Ghana floor: budget phones and slow networks): measure `adb shell dumpsys gfxinfo com.mosman.thrum` while scrolling Music, before and after glass, on a release build. Glass mustn't make it noticeably worse. Report both numbers.
