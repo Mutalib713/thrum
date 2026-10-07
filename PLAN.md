@@ -820,6 +820,8 @@ The question after a scan, the queue, songs that are played jumping ahead, progr
 
 Pick a video or a file through the phone's chooser; My Haptics with All, Music, Videos and Files; delete.
 
+> **Superseded 2026-10-06 — do not rebuild what this entry describes.** The filters are now All · Audio · Video; My Haptics lists only what the user makes (songs keep their haptics in Music); rows have a ⋮ menu and multi-select. See PROFILE §4 item 8.
+
 **Built:** the My Haptics tab is real — the filters (All, Music, Videos, Files), rows carrying the design's subtitle ("Music · Keche · 3:58") and the Calls badge, and long-press delete **with a confirmation**, because a long-press that silently destroys work teaches distrust. The Create options (screen 16) offer a video, an audio file, and "a song" (which routes to the Music tab); "A Thrum file" waits for Task 25 and is not drawn pretending. Videos and files arrive one at a time through the chooser — Thrum never asks to see all videos — and are made straight away, the row appearing immediately with "Making its haptic…" until it lands, or the decoder's own sentence if the phone can't read it. The list's model is pure Kotlin ([MyHaptics]) and tested: the join keeps a haptic whose track vanished, unmade picks appear so nothing vanishes into nothing, and the filters cut by kind exactly.
 
 **Proof still owed:** a real video from the phone becomes a haptic and plays in step (the decoder already looks for the audio track inside a video — untested until a real clip goes through); an unreadable file shows the decoder's real sentence; delete survives a restart.
@@ -827,6 +829,8 @@ Pick a video or a file through the phone's chooser; My Haptics with All, Music, 
 ### [~] Task 24: Tune the feel [15] — **BUILT 2026-10-04, the hand proof needs the phone**
 
 The presets from Task 15, plus Intensity, Focus and Duration (the old Punch, Distance and Body, renamed).
+
+> **Superseded 2026-10-06 — do not bring the dials back.** Tune is now Crisp / Full / Strong as the main choice plus two switches, Extra taps and Softer; the Intensity, Focus and Duration dials were removed because measurement showed they were barely felt. See PROFILE §4 item 9 and the 2026-10-06 entry at the top.
 
 **Built:** screen 15's layout on Home's tune section — the three **preset chips** (Crisp / Full / Strong) above the three renamed dials, each preset carrying the design's own description ("Short taps with gaps" / "Longer beats" / "Closest to a buzz"), and **Reset to balanced**, which rebuilds once, not three times. The presets are **the measured ladder, not guesses**: the 2026-09-21 walk measured sustained drive at 0.334 / 0.417 / 0.540 for Body 100 / 240 / 400 against the buzz's 0.500, so those three points *are* the presets — and they change exactly the measured axis, leaving the user's own Intensity and Focus alone. QA tests pin the values and the shape ordering (the dial ladder test already pins crisp < default < strong on the Feel metrics). The player's screen gained its "Tune" action, routing to the tune section. Off-ladder durations (fine-tuned) select no chip, and the design's per-preset line gives way to the dial's own note.
 
