@@ -44,6 +44,8 @@ Then, on 6 October, after talking each one through:
 
 Everything talked about up to 7 October, in one place (Mutalib asked for it). The parked list above is folded in here.
 
+**Who does what (Mutalib, 7 October: Claude takes the hard implementation, Antigravity the rest and the UI).** Claude: Tasks 31–35, 37 and 38. Antigravity: Task 36, then Task 39, from `docs/handoff/antigravity-2026-10-07.md`; it asks Mutalib the design questions itself. Task 37 stayed with Claude because adding ringtones touches the data layer in two places that would otherwise delete them on the next scan or file them under My Haptics.
+
 **Doing now (his yes, 7 October)**
 
 - **Task 31: One ringtone action.** One button, "Set as ringtone", on Home, the player and the ⋮ menu: the phone rings with the song and vibrates to it. The saved ringtone is the song's first 45 seconds. Thrum remembers the ringtone it replaced, and Settings gets "Go back to my old ringtone". The vibration skips ahead by however late it started (0.3–0.7 s so far), so it lands where the sound is. *Proposed, waiting on his yes:* when the ringtone isn't the same song (he said no to the permission, or changed it in Android), Thrum vibrates in Vibrate mode only, so sound and vibration never disagree, and the "Also when the ringer is on" switch goes; "Go back" stops Thrum's call vibration for the same reason. **Done when:** one button in all three places; Android's ringtone setting reads back as the 45-second clip; on a real call in Ring mode his hand can't feel the vibration start late or jump back, and `dumpsys vibrator_manager` shows how far apart Android's own ring vibration and Thrum's start. **Needs him:** call access unlocked on the Pixel, and real calls from another phone.
