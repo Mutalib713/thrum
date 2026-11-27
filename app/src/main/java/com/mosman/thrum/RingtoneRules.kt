@@ -26,10 +26,19 @@ object RingtoneRules {
 
     /**
      * The most Thrum will skip ahead to catch up with a ringtone that started
-     * before it heard about the call. Measured so far: 0.3–0.7 s. Anything far
-     * past that is a clock gone wrong, not a late start.
+     * before it heard about the call. Measured so far: 0.3–0.7 s. A later
+     * start still skips only this far: a delay that long is more likely a
+     * wrong clock than a truly late call, so 3 s is the most Thrum bets on.
      */
     const val MAX_CATCH_UP_MS = 3_000L
+
+    /**
+     * How long a Set as ringtone waits for the user to come back from
+     * Android's "Modify system settings" page. Long enough to read the page
+     * and find the switch; short enough that a ringtone is never set some
+     * later day the permission happens to be on.
+     */
+    const val PENDING_FOR_MS = 10 * 60_000L
 
     /** Stored as the old ringtone when the user's ringtone was "None". */
     const val NO_RINGTONE = "none"
@@ -152,4 +161,57 @@ object RingtoneRules {
         if (scoreMs <= 0) return 0
         return lateMs.coerceIn(0, MAX_CATCH_UP_MS) % scoreMs
     }
+
+    /**
+     * The number at the end of a media-library address ("…/audio/media/412"
+     * → 412), or null. Used to keep any file a phone sound still points at:
+     * the same file can be written `external` or `external_primary`, so the
+     * number is compared, not the whole address. Two libraries (the phone's
+     * built-in sounds and the user's files) can share a number, which only
+     * ever makes Thrum keep a file it could have deleted, never the reverse.
+     */
+    fun mediaId(address: String?): Long? =
+        address?.let { bare(it).substringAfterLast('/').toLongOrNull() }
+
+    /**
+     * A Set as ringtone waiting on Android's settings page, as one line in
+     * the app's storage. Kept there, not only in memory, because Android may
+     * close Thrum while the user is on that page (low-memory phones do), and
+     * the ask has to survive to be finished on the way back.
+     */
+    fun encodePending(ask: RingtoneAsk, savedAtMs: Long): String = listOf(
+        PENDING_VERSION,
+        savedAtMs.toString(),
+        ask.track.sourceUri,
+        ask.track.name,
+        ask.track.durationMs.toString(),
+        ask.track.kind.name,
+        ask.armed.toString(),
+        ask.previousSong.orEmpty(),
+    ).joinToString(FIELD) { it.replace(FIELD, " ") }
+
+    /** The ask written by [encodePending], or null when it's unreadable or older than [PENDING_FOR_MS]. */
+    fun decodePending(text: String, nowMs: Long): RingtoneAsk? = runCatching {
+        val f = text.split(FIELD)
+        if (f.size != 8 || f[0] != PENDING_VERSION) return null
+        val savedAt = f[1].toLong()
+        if (nowMs < savedAt || nowMs - savedAt > PENDING_FOR_MS) return null
+        val kind = TrackKind.entries.firstOrNull { it.name == f[5] } ?: return null
+        RingtoneAsk(
+            track = Track(f[2], f[3], durationMs = f[4].toLong(), kind = kind),
+            armed = f[6].toBooleanStrict(),
+            previousSong = f[7].ifEmpty { null },
+        )
+    }.getOrNull()
+
+    private const val PENDING_VERSION = "1"
+
+    /** ASCII's unit separator: nothing in a song name or an address uses it. */
+    private const val FIELD = "\u001F"
 }
+
+/**
+ * A Set as ringtone in progress: the song, whether calls already vibrate to
+ * it, and the song they vibrated to before, captured when the ask began.
+ */
+data class RingtoneAsk(val track: Track, val armed: Boolean, val previousSong: String?)

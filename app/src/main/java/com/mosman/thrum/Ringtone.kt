@@ -10,6 +10,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import android.webkit.MimeTypeMap
+import androidx.core.net.toUri
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -58,7 +59,7 @@ object Ringtone {
 
     /** Android's "Modify system settings" page, opened on Thrum. */
     fun permissionIntent(ctx: Context): Intent =
-        Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${ctx.packageName}"))
+        Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, "package:${ctx.packageName}".toUri())
 
     /** The phone's ringtone now, or null when it is "None" or can't be read. */
     fun current(ctx: Context): String? = readSetting(ctx)?.takeIf { it != RingtoneRules.NO_RINGTONE }
@@ -93,7 +94,7 @@ object Ringtone {
             // A song picked through the file chooser has a second address in
             // the media library, and that is the one a ringtone would hold.
             val previousInLibrary = previousSong?.let { song ->
-                runCatching { MediaStore.getMediaUri(ctx, Uri.parse(song))?.toString() }.getOrNull()
+                runCatching { MediaStore.getMediaUri(ctx, song.toUri())?.toString() }.getOrNull()
             }
             val thrums = isThrumClip(ctx, before) ||
                 RingtoneRules.sameAddress(before, store.thrumRingtone) ||
@@ -103,6 +104,7 @@ object Ringtone {
         }
         store.thrumRingtone = now
         store.thrumRingtoneFor = track.sourceUri
+        deleteUnusedClips(ctx)
         Outcome.Set
     }
 
@@ -115,7 +117,7 @@ object Ringtone {
         val store = Store(ctx)
         val old = store.oldRingtone ?: return@withContext false
         if (!canChange(ctx)) return@withContext false
-        val target = if (old == RingtoneRules.NO_RINGTONE) null else Uri.parse(old)
+        val target = if (old == RingtoneRules.NO_RINGTONE) null else old.toUri()
         runCatching { RingtoneManager.setActualDefaultRingtoneUri(ctx, RingtoneManager.TYPE_RINGTONE, target) }
         val back = readSetting(ctx)
         val restored = if (target == null) back == RingtoneRules.NO_RINGTONE else RingtoneRules.sameAddress(back, old)
@@ -124,15 +126,50 @@ object Ringtone {
             store.thrumRingtone = null
             store.thrumRingtoneFor = null
             store.disarm()
+            // As before Thrum: its ringtone files go too.
+            deleteUnusedClips(ctx)
         }
         restored
+    }
+
+    /**
+     * Delete the files in Ringtones/Thrum that no phone sound uses any more:
+     * not the ringtone, the notification sound or the alarm. They used to
+     * pile up, one per song ever set, even after "Go back".
+     *
+     * Only Thrum's own folder, and only files Android lets Thrum delete
+     * without asking (the ones it made itself, this install). A song the
+     * ringtone points at directly, in the user's music, is never touched.
+     */
+    private fun deleteUnusedClips(ctx: Context) {
+        val inUse = listOf(RingtoneManager.TYPE_RINGTONE, RingtoneManager.TYPE_NOTIFICATION, RingtoneManager.TYPE_ALARM)
+            .mapNotNull { type ->
+                runCatching { RingtoneManager.getActualDefaultRingtoneUri(ctx, type)?.toString() }.getOrNull()
+            }
+            .mapNotNull(RingtoneRules::mediaId)
+            .toSet()
+        val resolver = ctx.contentResolver
+        val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val ids = runCatching {
+            resolver.query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID),
+                "${MediaStore.MediaColumns.RELATIVE_PATH} = ?",
+                arrayOf(FOLDER_PATH),
+                null,
+            )?.use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.getLong(0)) } }
+        }.getOrNull().orEmpty()
+        for (id in ids) {
+            if (id in inUse) continue
+            runCatching { resolver.delete(ContentUris.withAppendedId(collection, id), null, null) }
+        }
     }
 
     /** The old ringtone's name as Android shows it, or null if there's none noted. */
     suspend fun oldRingtoneName(ctx: Context): String? = withContext(Dispatchers.IO) {
         val old = Store(ctx).oldRingtone ?: return@withContext null
         if (old == RingtoneRules.NO_RINGTONE) return@withContext ctx.getString(R.string.ringtone_none)
-        runCatching { RingtoneManager.getRingtone(ctx, Uri.parse(old))?.getTitle(ctx) }.getOrNull()
+        runCatching { RingtoneManager.getRingtone(ctx, old.toUri())?.getTitle(ctx) }.getOrNull()
             ?: ctx.getString(R.string.ringtone_unnamed)
     }
 
@@ -149,7 +186,7 @@ object Ringtone {
      */
     private fun audioFor(ctx: Context, track: Track): Uri? {
         if (ThrumFile.isImported(track.sourceUri)) return null
-        val source = Uri.parse(track.sourceUri)
+        val source = track.sourceUri.toUri()
         if (track.kind != TrackKind.VIDEO && !RingtoneRules.needsCut(track.durationMs)) {
             // A scanned song is already in the library.
             if (source.authority == MediaStore.AUTHORITY && isAudio(ctx, source)) return source
@@ -190,7 +227,7 @@ object Ringtone {
 
     /** Whether [address] is a file in Thrum's own Ringtones folder. */
     private fun isThrumClip(ctx: Context, address: String): Boolean = runCatching {
-        ctx.contentResolver.query(Uri.parse(address), arrayOf(MediaStore.MediaColumns.RELATIVE_PATH), null, null, null)
+        ctx.contentResolver.query(address.toUri(), arrayOf(MediaStore.MediaColumns.RELATIVE_PATH), null, null, null)
             ?.use { cursor -> cursor.moveToFirst() && cursor.getString(0) == FOLDER_PATH }
     }.getOrNull() == true
 

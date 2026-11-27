@@ -3,6 +3,7 @@ package com.mosman.thrum
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -135,10 +136,38 @@ class RingtoneRulesTest {
     }
 
     @Test
+    fun `a ringtone ask survives Android closing Thrum, but only for ten minutes`() {
+        val ask = RingtoneAsk(
+            Track(song, "Intro: Live / Accra", durationMs = 213_000, kind = TrackKind.MUSIC),
+            armed = false,
+            previousSong = clip,
+        )
+        val saved = RingtoneRules.encodePending(ask, savedAtMs = 1_000_000)
+        assertEquals(ask, RingtoneRules.decodePending(saved, nowMs = 1_000_000 + 60_000))
+        // Home's own pick: already armed, nothing before it.
+        val home = RingtoneAsk(Track(song, "AIZO", durationMs = 0, kind = TrackKind.FILE), armed = true, previousSong = null)
+        assertEquals(home, RingtoneRules.decodePending(RingtoneRules.encodePending(home, 5), nowMs = 6))
+        // Come back the next day and nothing is set behind the user's back.
+        assertNull(RingtoneRules.decodePending(saved, nowMs = 1_000_000 + RingtoneRules.PENDING_FOR_MS + 1))
+        // A clock that went backwards, or something that isn't an ask at all.
+        assertNull(RingtoneRules.decodePending(saved, nowMs = 999_999))
+        assertNull(RingtoneRules.decodePending("not an ask", nowMs = 0))
+    }
+
+    @Test
+    fun `a sound in use is recognised by its number, however its address is written`() {
+        assertEquals(412L, RingtoneRules.mediaId("content://media/external_primary/audio/media/412"))
+        assertEquals(412L, RingtoneRules.mediaId("content://media/external/audio/media/412?title=AIZO&canonical=1"))
+        assertEquals(412L, RingtoneRules.mediaId("content://0@media/external/audio/media/412"))
+        assertNull(RingtoneRules.mediaId("none"))
+        assertNull(RingtoneRules.mediaId(null))
+    }
+
+    @Test
     fun `a late start skips ahead by how late it is, within limits`() {
         assertEquals(0L, RingtoneRules.catchUpMs(0, 45_000))
         assertEquals(420L, RingtoneRules.catchUpMs(420, 45_000))
-        // A clock gone wrong is capped, not chased.
+        // A delay that long is more likely a wrong clock: capped, not chased.
         assertEquals(RingtoneRules.MAX_CATCH_UP_MS, RingtoneRules.catchUpMs(60_000, 45_000))
         assertEquals(0L, RingtoneRules.catchUpMs(-200, 45_000))
         // A ringtone shorter than the delay wraps round, as the loop does.

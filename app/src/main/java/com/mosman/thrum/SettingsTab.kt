@@ -79,6 +79,8 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
     val restoreScope = rememberCoroutineScope()
     var background by remember { mutableStateOf(store.hapticsMode == HapticsWorker.MODE_BACKGROUND) }
     var callSong by remember { mutableStateOf(store.armedScore?.sourceName) }
+    // An imported haptic has no sound, so the row can't call it a ringtone.
+    val soundless = remember { store.sourceUri?.let(ThrumFile::isImported) == true }
     val body = remember { store.body }
     var scanning by remember { mutableStateOf(false) }
     // The last scan's outcome, worded at drawing time rather than when the
@@ -111,7 +113,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
         SettingsSection(stringResource(R.string.settings_calls_section)) {
             // The song's name under the label, where a long name has room.
             SettingsRow(
-                name = stringResource(R.string.settings_song_for_calls),
+                name = stringResource(if (soundless && callSong != null) R.string.home_for_calls_vibration else R.string.settings_song_for_calls),
                 sub = callSong ?: stringResource(R.string.settings_not_set),
                 onClick = onOpenHome,
             )

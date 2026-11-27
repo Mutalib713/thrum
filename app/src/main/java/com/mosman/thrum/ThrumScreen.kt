@@ -4,6 +4,7 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -83,8 +84,13 @@ fun ThrumApp(
     var failure by remember { mutableStateOf<String?>(null) }
     // Whether the phone rings with the song Thrum vibrates to: then Ring mode
     // plays too (Task 31). Asked again and again, because the user can change
-    // the ringtone in Android's settings at any time.
-    val ringtoneIsSong by rememberPolled(false) { Ringtone.isTheSong(it) }
+    // the ringtone in Android's settings at any time. It starts from the real
+    // answer, read once: starting from "no" made Home open on "Thrum stays
+    // quiet" for a moment in Ring mode, before correcting itself.
+    val ringtoneIsSong by rememberPolled(remember { Ringtone.isTheSong(ctx) }) { Ringtone.isTheSong(it) }
+    // A haptic imported from a Thrum file has no sound, so it can never be
+    // the ringtone: Home words it as calls' vibration, not as a ringtone.
+    val soundless = store.sourceUri?.let(ThrumFile::isImported) == true
     val actions = rememberRowActions(onTune = {})
 
     val permitted by rememberPolled(true) { hasCallAccess(it) }
@@ -176,7 +182,7 @@ fun ThrumApp(
                                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                                     .build(),
                             )
-                            setDataSource(ctx, Uri.parse(source))
+                            setDataSource(ctx, source.toUri())
                             prepare()
                         }
                     }.getOrNull()
@@ -246,7 +252,7 @@ fun ThrumApp(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Overline(
-                    stringResource(R.string.home_for_calls),
+                    stringResource(if (soundless) R.string.home_for_calls_vibration else R.string.home_for_calls),
                     color = if (current != null && !blocked) ThrumAccentInk else ThrumInk2,
                 )
                 when {
@@ -477,7 +483,9 @@ private fun ColumnScope.ReadyCard(
                     modifier = Modifier.padding(top = Space.S3),
                 )
             }
-            CardNote(stringResource(R.string.setup_ring_off_help))
+            // No button means no sound to make a ringtone from (an imported
+            // haptic), so the help mustn't tell the user to make one.
+            CardNote(stringResource(if (onSetRingtone != null) R.string.setup_ring_off_help else R.string.setup_ring_off_help_no_sound))
         }
     }
 

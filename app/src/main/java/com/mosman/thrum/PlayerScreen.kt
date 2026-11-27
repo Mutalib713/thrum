@@ -63,8 +63,10 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
     val haptic = Player.haptic
     // Asked again and again: the ringtone question can end either way, and
     // the user can change the ringtone in Android's settings at any time.
+    // Each starts from the real answer, read once, so the player doesn't open
+    // showing "Set as ringtone" for a moment on the song that already is.
     val isCallSong by rememberPolled(Player.isCallSong(ctx)) { Player.isCallSong(it) }
-    val isRingtone by rememberPolled(false) { Player.isCallSong(it) && Ringtone.isTheSong(it) }
+    val isRingtone by rememberPolled(remember(now.track.sourceUri) { isRingtoneNow(ctx) }) { isRingtoneNow(it) }
 
     ThrumPage {
         Row(
@@ -295,3 +297,7 @@ fun MiniPlayer() {
         }
     }
 }
+
+/** The song playing is the one calls vibrate to, and the phone rings with it. */
+private fun isRingtoneNow(ctx: android.content.Context): Boolean =
+    Player.isCallSong(ctx) && Ringtone.isTheSong(ctx)

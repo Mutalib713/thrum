@@ -74,6 +74,8 @@
             stays silent, exactly as a call would), the 45-second window, and
             the last call line read from the event log. -->
     <string name="home_for_calls">Ringtone</string>
+    <!-- A haptic imported from a Thrum file has no sound, so it can't be a ringtone. -->
+    <string name="home_for_calls_vibration">Call vibration</string>
     <string name="home_ringer_vibrate">on vibrate</string>
     <string name="home_ringer_ring">on ring</string>
     <string name="home_ringer_silent">on silent</string>
@@ -119,6 +121,7 @@
 
     <string name="setup_ring_off">Your phone is on ring and your ringtone is a different sound, so Thrum stays quiet rather than play one song over another.</string>
     <string name="setup_ring_off_help">Set this song as your ringtone, or put your phone on vibrate.</string>
+    <string name="setup_ring_off_help_no_sound">This haptic has no sound, so it can\'t be your ringtone. Put your phone on vibrate to feel it on calls.</string>
 
     <string name="setup_unknown">Thrum can\'t read this phone\'s ringer setting, so it can\'t
         promise anything either way. It will still try when a call comes in.</string>

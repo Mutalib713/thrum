@@ -12,7 +12,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -29,8 +32,42 @@ class RowActions(
     var asking by mutableStateOf<RingtoneAsk?>(null)
         internal set
 
-    /** Sent to Android's settings page to allow it; finished on the way back. */
-    internal var waiting: RingtoneAsk? = null
+    /**
+     * The app, not the screen: a ringtone takes a few seconds to make, and
+     * leaving the player or a tab in that time used to stop it halfway with
+     * no word said.
+     */
+    private val app: Context = ctx.applicationContext
+
+    /**
+     * Where ringtone work runs: not tied to any screen, so it finishes and
+     * says how it went even after the screen that asked has closed. A failure
+     * is said in words rather than closing the app.
+     */
+    private val lasting = CoroutineScope(
+        SupervisorJob() + Dispatchers.Main + CoroutineExceptionHandler { _, _ -> say(app, app.getString(R.string.error_title)) },
+    )
+
+    /**
+     * Sent to Android's settings page to allow it; finished on the way back.
+     * Written to the app's storage, because Android may close Thrum while
+     * the user is on that page ([RingtoneRules.encodePending]).
+     */
+    internal fun rememberPending(ask: RingtoneAsk) {
+        Store(app).pendingRingtone = RingtoneRules.encodePending(ask, System.currentTimeMillis())
+    }
+
+    internal fun forgetPending() {
+        Store(app).pendingRingtone = null
+    }
+
+    /** The ask waiting on Android's page, taken so only one screen finishes it. */
+    internal fun takePending(): RingtoneAsk? {
+        val store = Store(app)
+        val text = store.pendingRingtone ?: return null
+        store.pendingRingtone = null
+        return RingtoneRules.decodePending(text, System.currentTimeMillis())
+    }
 
     /**
      * Set as ringtone: the phone rings with the song and Thrum vibrates to
@@ -56,32 +93,32 @@ class RowActions(
     }
 
     internal fun applyRingtone(ask: RingtoneAsk) {
-        scope.launch {
+        lasting.launch {
             if (!ask.armed) {
                 val haptic = withHaptic(ask.track) ?: return@launch
-                LibraryActions.useForCalls(ctx, haptic)
+                LibraryActions.useForCalls(app, haptic)
             }
-            say(ctx, ctx.getString(R.string.ringtone_making, ask.track.name))
+            say(app, app.getString(R.string.ringtone_making, ask.track.name))
             // The vibration is set whatever happens to the sound: it never
             // needed a permission. Without the sound, Thrum plays on vibrate
             // only, so the user never hears one song and feels another.
-            when (Ringtone.setFrom(ctx, ask.track, ask.previousSong)) {
-                Ringtone.Outcome.Set -> say(ctx, ctx.getString(R.string.ringtone_done, ask.track.name))
-                Ringtone.Outcome.NoSound -> say(ctx, ctx.getString(R.string.ringtone_no_sound, ask.track.name))
+            when (Ringtone.setFrom(app, ask.track, ask.previousSong)) {
+                Ringtone.Outcome.Set -> say(app, app.getString(R.string.ringtone_done, ask.track.name))
+                Ringtone.Outcome.NoSound -> say(app, app.getString(R.string.ringtone_no_sound, ask.track.name))
                 Ringtone.Outcome.Refused, Ringtone.Outcome.NoPermission ->
-                    say(ctx, ctx.getString(R.string.ringtone_refused, ask.track.name))
+                    say(app, app.getString(R.string.ringtone_refused, ask.track.name))
             }
         }
     }
 
     /** Only the vibration: calls vibrate to it on vibrate, and the ringtone stays as it is. */
     fun vibrationOnly(ask: RingtoneAsk) {
-        scope.launch {
+        lasting.launch {
             if (!ask.armed) {
                 val haptic = withHaptic(ask.track) ?: return@launch
-                LibraryActions.useForCalls(ctx, haptic)
+                LibraryActions.useForCalls(app, haptic)
             }
-            say(ctx, ctx.getString(R.string.calls_done, ask.track.name))
+            say(app, app.getString(R.string.calls_done, ask.track.name))
         }
     }
 
@@ -113,17 +150,17 @@ class RowActions(
      * eight seconds reads as broken.
      */
     private suspend fun withHaptic(track: Track): Haptic? {
-        val existing = LibraryDb.get(ctx).dao().let { dao ->
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dao.hapticFor(track.sourceUri) }
+        val existing = LibraryDb.get(app).dao().let { dao ->
+            kotlinx.coroutines.withContext(Dispatchers.IO) { dao.hapticFor(track.sourceUri) }
         }?.toHaptic()
         if (existing != null) return existing
         if (!track.readable || ThrumFile.isImported(track.sourceUri)) {
-            say(ctx, ctx.getString(R.string.player_unreadable))
+            say(app, app.getString(R.string.player_unreadable))
             return null
         }
-        say(ctx, ctx.getString(R.string.making_first, track.name))
-        val made = HapticMaker.make(ctx, track)
-        made.error?.let { say(ctx, it) }
+        say(app, app.getString(R.string.making_first, track.name))
+        val made = HapticMaker.make(app, track)
+        made.error?.let { say(app, it) }
         return made.haptic
     }
 }
@@ -148,8 +185,9 @@ fun RowActionsHost(actions: RowActions) {
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                actions.waiting?.let { ask ->
-                    actions.waiting = null
+                // Whichever screen comes back first finishes it, even one
+                // that didn't ask, or a fresh Thrum after Android closed it.
+                actions.takePending()?.let { ask ->
                     if (Ringtone.canChange(ctx)) {
                         actions.applyRingtone(ask)
                     } else {
@@ -167,9 +205,9 @@ fun RowActionsHost(actions: RowActions) {
             name = ask.track.name,
             onOpenSettings = {
                 actions.asking = null
-                actions.waiting = ask
+                actions.rememberPending(ask)
                 runCatching { ctx.startActivity(Ringtone.permissionIntent(ctx)) }
-                    .onFailure { actions.waiting = null }
+                    .onFailure { actions.forgetPending() }
             },
             onVibrationOnly = {
                 actions.asking = null
@@ -179,9 +217,3 @@ fun RowActionsHost(actions: RowActions) {
         )
     }
 }
-
-/**
- * A Set as ringtone in progress: the song, whether calls already vibrate to
- * it, and the song they vibrated to before, captured when the ask began.
- */
-data class RingtoneAsk(val track: Track, val armed: Boolean, val previousSong: String?)
