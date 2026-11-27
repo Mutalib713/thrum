@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Task 32, test builds only. Gradle merges this into the main manifest for
+  debug builds and never for release, so the real app asks for no Phone
+  permission and has no ringing listener.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <application>
+        <!-- Exported because the sender is Android itself; PHONE_STATE is a
+             protected broadcast, so no other app can send it. -->
+        <receiver
+            android:name=".PhoneProbe"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

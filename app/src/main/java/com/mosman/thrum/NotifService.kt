@@ -61,6 +61,9 @@ class NotifService : NotificationListenerService() {
     private fun onIncoming(sbn: StatusBarNotification) {
         val ringer = Haptics.ringerMode(this)
         val latency = (System.currentTimeMillis() - sbn.postTime).coerceAtLeast(0)
+        // Task 32: the notification's side of the timing, next to the Phone
+        // permission's "ringing" line. Test builds only (PhoneProbeLog).
+        PhoneProbeLog.note(this, "NOTIFICATION incoming · posted $latency ms before Thrum saw it · ringer $ringer")
 
         // A dialer updates its call notification moments after posting it —
         // caller ID resolves, a photo loads, an action changes. Every update

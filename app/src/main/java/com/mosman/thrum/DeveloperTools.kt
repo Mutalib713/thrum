@@ -1,7 +1,14 @@
 package com.mosman.thrum
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.core.content.ContextCompat
 import android.os.SystemClock
 import android.os.VibrationEffect
 import android.util.Log
@@ -65,6 +72,8 @@ fun DeveloperToolsScreen(onClose: () -> Unit) {
             color = ThrumInk2,
             modifier = Modifier.padding(bottom = Space.S4, start = Space.S1, end = Space.S1),
         )
+
+        PhonePermissionTest()
 
         // Table test: how hard can this phone hit? Task 8's question, still
         // the first thing to ask of a new phone.
@@ -162,6 +171,77 @@ fun DeveloperToolsScreen(onClose: () -> Unit) {
         }
     }
 }
+
+/**
+ * Task 32 (PLAN.md; Mutalib chose it first, 2026-11-27): can Thrum hear a
+ * call through the Phone permission instead of notification access, which
+ * Android locks for apps sent as a file? The button shows Android's real
+ * permission box (question 3); the log lines up the two signals for each
+ * call (questions 1 and 2); the switch lets the probe play the call song by
+ * itself (question 4). The real app doesn't change.
+ */
+@Composable
+private fun PhonePermissionTest() {
+    val ctx = LocalContext.current
+    val granted by rememberPolled(hasPhonePermission(ctx)) { hasPhonePermission(it) }
+    val lines by rememberPolled(PhoneProbeLog.read(ctx).take(SHOWN_LINES)) { PhoneProbeLog.read(it).take(SHOWN_LINES) }
+    var vibrates by remember { mutableStateOf(PhoneProbeLog.vibrates(ctx)) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { yes ->
+        PhoneProbeLog.note(ctx, "permission box answered: ${if (yes) "Allow" else "Don't allow"}")
+    }
+
+    Overline("Phone permission test (Task 32)", modifier = Modifier.padding(bottom = Space.S2, start = 2.dp))
+    ThrumCard(padding = PaddingValues(18.dp)) {
+        Text(
+            "Android can say \"the phone is ringing\" through the Phone permission, which isn't locked for apps " +
+                "sent as a file. This writes down when that signal arrives and when the call notification does, " +
+                "for every call, so the two can be compared. Take a screenshot of Android's box when it shows. " +
+                "Phone permission: ${if (granted) "allowed" else "not allowed"}.",
+            style = ThrumType.body,
+            color = ThrumInkSoft,
+        )
+        SecondaryButton(
+            text = if (granted) "Allowed. Ask again" else "Ask for the Phone permission",
+            small = true,
+            onClick = { ask.launch(Manifest.permission.READ_PHONE_STATE) },
+            modifier = Modifier.padding(top = 14.dp),
+        )
+    }
+    ThrumCard(padding = PaddingValues(vertical = Space.S2), modifier = Modifier.padding(top = Space.S2)) {
+        ThrumSwitchRow(
+            name = "Probe vibrates",
+            help = "On a call, the probe plays your call song itself and stops when you answer or the call ends. " +
+                "Turn call access off first, or both will play.",
+            checked = vibrates,
+            onChange = {
+                vibrates = it
+                PhoneProbeLog.setVibrates(ctx, it)
+            },
+        )
+    }
+    ThrumCard(padding = PaddingValues(18.dp), modifier = Modifier.padding(top = Space.S2)) {
+        Text("Newest first. Also in adb logcat -s ThrumProbe.", style = ThrumType.meta, color = ThrumInk2)
+        if (lines.isEmpty()) {
+            Text("Nothing yet. Allow the permission, then call this phone.", style = ThrumType.meta, color = ThrumInk, modifier = Modifier.padding(top = Space.S2))
+        }
+        lines.forEach { line ->
+            Text(line, style = ThrumType.meta, color = ThrumInk, modifier = Modifier.padding(top = Space.S2))
+        }
+        SecondaryButton(
+            text = "Clear the log",
+            small = true,
+            onClick = { PhoneProbeLog.clear(ctx) },
+            modifier = Modifier.padding(top = 14.dp),
+        )
+    }
+    Spacer(Modifier.height(Space.S5))
+}
+
+private fun hasPhonePermission(ctx: Context): Boolean =
+    ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+
+/** Enough for a few calls: each call writes about three lines. */
+private const val SHOWN_LINES = 20
 
 @Composable
 private fun ToolButton(text: String, onClick: () -> Unit) {
