@@ -15,10 +15,11 @@ object RingtoneRules {
     const val CLIP_MS = ScoreBuilder.RINGTONE_SECONDS * 1000L
 
     /**
-     * A song this much longer than [CLIP_MS] still counts as fitting, so a
-     * 45.3-second ringtone is used as it is rather than cut by a breath.
+     * The highest sample rate a clip is written at. AAC-LC, the kind of `.m4a`
+     * every ringtone player reads, stops at 48 kHz, and Android's own encoder
+     * refuses more. A 96 kHz FLAC is brought down to this first ([clipRate]).
      */
-    const val FITS_SLACK_MS = 500L
+    const val MAX_CLIP_RATE = 48_000
 
     /** The fade at the end of a cut clip, so the jump back to its start doesn't click. */
     const val FADE_OUT_MS = 150L
@@ -71,8 +72,60 @@ object RingtoneRules {
     fun shouldRemember(saved: String?, currentIsThrums: Boolean): Boolean =
         saved == null && !currentIsThrums
 
-    /** Whether a track of this length needs cutting to [CLIP_MS]; unknown (0) means read it and see. */
-    fun needsCut(durationMs: Long): Boolean = durationMs <= 0 || durationMs > CLIP_MS + FITS_SLACK_MS
+    /**
+     * Whether a track of this length needs cutting to [CLIP_MS]; unknown (0)
+     * means read it and see. Anything past 45.0 s is cut: the vibration
+     * repeats every 45.0 s, so a 45.4 s ringtone would slip 0.4 s further
+     * behind it on every repeat.
+     */
+    fun needsCut(durationMs: Long): Boolean = durationMs <= 0 || durationMs > CLIP_MS
+
+    /**
+     * The rate a clip is written at: the song's own, or, above
+     * [MAX_CLIP_RATE], the standard rate it divides into evenly (88.2 and
+     * 176.4 kHz → 44.1 kHz; 96 and 192 kHz → 48 kHz), so bringing it down is
+     * a clean step.
+     */
+    fun clipRate(sourceRate: Int): Int = when {
+        sourceRate <= MAX_CLIP_RATE -> sourceRate
+        sourceRate % 44_100 == 0 -> 44_100
+        else -> MAX_CLIP_RATE
+    }
+
+    /**
+     * The file name for a song's ringtone in Ringtones/Thrum, e.g.
+     * "AIZO (Thrum 3f2a1b).m4a". The six letters come from the song's
+     * address, so two songs that share a name ("Intro", "Track 01") get two
+     * files, and the same song always finds the file it made before. The
+     * name was once the song's name alone, and a second "Intro" quietly got
+     * the first one's sound.
+     */
+    fun clipFileName(songName: String, sourceUri: String, extension: String): String =
+        "${safeName(songName)} (Thrum ${tagOf(sourceUri)}).$extension"
+
+    /**
+     * "Song.mp3" → "Song", but "Mr. Brown" stays "Mr. Brown". Characters a
+     * file name can't hold become spaces, so the name Android stores is the
+     * name Thrum looks for next time.
+     */
+    fun safeName(name: String): String =
+        name.replace(Regex("\\.[A-Za-z0-9]{2,4}$"), "")
+            .replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(MAX_NAME_CHARS)
+            .trim()
+            .ifEmpty { "Thrum" }
+
+    /** Six hex letters from the song's address, written the same way however Android spells it. */
+    private fun tagOf(sourceUri: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(bare(sourceUri).toByteArray())
+            .take(3)
+            .joinToString("") { "%02x".format(it) }
+
+    /** Long enough for any real title; short enough that the whole name fits a file system's 255 bytes. */
+    private const val MAX_NAME_CHARS = 80
 
     /** Frames in the clip at this sample rate. */
     fun clipFrames(sampleRate: Int): Int = (CLIP_MS * sampleRate / 1000).toInt()

@@ -161,15 +161,19 @@ object Ringtone {
             val mime = ctx.contentResolver.getType(source)?.takeIf { it.startsWith("audio/") || it == "application/ogg" }
             if (mime != null) {
                 val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "audio"
-                return copyIntoRingtones(ctx, source, "${baseName(track.name)}.$ext", mime)
+                return copyIntoRingtones(ctx, source, RingtoneRules.clipFileName(track.name, track.sourceUri, ext), mime)
             }
         }
-        return clipOf(ctx, source, track.name)
+        return clipOf(ctx, source, track)
     }
 
-    /** The opening as "Name (Thrum).m4a" in Ringtones/Thrum: the one made before, or a new one. */
-    private fun clipOf(ctx: Context, source: Uri, name: String): Uri? {
-        val fileName = "${baseName(name)} (Thrum).m4a"
+    /**
+     * The opening as "Name (Thrum 3f2a1b).m4a" in Ringtones/Thrum: the one
+     * made from this same song before, or a new one. Named by song, not just
+     * by title, so two songs called "Intro" never share a ringtone.
+     */
+    private fun clipOf(ctx: Context, source: Uri, track: Track): Uri? {
+        val fileName = RingtoneRules.clipFileName(track.name, track.sourceUri, "m4a")
         findInRingtones(ctx, fileName)?.let { return it }
         val temp = File(ctx.cacheDir, "ringtone-clip.m4a")
         try {
@@ -179,10 +183,6 @@ object Ringtone {
             temp.delete()
         }
     }
-
-    /** "Song.mp3" → "Song", but "Mr. Brown" stays "Mr. Brown". */
-    private fun baseName(name: String): String =
-        name.replace(Regex("\\.[A-Za-z0-9]{2,4}$"), "").trim().ifEmpty { "Thrum" }
 
     private fun isAudio(ctx: Context, uri: Uri): Boolean =
         runCatching { ctx.contentResolver.getType(uri) }.getOrNull()

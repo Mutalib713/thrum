@@ -136,13 +136,21 @@ fun ThrumApp(
                     if (built.isSilent()) {
                         failure = ctx.getString(R.string.error_silent)
                     } else {
+                        // Read before arming: once armed, the store only
+                        // knows the new song, and "Go back" needs the old one
+                        // to tell an earlier Thrum ringtone from the user's own.
+                        val previousSong = store.sourceUri
                         // One write: the score, its song and its dials can
                         // never disagree after a restart (Store.arm).
                         store.arm(built, uri.toString(), store.punch, store.distance, store.body)
                         score = built
                         // Then the ringtone, so the phone rings with what it
                         // vibrates to (Task 31). The vibration is set already.
-                        actions.setAsRingtone(Track(uri.toString(), name.ifEmpty { "Thrum" }, durationMs = 0, kind = TrackKind.FILE), armed = true)
+                        actions.setAsRingtone(
+                            Track(uri.toString(), name.ifEmpty { "Thrum" }, durationMs = 0, kind = TrackKind.FILE),
+                            armed = true,
+                            previousSong = previousSong,
+                        )
                     }
                 }
             }

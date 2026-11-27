@@ -41,9 +41,12 @@ class RowActions(
      *
      * @param armed true when calls already vibrate to [track] (Home arms its
      *   own pick as it reads it), so only the ringtone is left to set.
+     * @param previousSong the song calls vibrated to before this one. Read
+     *   now, before anything is armed; a caller that has already armed
+     *   [track] passes the song it replaced.
      */
-    fun setAsRingtone(track: Track, armed: Boolean = false) {
-        val ask = RingtoneAsk(track, armed)
+    fun setAsRingtone(track: Track, armed: Boolean = false, previousSong: String? = Store(ctx).sourceUri) {
+        val ask = RingtoneAsk(track, armed, previousSong)
         when {
             // No sound inside: the vibration is all there is to set.
             ThrumFile.isImported(track.sourceUri) -> vibrationOnly(ask)
@@ -54,7 +57,6 @@ class RowActions(
 
     internal fun applyRingtone(ask: RingtoneAsk) {
         scope.launch {
-            val previous = Store(ctx).sourceUri
             if (!ask.armed) {
                 val haptic = withHaptic(ask.track) ?: return@launch
                 LibraryActions.useForCalls(ctx, haptic)
@@ -63,7 +65,7 @@ class RowActions(
             // The vibration is set whatever happens to the sound: it never
             // needed a permission. Without the sound, Thrum plays on vibrate
             // only, so the user never hears one song and feels another.
-            when (Ringtone.setFrom(ctx, ask.track, previous)) {
+            when (Ringtone.setFrom(ctx, ask.track, ask.previousSong)) {
                 Ringtone.Outcome.Set -> say(ctx, ctx.getString(R.string.ringtone_done, ask.track.name))
                 Ringtone.Outcome.NoSound -> say(ctx, ctx.getString(R.string.ringtone_no_sound, ask.track.name))
                 Ringtone.Outcome.Refused, Ringtone.Outcome.NoPermission ->
@@ -84,7 +86,7 @@ class RowActions(
     }
 
     /** For an imported haptic's menu item, "Vibrate for calls". */
-    fun useForCalls(track: Track) = vibrationOnly(RingtoneAsk(track, armed = false))
+    fun useForCalls(track: Track) = vibrationOnly(RingtoneAsk(track, armed = false, previousSong = null))
 
     fun tune(track: Track) {
         scope.launch {
@@ -178,5 +180,8 @@ fun RowActionsHost(actions: RowActions) {
     }
 }
 
-/** A Set as ringtone in progress: the song, and whether calls already vibrate to it. */
-data class RingtoneAsk(val track: Track, val armed: Boolean)
+/**
+ * A Set as ringtone in progress: the song, whether calls already vibrate to
+ * it, and the song they vibrated to before, captured when the ask began.
+ */
+data class RingtoneAsk(val track: Track, val armed: Boolean, val previousSong: String?)

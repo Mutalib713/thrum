@@ -101,6 +101,34 @@ object Pcm {
     }
 
     /**
+     * Interleaved 16-bit audio brought down from [fromRate] to [toRate], for a
+     * ringtone clip whose encoder won't take the higher rate (Task 31: a
+     * 96 kHz FLAC). Each new frame is the average of the old frames it
+     * covers. Averaging also damps the sound above the new rate's limit,
+     * which would otherwise fold back down as hiss; it is a simple filter, not
+     * a studio one, and plenty for a phone speaker. Down only.
+     *
+     * @return the new samples, (frames × toRate / fromRate) × channels long.
+     */
+    fun downsample(samples: ShortArray, frames: Int, channels: Int, fromRate: Int, toRate: Int): ShortArray {
+        require(channels > 0) { "channels must be positive, was $channels" }
+        require(toRate in 1 until fromRate) { "only down: $fromRate → $toRate" }
+        val inFrames = frames.coerceAtMost(samples.size / channels)
+        val outFrames = (inFrames.toLong() * toRate / fromRate).toInt()
+        val out = ShortArray(outFrames * channels)
+        for (o in 0 until outFrames) {
+            val start = (o.toLong() * fromRate / toRate).toInt()
+            val end = ((o + 1).toLong() * fromRate / toRate).toInt().coerceIn(start + 1, inFrames)
+            for (c in 0 until channels) {
+                var sum = 0L
+                for (f in start until end) sum += samples[f * channels + c]
+                out[o * channels + c] = (sum / (end - start)).toInt().toShort()
+            }
+        }
+        return out
+    }
+
+    /**
      * Loudest sample in the range, as a positive number.
      *
      * Reported by Task 3 so a file that decodes to silence is visible

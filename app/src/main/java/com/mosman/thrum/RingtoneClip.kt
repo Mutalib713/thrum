@@ -34,8 +34,9 @@ object RingtoneClip {
      * setting a ringtone that doesn't exist.
      */
     fun make(ctx: Context, source: Uri, out: File): Boolean {
-        val opening = runCatching { readOpening(ctx, source) }.getOrNull() ?: return false
-        if (opening.frames == 0) return false
+        val read = runCatching { readOpening(ctx, source) }.getOrNull() ?: return false
+        if (read.frames == 0) return false
+        val opening = atEncoderRate(read)
         fade(opening)
         return runCatching { write(opening, out) }.getOrDefault(false).also { written ->
             if (!written) out.delete()
@@ -185,6 +186,18 @@ object RingtoneClip {
             val outCh = outChannels(channels)
             return Opening(samples, used / outCh, rate, outCh, cut)
         }
+    }
+
+    /**
+     * The opening at a rate the AAC encoder takes. A 96 kHz file used to fail
+     * here as "couldn't turn this sound into a ringtone", which read as if it
+     * had no sound at all.
+     */
+    private fun atEncoderRate(opening: Opening): Opening {
+        val rate = RingtoneRules.clipRate(opening.sampleRate)
+        if (rate == opening.sampleRate) return opening
+        val samples = Pcm.downsample(opening.samples, opening.frames, opening.channels, opening.sampleRate, rate)
+        return Opening(samples, samples.size / opening.channels, rate, opening.channels, opening.cut)
     }
 
     /** The last [RingtoneRules.FADE_OUT_MS] down to silence, so the loop back to the start doesn't click. */

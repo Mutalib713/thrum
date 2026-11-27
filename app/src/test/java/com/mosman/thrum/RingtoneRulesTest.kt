@@ -2,6 +2,7 @@ package com.mosman.thrum
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -54,10 +55,56 @@ class RingtoneRulesTest {
     fun `only songs longer than the clip are cut`() {
         assertEquals(45_000L, RingtoneRules.CLIP_MS)
         assertFalse(RingtoneRules.needsCut(30_000))
-        assertFalse("a breath over 45 s is used as it is", RingtoneRules.needsCut(45_400))
-        assertTrue(RingtoneRules.needsCut(45_600))
+        assertFalse(RingtoneRules.needsCut(45_000))
+        // The vibration repeats every 45.0 s: a 45.4 s ringtone would slip
+        // 0.4 s behind it on each repeat, so even a breath over is cut.
+        assertTrue(RingtoneRules.needsCut(45_400))
         assertTrue(RingtoneRules.needsCut(238_000))
         assertTrue("an unknown length is read and cut if it needs it", RingtoneRules.needsCut(0))
+    }
+
+    @Test
+    fun `two songs with one name get two ringtone files, the same song gets its own back`() {
+        val intro1 = RingtoneRules.clipFileName("Intro", "content://media/external/audio/media/11", "m4a")
+        val intro2 = RingtoneRules.clipFileName("Intro", "content://media/external/audio/media/12", "m4a")
+        assertTrue(intro1, Regex("""Intro \(Thrum [0-9a-f]{6}\)\.m4a""").matches(intro1))
+        assertNotEquals(intro1, intro2)
+        assertEquals(intro1, RingtoneRules.clipFileName("Intro", "content://media/external/audio/media/11", "m4a"))
+        // The same song, as Android sometimes writes its address.
+        assertEquals(intro1, RingtoneRules.clipFileName("Intro", "content://0@media/external/audio/media/11", "m4a"))
+    }
+
+    @Test
+    fun `ringtone file names hold only what a file name can`() {
+        assertEquals("AIZO", RingtoneRules.safeName("AIZO.mp3"))
+        assertEquals("Mr. Brown", RingtoneRules.safeName("Mr. Brown"))
+        assertEquals("AC DC Live", RingtoneRules.safeName("AC/DC: Live?"))
+        assertEquals("Thrum", RingtoneRules.safeName("  .mp3"))
+        assertEquals(80, RingtoneRules.safeName("x".repeat(300)).length)
+    }
+
+    @Test
+    fun `audio above 48 kHz is written at a rate the encoder takes`() {
+        assertEquals(44_100, RingtoneRules.clipRate(44_100))
+        assertEquals(48_000, RingtoneRules.clipRate(48_000))
+        assertEquals(22_050, RingtoneRules.clipRate(22_050))
+        assertEquals(44_100, RingtoneRules.clipRate(88_200))
+        assertEquals(44_100, RingtoneRules.clipRate(176_400))
+        assertEquals(48_000, RingtoneRules.clipRate(96_000))
+        assertEquals(48_000, RingtoneRules.clipRate(192_000))
+    }
+
+    @Test
+    fun `bringing 96 kHz down to 48 kHz keeps the length and both channels`() {
+        val frames = 96_000 * 45
+        // Left a steady tone level, right a square that flips every frame:
+        // sound far above what 48 kHz can carry, which should average away.
+        val samples = ShortArray(frames * 2) { i -> if (i % 2 == 0) 1000 else if ((i / 2) % 2 == 0) 8000 else -8000 }
+        val out = Pcm.downsample(samples, frames, channels = 2, fromRate = 96_000, toRate = 48_000)
+        assertEquals("exactly 45 s at the new rate", RingtoneRules.clipFrames(48_000) * 2, out.size)
+        assertEquals(1000, out[0].toInt())
+        assertEquals(1000, out[out.size - 2].toInt())
+        assertEquals("the too-high square averages to silence", 0, out[1].toInt())
     }
 
     @Test
