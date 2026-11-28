@@ -22,7 +22,7 @@ Since 2026-10-03 Thrum is the full app (calls, music, videos, My Haptics, export
 
 1. **One song for calls at a time, and calls come first.** v1 is PROFILE.md §4 and the final screens. Not on them? It's v2.
 2. **Never let a user believe the app works when their hardware cannot do it.** The capability check runs first and its verdict is honest.
-3. **Everything runs on the phone. No server, no network, ever.** Nothing leaves the phone unless the user exports it, and an export never contains audio.
+3. **Everything runs on the phone. No server, no network, ever.** Nothing leaves the phone unless the user exports it. Since 2026-11-28 every export carries the song with its vibration inside it (PROFILE.md §6).
 4. **Never ship audio Thrum doesn't own outright, and never host or redistribute anyone else's.** Convert what's already on the user's device, plus the Thrum Originals, which Thrum owns.
 5. **Thrum does not do system-wide audio haptics.** It works only with sound it can open itself (files on the phone, the Thrum Originals). Android 10+ playback capture exists, but Spotify blocks it, calls can never be captured, and it would be a different product: a deliberate choice, not an Android limit. Thrum's own player plays only files on the phone, inside Thrum.
 6. **Prove it on hardware before building around it.** No emulator exists here and emulators can't do vibration anyway.

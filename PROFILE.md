@@ -59,7 +59,7 @@ Rewritten 2026-10-03. The layout reference for every screen is `docs/design/scre
 7. **Videos and audio files** [16]. One at a time, through the phone's own file chooser. Thrum reads the audio track of a video, and never asks for access to all videos.
 8. **My Haptics** [19]. The haptics the user *makes* (from audio, a video, or an opened Thrum file), filtered by All, Audio, Video. *Changed by Mutalib on 2026-10-06:* songs' automatic haptics no longer appear here; they stay with their songs in the Music tab. Every row in both tabs has a ⋮ menu (My Haptics: Set as ringtone, Tune the feel, Share, Export, Rename, Delete; Music: the same without Rename and Delete), and a long-press selects several rows to export together, or to delete together in My Haptics. Music has no delete: it lists the phone's own songs.
 9. **Tune the feel** [15]. Three presets (Crisp, Full, Strong) as the main choice, and two switches: Extra taps (was the Focus dial) and Softer (was the Intensity dial). Changed 2026-10-06, because the dials measured as barely felt.
-10. **Export and import** [16, 17]. Export one haptic or all of them as a "Thrum file (vibration only)" saved on the phone; songs without a haptic get one first. Import opens a Thrum file. **Only the vibration is exported, never audio.** "A ringtone with the vibration inside" is shown as not built yet: that is the v2 encoder.
+10. **Export and import** [16, 17]. Export one haptic or all of them as a "Thrum file (vibration only)" saved on the phone; songs without a haptic get one first. Import opens a Thrum file. ~~Only the vibration is exported, never audio.~~ *Changed 2026-11-28 by Mutalib:* every export carries the song with its vibration inside it (Rule 3). Until the encoder exists (PLAN Task 33), export stays vibration only.
 11. **Home** [18]. The ringtone (the song for calls) with its rhythm, "Feel a test call", the last call, shortcuts to Music and Create, and recently played songs.
 12. **Settings, About, Phone check** [20–22]. The founder story lives in About, not in first launch.
 13. **Look.** The current colours (sulphur-concrete), drawn flat. Liquid glass is wanted and gets discussed after everything else (Mutalib, 2026-10-03). Follows system light/dark.
@@ -91,7 +91,7 @@ Decisions no future session may reopen without Mutalib saying so:
 
 1. **One song for calls at a time, and calls come first.** v1 is the app described in §4 and drawn in `docs/design/screens/`; anything not on those screens is v2.
 2. **Never let a user believe the app works when their hardware cannot do it.** The capability check runs before anything else and its verdict is honest, not hedged. A one-star review saying "does nothing" is worse than a user who never installs.
-3. **Everything runs on the phone. No server, no network, ever.** No audio, score or file leaves the phone unless the user exports it themselves, and an export never contains audio. This keeps running costs at zero regardless of user count, and means there is no privacy story to get wrong.
+3. **Everything runs on the phone. No server, no network, ever.** No audio, score or file leaves the phone unless the user exports it themselves. An export carries the song with its vibration inside it (changed 2026-11-28, below). This keeps running costs at zero regardless of user count, and means there is no privacy story to get wrong.
 4. **Never ship audio Thrum doesn't own outright, and never host or redistribute anyone else's.** The app converts files that are already on the user's device, plus the Thrum Originals, which Thrum owns. Stock ringtones are Google's property; converting one locally for personal use is fine, distributing it is how apps get pulled.
 5. **Thrum does not do system-wide audio haptics.** It works only with sound it can open itself: files on the phone and the Thrum Originals. Android 10 and later can let an app capture other apps' sound with the user's permission (playback capture), but Spotify blocks it, calls can never be captured, and building on it would be a different product. This is a deliberate choice, not an Android limit; reopening it needs Mutalib's say-so. Thrum's own player only plays files that are on the phone, inside Thrum.
 6. **Prove it on hardware before building around it.** Every assumption about how the system ringer behaves gets tested on a real phone with a real incoming call. Emulators cannot test vibration and this machine has none anyway.
@@ -108,6 +108,14 @@ Decisions no future session may reopen without Mutalib saying so:
 | 4 | Never ship, host, or redistribute audio. | Never ship audio Thrum doesn't own outright, and never host or redistribute anyone else's. *(Changed later the same day, when Mutalib said yes to Thrum Originals.)* |
 
 Rules 2, 6, 7 and 8 are untouched.
+
+**Changed with Mutalib's approval on 2026-11-28** ("i want the export to contain both the music and the vibrator"; asked whether to limit it, he chose "Yes, always include it", and the format "Vibration inside the song"):
+
+| Rule | Was | Now |
+|---|---|---|
+| 3 | Nothing leaves the phone unless the user exports it, and an export never contains audio. | Nothing leaves the phone unless the user exports it. Every export carries the song, as one audio file with the vibration inside it (a haptic channel), so it plays sound and vibration together in any player on phones that support it. |
+
+**Open, for Mutalib:** Rule 4 still says Thrum never redistributes anyone else's audio. An export of a song from the phone, shared with Share, now carries that song. The user is the one sharing it, but Thrum makes it easy; Rule 4's wording, and a line in the app about only sharing music you have the right to share, are his to decide.
 
 **Rule 5 reworded with Mutalib's approval on 2026-10-07.** The old text said "Android gives no app access to another app's audio … there isn't one", which is false: Android 10+ has playback capture (`docs/research/sound-to-haptics.md`). The rule itself is unchanged — Thrum still does not do system-wide haptics — and now says why honestly: a deliberate product choice, not a platform limit.
 
