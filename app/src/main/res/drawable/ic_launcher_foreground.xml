@@ -1,34 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Thrum's mark: the pulse ribbon.
+  Thrum's mark since 2026-11-28: logo A, picked by Mutalib from four options built
+  on the Pills bar style (scratch/logo-options.html). Five rounded pills, the middle
+  one yellow, the same picture as the splash and the welcome page's mark, so the
+  launch, the splash and the app read as one thing. It replaces the five square
+  yellow bars, and with them the old brief's "square corners" rule: he chose pills.
 
-  The same five-bar rhythm the app draws on its own screen, because that is the
-  one thing this product has that nothing else does — the score, made visible.
-  An icon is not the place to introduce a second idea.
-
-  Drawn as vector rather than exported as PNG at five densities: it is five
-  rectangles, it is exact at every size, and there is no raster to go soft in a
-  launcher's circle mask.
-
-  Geometry, for anyone who has to touch this later. The adaptive canvas is
-  108x108 and the inner 66x66 (21 to 87) is what a launcher is guaranteed to
-  show, so the bars live between x=24 and x=84 and between y=24 and y=82 — clear
-  of the mask on every shape, including the round one. Bars are 8 wide with a
-  5 gap, and bottom-aligned on y=82 so it reads as a rhythm rather than a chart.
-
-  Square corners, deliberately. `design-brief.md` Phase 3: a rounded bar reads as
-  a decorative chart, and this is a machine part shown at its real shape.
+  Geometry (108x108 adaptive canvas; the inner 66x66, 21 to 87, is what every
+  launcher mask keeps): pills 7.78 wide with 4.97 gaps, centred on 54, heights in
+  style B's shape (0.5, 0.78, 1, 0.78, 0.5 of 49.7), so they span about x 24.6 to
+  83.4 and y 29.2 to 78.9: clear of the mask on every shape, the round one too.
+  Colours are the palette's: ink #EFEFEA and accent #D8C513 on field #1C1C1A
+  (the background colour, colors.xml).
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- Safety yellow, the accent from the sulphur-concrete colour world. -->
-    <path android:fillColor="#D8C513" android:pathData="M24,62 h8 v20 h-8 z" />
-    <path android:fillColor="#D8C513" android:pathData="M37,38 h8 v44 h-8 z" />
-    <path android:fillColor="#D8C513" android:pathData="M50,24 h8 v58 h-8 z" />
-    <path android:fillColor="#D8C513" android:pathData="M63,50 h8 v32 h-8 z" />
-    <path android:fillColor="#D8C513" android:pathData="M76,68 h8 v14 h-8 z" />
+    <path android:fillColor="#EFEFEA" android:pathData="M24.62,45.47 A3.89,3.89 0 0 1 32.4,45.47 V62.53 A3.89,3.89 0 0 1 24.62,62.53 Z" />
+    <path android:fillColor="#EFEFEA" android:pathData="M37.37,38.51 A3.89,3.89 0 0 1 45.14,38.51 V69.49 A3.89,3.89 0 0 1 37.37,69.49 Z" />
+    <path android:fillColor="#D8C513" android:pathData="M50.11,33.05 A3.89,3.89 0 0 1 57.89,33.05 V74.95 A3.89,3.89 0 0 1 50.11,74.95 Z" />
+    <path android:fillColor="#EFEFEA" android:pathData="M62.86,38.51 A3.89,3.89 0 0 1 70.63,38.51 V69.49 A3.89,3.89 0 0 1 62.86,69.49 Z" />
+    <path android:fillColor="#EFEFEA" android:pathData="M75.6,45.47 A3.89,3.89 0 0 1 83.38,45.47 V62.53 A3.89,3.89 0 0 1 75.6,62.53 Z" />
 </vector>
