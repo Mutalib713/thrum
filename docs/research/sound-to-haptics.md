@@ -74,7 +74,7 @@ Their intro layout: a segmented progress bar across the top, Skip top right, Bac
 ### What Thrum can take from how they describe things
 
 1. **Every setting carries one plain line saying what it does to you**: "Prevents the display sleeping mid-track", "Frees space; Spotify songs can be re-cached again". Several Thrum rows show a value with no line under it.
-2. **Name what you feel, not the audio term**: Bass → THUD, Beats → IMPACT, Vocals → SWISH. Thrum's Focus dial is the abstract kind.
+2. **Name what you feel, not the audio term**: Bass → THUD, Beats → IMPACT, Vocals → SWISH. Thrum's tune screen already does this (Crisp, Full, Strong, Extra taps); the old Focus dial is gone.
 3. **Say what an action leaves alone**: "Theme, background, and motion preferences only" under Reset. Thrum's delete prompt already does this ("Your audio and video files stay on your phone").
 4. **A subtitle under a screen title summing it up**: "Settings · Appearance, motion, and storage".
 5. **A no-commitment first try**: "Try the demo track instead" sits right under the main action on an empty Home.
@@ -103,3 +103,60 @@ Mutalib installed V3 himself; Android reports `versionName=3.0`. Walked: the int
 **More for Thrum to take:** an empty state that says what will live there and offers the one action that fills it; a reassurance line right under the button that asks for trust (Thrum's call-access screen already does this); and owning a limit in the copy ("may not work with some devices"), which is Sacred Rule 2 in their words.
 
 **Not for Thrum:** BitChord streams from a service through an unofficial client: network, someone else's audio, a sign-in to the user's Google account. That breaks Rules 3 and 4. Engine names in copy ("ExoPlayer", "decoded audio") and the joke help line, also not.
+
+## Where Thrum's wording could change (audit of strings.xml, 2026-11-28)
+
+Every line of `app/src/main/res/values/strings.xml` was read against the lessons above. These are **suggestions for Mutalib to pick from; nothing has changed in the app.** The string name is in brackets so each one can be found. Most of Thrum's copy already follows these lessons; the list is only the places that don't.
+
+### 1. The word "haptic" is never explained
+
+The app's main noun is used everywhere (My Haptics, "Make a haptic", "Making its haptic…", "Your first haptic goes here.") but no screen says what one is. The onboarding talks about "beats" and "the vibration motor" and never uses the word.
+
+- **Suggestion:** one sentence on the onboarding page "Turn sound into touch" [`onboarding_touch_body`]: "…plays them on your phone's vibration motor. We call that pattern a **haptic**."
+- Then "haptic" can stay everywhere else, as the tab name and in buttons.
+
+### 2. Settings rows with a value but no line saying what they do
+
+| Row | Today | Suggested line under it |
+|---|---|---|
+| Call access [`settings_call_access`] | "Change it in Android's settings" (says where, not what) | "Lets Thrum know when a call starts." |
+| Music access [`settings_music_access`] | none | "Lets Thrum find the songs on your phone." |
+| Make haptics [`settings_make_haptics`] | value only | "When Thrum makes a song's haptic: all at once, or when you play it." |
+| Default feel [`settings_default_feel`] | value only (Crisp / Full / Strong) | "How beats feel on your ringtone and new haptics." |
+| Bars [`bars_title`] | value only | "How the rhythm moves on the player." (the picker already says this, the row doesn't) |
+| Phone check [`phonecheck_title`] | none | "What your phone's motor can do, and what Thrum did on your last calls." |
+| Go back to my old ringtone [`settings_old_ringtone`] | none | "Your haptics stay in Thrum." (says what it leaves alone) |
+
+### 3. A one-line summary under screen titles
+
+- **Settings** [`tab_settings` heading]: nothing under it. Suggest: "Calls, music and how it feels".
+- **My Haptics**: the explanation only appears when the list is empty [`haptics_empty_body`]. A short subtitle that stays: "Made from your audio and videos".
+
+### 4. Say what an action leaves alone
+
+- **Reset to default** on the tune screen [`tune_reset`]: add "Only the feel. Your ringtone and haptics stay."
+- **Set as ringtone** prompt [`ringtone_ask_body`]: add "You can go back to your old ringtone in Settings." (true: Settings has that row).
+- **Delete** [`haptics_delete_body`]: already does this. Keep.
+
+### 5. A reassurance line right under the button that asks for trust
+
+- **Allow modifying system settings** [`ringtone_ask_how`]: this is the scariest-sounding Android page Thrum sends people to, and nothing says why it's safe. Suggest under the button: "Thrum only uses this to set your ringtone." (verified: `WRITE_SETTINGS` is used only in `Ringtone.kt`).
+- **Turn on music access** after a refusal [`music_denied_settings`]: add "Thrum reads music and audio files only. Nothing leaves your phone." (the line already exists as `music_intro_privacy`; reuse it here).
+- **Turn on call access** in onboarding [`onboarding_calls_permission`]: the reassurance sits above the button. In the redesign, move it directly under.
+
+### 6. Words that are jargon or vague
+
+| Where | Today | Suggestion |
+|---|---|---|
+| Song rows and player [`rhythm hits` plurals, `player hits`] | "0:20 · 34 hits", "The rhythm: 34 hits over 0:20" | "34 beats": the onboarding already calls them beats. **His call:** "hits" may be deliberate, since not every hit is a musical beat. |
+| Phone check [`phonecheck_amplitude`, `phonecheck_amplitude_help`] | "Strength control" / "The part rhythm needs" | "Changes how hard it buzzes" / "Thrum needs this to play a rhythm, not just one buzz." |
+| Home status [`home_ringer_unknown`] | "ringer unreadable" | "can't tell the ringer mode" |
+| Home last call [`home_last_call`] | "Thrum started your haptic 0.4 s after it rang" | "Thrum started vibrating 0.4 s after it rang" |
+
+### 7. Don't promise more than the phone can do
+
+- **From a video** [`make_video_help`]: "Feel the sound from **any** video" overclaims; some files can't be read (the Dolby case already has its own error). Suggest: "Feel the sound from a video on your phone".
+
+### Already good, don't touch
+
+The ringer-mode explanations ("Android throws the vibration away… No app can get around that"), the presets' help lines (Crisp "Short taps with space between them"), the export privacy lines, the Make-haptics battery warning ("It uses some battery while it does"), and the delete prompt.
