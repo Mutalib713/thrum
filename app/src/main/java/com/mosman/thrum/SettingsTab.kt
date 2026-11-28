@@ -3,6 +3,8 @@ package com.mosman.thrum
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -78,6 +80,25 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
     LaunchedEffect(Unit) { oldRingtone = Ringtone.oldRingtoneName(ctx) }
     val restoreScope = rememberCoroutineScope()
     var background by remember { mutableStateOf(store.hapticsMode == HapticsWorker.MODE_BACKGROUND) }
+    // Make haptics asks rather than flips on a tap (Mutalib, 2026-11-28).
+    var askMode by remember { mutableStateOf(false) }
+    fun useMode(toBackground: Boolean) {
+        if (toBackground == background && store.hapticsMode != null) return
+        background = toBackground
+        store.hapticsDone = 0
+        if (toBackground) {
+            store.hapticsMode = HapticsWorker.MODE_BACKGROUND
+            // Everything without a haptic joins the walk now.
+            scope.launch {
+                val all = withContext(Dispatchers.IO) { db.dao().allTrackUris() }
+                HapticsWorker.enqueue(ctx, all)
+            }
+        } else {
+            store.hapticsMode = HapticsWorker.MODE_AS_PLAYED
+            // Nothing walks the list in "as I play them" mode.
+            store.editQueue(emptySet()) { HapticQueue() }
+        }
+    }
     var callSong by remember { mutableStateOf(store.armedScore?.sourceName) }
     // An imported haptic has no sound, so the row can't call it a ringtone.
     val soundless = remember { store.sourceUri?.let(ThrumFile::isImported) == true }
@@ -100,6 +121,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
     }
     var lastScanAtMs by remember { mutableLongStateOf(store.lastScanAtMs) }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     ThrumPage(overTabs = true) {
         Text(
             stringResource(R.string.tab_settings),
@@ -194,22 +216,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
             SettingsRow(
                 name = stringResource(R.string.settings_make_haptics),
                 value = stringResource(if (background) R.string.settings_mode_background else R.string.settings_mode_as_played),
-                onClick = {
-                    background = !background
-                    store.hapticsDone = 0
-                    if (background) {
-                        store.hapticsMode = HapticsWorker.MODE_BACKGROUND
-                        // Everything without a haptic joins the walk now.
-                        scope.launch {
-                            val all = withContext(Dispatchers.IO) { db.dao().allTrackUris() }
-                            HapticsWorker.enqueue(ctx, all)
-                        }
-                    } else {
-                        store.hapticsMode = HapticsWorker.MODE_AS_PLAYED
-                        // Nothing walks the list in "as I play them" mode.
-                        store.editQueue(emptySet()) { HapticQueue() }
-                    }
-                },
+                onClick = { askMode = true },
             )
         }
 
@@ -234,6 +241,51 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
             SettingsDivider()
             SettingsRow(name = stringResource(R.string.about_title), onClick = { showAbout = true })
         }
+    }
+
+    if (askMode) {
+        var pick by remember { mutableStateOf(background) }
+        ThrumBottomSheet(onDismiss = { askMode = false }) {
+            Text(
+                stringResource(R.string.settings_make_haptics),
+                style = ThrumType.heading,
+                color = ThrumInk,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().semantics { heading() },
+            )
+            Column(
+                modifier = Modifier.padding(vertical = Space.S4),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ModeOption(
+                    selected = pick,
+                    title = stringResource(R.string.make_background),
+                    help = stringResource(R.string.make_background_help),
+                    onSelect = { pick = true },
+                )
+                ModeOption(
+                    selected = !pick,
+                    title = stringResource(R.string.make_as_played),
+                    help = stringResource(R.string.make_as_played_help),
+                    onSelect = { pick = false },
+                )
+            }
+            PrimaryButton(
+                text = stringResource(R.string.settings_make_save),
+                onClick = {
+                    useMode(pick)
+                    askMode = false
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            ThrumTextButton(
+                text = stringResource(R.string.bars_confirm_keep),
+                onClick = { askMode = false },
+                color = ThrumInk2,
+                modifier = Modifier.fillMaxWidth().padding(top = Space.S2),
+            )
+        }
+    }
     }
 }
 

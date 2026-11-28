@@ -423,6 +423,7 @@
     <string name="settings_scan_new_count" tools:ignore="PluralsCandidate">%1$d new</string>
     <string name="settings_scan_nothing_new">nothing new</string>
     <string name="settings_make_haptics">Make haptics</string>
+    <string name="settings_make_save">Save</string>
     <string name="settings_mode_background">In the background</string>
     <string name="settings_mode_as_played">As I play them</string>
     <string name="settings_haptics_section">Haptics</string>

@@ -535,7 +535,7 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
 
 /** One answer to screen 10's question; the whole card is the control. */
 @Composable
-private fun ModeOption(selected: Boolean, title: String, help: String, onSelect: () -> Unit) {
+internal fun ModeOption(selected: Boolean, title: String, help: String, onSelect: () -> Unit) {
     val shape = RoundedCornerShape(Radius.large)
     Row(
         modifier = Modifier
