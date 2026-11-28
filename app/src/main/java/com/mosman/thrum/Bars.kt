@@ -1,14 +1,19 @@
 package com.mosman.thrum
 
+import android.content.Context
 import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
@@ -83,6 +88,64 @@ fun Bars(
             BarStyle.ALBUM -> d.album(t)
         }
     }
+}
+
+/**
+ * The user's Bars style, one for the whole app. Before 2026-11-28 each screen
+ * read it once when it opened, so picking a style in Settings changed nothing
+ * you could see until the player was reopened (Mutalib: "if I select it, it
+ * doesn't change anything"). Now every surface reads this state, and a pick
+ * redraws all of them at once.
+ */
+object BarChoice {
+    private var loaded = false
+    var style by mutableStateOf(BarStyle.DEFAULT)
+        private set
+
+    fun load(ctx: Context) {
+        if (loaded) return
+        style = Store(ctx).barStyle
+        loaded = true
+    }
+
+    fun choose(ctx: Context, chosen: BarStyle) {
+        Store(ctx).barStyle = chosen
+        style = chosen
+        loaded = true
+    }
+}
+
+/** The user's Bars style, followed live: it changes the moment they pick another. */
+@Composable
+fun rememberBarStyle(): BarStyle {
+    val ctx = LocalContext.current
+    remember { BarChoice.load(ctx) }
+    return BarChoice.style
+}
+
+/**
+ * The rhythm in the user's style for a song in a list or on a card: moving while
+ * it plays ([positionMs] then is where it is), otherwise still at its strongest
+ * beat (Mutalib, 2026-11-28).
+ */
+@Composable
+fun SongBars(
+    score: Score?,
+    playing: Boolean,
+    positionMs: Long,
+    modifier: Modifier = Modifier,
+    compact: Boolean = true,
+    dim: Boolean = false,
+) {
+    val still = remember(score) { BarMath(score?.amplitudes ?: emptyList(), score?.stepMs ?: 20).strongestMs() }
+    Bars(
+        style = rememberBarStyle(),
+        score = score,
+        positionMs = if (playing) positionMs else still,
+        playing = playing,
+        compact = compact,
+        modifier = if (dim) modifier.alpha(0.55f) else modifier,
+    )
 }
 
 /** Android's "Remove animations": with the animator scale at 0, the bars draw still. */

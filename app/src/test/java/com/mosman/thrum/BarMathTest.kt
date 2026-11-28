@@ -48,6 +48,16 @@ class BarMathTest {
     }
 
     @Test
+    fun `a still row shows the strongest beat, at its fullest`() {
+        assertEquals("inside the first full step", 30L, m.strongestMs())
+        assertEquals(1f, m.amp(m.strongestMs()), 0f)
+        assertEquals(1f, m.env(m.strongestMs()), 0f)
+        assertEquals(0L, BarMath(listOf(0, 0, 0), 20).strongestMs())
+        assertEquals(0L, BarMath(emptyList(), 20).strongestMs())
+        assertEquals("the later, stronger hit wins", 70L, BarMath(listOf(100, 0, 0, 200, 0), 20).strongestMs())
+    }
+
+    @Test
     fun `notes get one of three lanes, the same every time`() {
         val lanes = (0L until 600L step 20).map { BarMath.lane(it, 20) }.toSet()
         assertEquals(setOf(0, 1, 2), lanes)

@@ -446,13 +446,17 @@ private fun ColumnScope.ReadyCard(
         style = ThrumType.meta,
         color = ThrumInk2,
     )
-    PulseRibbon(
+    // The call song in the user's Bars style (2026-11-28): still at its
+    // strongest beat, moving with the vibration while a test call plays.
+    SongBars(
         score = score,
-        progress = progress,
-        height = 72.dp,
-        barWidth = 3.dp,
-        barGap = 1.dp,
-        modifier = Modifier.padding(top = Space.S3),
+        playing = testing && progress >= 0f,
+        positionMs = (progress.coerceAtLeast(0f) * score.durationMs).toLong(),
+        compact = false,
+        modifier = Modifier
+            .padding(top = Space.S3)
+            .fillMaxWidth()
+            .height(110.dp),
     )
 
     // Said only when the chip's word is not enough. Silent mode is the case
@@ -580,7 +584,13 @@ private fun RecentlyPlayed() {
             ) {
                 Box(Modifier.width(64.dp)) {
                     if (haptic != null) {
-                        PulseRibbon(score = haptic.score, limit = ROW_RIBBON_STEPS, height = 26.dp, barWidth = 2.dp, barGap = 1.dp)
+                        val now = Player.now
+                        SongBars(
+                            score = haptic.score,
+                            playing = now?.track?.sourceUri == track.sourceUri && now.playing,
+                            positionMs = now?.positionMs ?: 0L,
+                            modifier = Modifier.size(64.dp, 40.dp),
+                        )
                     } else {
                         IconCircle(icon = "music", size = 40.dp, iconSize = 18.dp)
                     }

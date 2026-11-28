@@ -2,11 +2,9 @@ package com.mosman.thrum
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,16 +20,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
 /**
- * Bars: pick how the rhythm moves on the player and the mini player
- * (Mutalib, 2026-11-28: from Settings, with a shortcut on the player). Every
- * style plays live here, so the choice is made by watching, not by name.
+ * Bars: pick how the rhythm moves across the app (Mutalib, 2026-11-28: from
+ * Settings, with a shortcut on the player). Every style plays live here, at
+ * close to the player's own size, so it's judged as it will really look.
+ *
+ * A tap asks first (Mutalib: "there should be a prompt that asks the user if
+ * they want to change"); "Use" changes it everywhere at once through
+ * [BarChoice]: the player, the mini player, Home's ringtone card and the song
+ * lists.
  *
  * The previews play the song that's playing, else the song calls vibrate to,
  * else Thrum's built-in sample rhythm, and the screen says when it's the
@@ -41,7 +46,8 @@ import kotlinx.coroutines.delay
 fun BarsScreen(onClose: () -> Unit) {
     val ctx = LocalContext.current
     val store = remember { Store(ctx) }
-    var chosen by remember { mutableStateOf(store.barStyle) }
+    val chosen = rememberBarStyle()
+    var asking by remember { mutableStateOf<BarStyle?>(null) }
     BackHandler(onBack = onClose)
 
     val nowScore = Player.haptic?.score
@@ -68,48 +74,75 @@ fun BarsScreen(onClose: () -> Unit) {
             color = ThrumInk2,
             modifier = Modifier.padding(bottom = Space.S4, start = Space.S1, end = Space.S1),
         )
-        BarStyle.entries.chunked(2).forEach { pair ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = Space.S3),
-                horizontalArrangement = Arrangement.spacedBy(Space.S3),
+        BarStyle.entries.forEach { style ->
+            val selected = style == chosen
+            ThrumCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = Space.S3)
+                    .semantics {
+                        this.selected = selected
+                        role = Role.RadioButton
+                    },
+                borderColor = if (selected) ThrumAccent else ThrumRule,
+                padding = PaddingValues(Space.S3),
+                onClick = { if (!selected) asking = style },
             ) {
-                pair.forEach { style ->
-                    val selected = style == chosen
-                    val name = stringResource(style.nameRes())
-                    ThrumCard(
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics {
-                                this.selected = selected
-                                role = Role.RadioButton
-                            },
-                        borderColor = if (selected) ThrumAccent else ThrumRule,
-                        padding = PaddingValues(Space.S3),
-                        onClick = {
-                            chosen = style
-                            store.barStyle = style
-                        },
-                    ) {
-                        Box(modifier = Modifier.fillMaxWidth().height(110.dp)) {
-                            Bars(
-                                style = style,
-                                score = score,
-                                positionMs = loopMs,
-                                playing = true,
-                                modifier = Modifier.fillMaxWidth().height(110.dp),
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = Space.S2),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(name, style = ThrumType.row, color = ThrumInk, modifier = Modifier.weight(1f))
-                            if (selected) ThrumIcon("check", tint = ThrumAccentInk, size = 18.dp)
-                        }
+                Bars(
+                    style = style,
+                    score = score,
+                    positionMs = loopMs,
+                    playing = true,
+                    modifier = Modifier.fillMaxWidth().height(PREVIEW_HEIGHT),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = Space.S2),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(style.nameRes()), style = ThrumType.row, color = ThrumInk, modifier = Modifier.weight(1f))
+                    if (selected) {
+                        Text(stringResource(R.string.bars_in_use), style = ThrumType.meta, color = ThrumAccentInk)
+                        ThrumIcon("check", tint = ThrumAccentInk, size = 18.dp, modifier = Modifier.padding(start = Space.S1))
                     }
                 }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
+        }
+    }
+
+    asking?.let { style ->
+        val name = stringResource(style.nameRes())
+        ThrumBottomSheet(onDismiss = { asking = null }) {
+            Text(
+                stringResource(R.string.bars_confirm_title, name),
+                style = ThrumType.heading,
+                color = ThrumInk,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().semantics { heading() },
+            )
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = Space.S4)) {
+                Bars(style = style, score = score, positionMs = loopMs, playing = true, modifier = Modifier.fillMaxWidth().height(PREVIEW_HEIGHT))
+            }
+            Text(
+                stringResource(R.string.bars_confirm_body, name),
+                style = ThrumType.lead,
+                color = ThrumInkSoft,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(bottom = Space.S4),
+            )
+            PrimaryButton(
+                text = stringResource(R.string.bars_confirm_use, name),
+                onClick = {
+                    BarChoice.choose(ctx, style)
+                    asking = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            ThrumTextButton(
+                text = stringResource(R.string.bars_confirm_keep),
+                onClick = { asking = null },
+                color = ThrumInk2,
+                modifier = Modifier.fillMaxWidth().padding(top = Space.S2),
+            )
         }
     }
 }
@@ -134,3 +167,6 @@ fun BarStyle.nameRes(): Int = when (this) {
 }
 
 private const val CLOCK_MS = 250L
+
+/** Close to the player's own (180 dp), so a style is judged at the size it plays. */
+private val PREVIEW_HEIGHT = 160.dp

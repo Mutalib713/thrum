@@ -224,7 +224,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
             // time: the picker opens over this tab and saves as it goes.
             SettingsRow(
                 name = stringResource(R.string.bars_title),
-                value = stringResource(store.barStyle.nameRes()),
+                value = stringResource(rememberBarStyle().nameRes()),
                 onClick = onOpenBars,
             )
         }

@@ -487,4 +487,9 @@
     <string name="bar_glow">Glow</string>
     <string name="bar_album">Album</string>
     <string name="bars_rhythm_description">The rhythm, drawn as %1$s</string>
+    <string name="bars_in_use">In use</string>
+    <string name="bars_confirm_title">Use %1$s?</string>
+    <string name="bars_confirm_body">Your player, mini player, Home and song lists will all show %1$s.</string>
+    <string name="bars_confirm_use">Use %1$s</string>
+    <string name="bars_confirm_keep">Keep the one I have</string>
 </resources>

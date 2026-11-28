@@ -193,13 +193,14 @@ private fun RhythmTile(
         if (score != null) {
             // Drawn from the amplitudes, not the score, so a screen reader
             // hears the button's name rather than the picture's.
-            PulseRibbon(
-                amplitudes = score.amplitudes,
-                limit = TILE_STEPS,
-                height = TILE,
-                barWidth = 2.dp,
-                barGap = 1.dp,
-                modifier = Modifier.alpha(if (playing) 0.9f else 0.5f),
+            // The user's Bars style (2026-11-28), dim and still at the song's
+            // strongest beat; bright and moving while this song plays.
+            SongBars(
+                score = score,
+                playing = playing,
+                positionMs = Player.now?.positionMs ?: 0L,
+                dim = !playing,
+                modifier = Modifier.size(TILE),
             )
         } else {
             ThrumIcon(name = kindIcon, tint = ThrumInk2, size = 22.dp, modifier = Modifier.alpha(0.6f))

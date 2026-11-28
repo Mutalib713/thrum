@@ -52,8 +52,8 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit, onBars: () 
     val ctx = LocalContext.current
     val now = Player.now
     val actions = rememberRowActions(onTune)
-    // Read each time the player opens: the Bars picker opens over it.
-    val barStyle = remember { Store(ctx).barStyle }
+    // The live choice: picking another style in Bars redraws this at once.
+    val barStyle = rememberBarStyle()
 
     BackHandler { Player.open = false }
 
@@ -248,7 +248,7 @@ fun MiniPlayer() {
     val now = Player.now ?: return
     val haptic = Player.haptic
     val shape = RoundedCornerShape(Radius.large)
-    val barStyle = remember { Store(ctx).barStyle }
+    val barStyle = rememberBarStyle()
 
     Row(
         modifier = Modifier

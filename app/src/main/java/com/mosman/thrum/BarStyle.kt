@@ -79,6 +79,19 @@ class BarMath(private val amps: List<Int>, private val stepMs: Int) {
         return best
     }
 
+    /**
+     * The moment to show when the song isn't playing (Mutalib, 2026-11-28: rows
+     * show the style "still, at its strongest beat"): just inside the first
+     * step of the strongest hit, where a beat's flash is at its fullest. 0 for
+     * an empty or silent score.
+     */
+    fun strongestMs(): Long {
+        if (amps.isEmpty() || stepMs <= 0) return 0
+        var best = 0
+        for (i in amps.indices) if (amps[i] > amps[best]) best = i
+        return if (amps[best] == 0) 0 else best.toLong() * stepMs + stepMs / 2
+    }
+
     /** Whether a beat starts at [ms]: the motor runs here and was still the step before. */
     fun isOnset(ms: Long): Boolean = amp(ms) > 0f && amp(ms - stepMs) == 0f
 
