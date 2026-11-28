@@ -45,6 +45,9 @@ fun ThrumRoot(onDeveloperTools: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val store = remember { Store(ctx) }
     var onboarded by remember { mutableStateOf(store.onboarded) }
+    // The opening plays each time the app opens (Mutalib, 2026-11-28), but not
+    // again on a rotation, and not straight after first launch's own opening.
+    var opened by rememberSaveable { mutableStateOf(!store.onboarded) }
 
     // A walk left unfinished resumes when the app opens. Before the
     // 2026-10-04 fix the walk stopped after one song, so a phone updated
@@ -56,7 +59,7 @@ fun ThrumRoot(onDeveloperTools: (() -> Unit)? = null) {
 
     Surface(modifier = Modifier.fillMaxSize(), color = ThrumField) {
         if (onboarded) {
-            Tabs(onDeveloperTools)
+            OpeningInto(active = !opened, onDone = { opened = true }) { Tabs(onDeveloperTools) }
         } else {
             OnboardingFlow(onDone = {
                 store.onboarded = true

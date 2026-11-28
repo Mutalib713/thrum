@@ -336,6 +336,132 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
     }
 }
 
+/**
+ * The opening on every launch after the first (Mutalib, 2026-11-28: "open
+ * every time"). The same first half as [SplashToWelcome]: the pills pulse,
+ * merge into the hollow ring, and the ring grows into a frame with the app
+ * inside it. There is no welcome page to land on, so instead of shrinking
+ * back, the frame reaches the screen's edges and fades, leaving Home.
+ *
+ * [content] is always composed in the same place, so the app underneath
+ * keeps its state when the opening ends. Remove animations skips it.
+ */
+@Composable
+fun OpeningInto(active: Boolean, onDone: () -> Unit, content: @Composable () -> Unit) {
+    val moving = motionAllowed()
+    val clock = remember { Animatable(0f) }
+    val rhythm = remember { Demo.rhythm() }
+    val rhythmMath = remember { BarMath(rhythm.amplitudes, rhythm.stepMs) }
+    val palette = LocalThrumPalette.current
+    val density = LocalDensity.current
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    var screen by remember { mutableStateOf(Size.Zero) }
+    var splashPills by remember { mutableStateOf<Rect?>(null) }
+    var splashWord by remember { mutableStateOf<Rect?>(null) }
+
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        if (moving) clock.animateTo(T_LAUNCH_END, tween(T_LAUNCH_END.toInt(), easing = LinearEasing)) else clock.snapTo(T_LAUNCH_END)
+        onDone()
+    }
+
+    val t = clock.value
+    val done = !active || t >= T_LAUNCH_END
+    val merge = inOut((t - T_MERGE) / MERGE)
+    val grow = inOut((t - T_GROW) / GROW)
+    val fade = outCubic((t - T_HOLD) / LAUNCH_FADE)
+
+    val px = with(density) { 1.dp.toPx() }
+    val fromP = splashPills
+    var pieces: List<Piece> = emptyList()
+    var window: Rect? = null
+    var windowRadius = 0f
+    if (!done && fromP != null && screen != Size.Zero) {
+        val circle = Rect(fromP.center, RING_D * px / 2)
+        val accent = palette.accent
+        if (t < T_GROW) {
+            val pills = pillRects(fromP.center, 1f, rhythmMath, min(t, T_MERGE).toLong(), px)
+            val hollow = clamp01((merge - 0.55f) / 0.45f)
+            pieces = pills.mapIndexed { k, r ->
+                val at = lerpRect(r, circle, merge)
+                val colour = if (merge > 0.45f || k == 2) accent else palette.ink
+                Piece(at, min(at.width, at.height) / 2, colour, hollow, RING_EDGE * px)
+            }
+        } else {
+            val w = lerp(circle.width, screen.width, outCubic(grow * 1.35f))
+            val h = lerp(circle.height, screen.height, grow)
+            val centre = Offset(screen.width / 2, lerp(circle.center.y, screen.height / 2, grow))
+            val r = Rect(centre.x - w / 2, centre.y - h / 2, centre.x + w / 2, centre.y + h / 2)
+            val radius = lerp(circle.width / 2, SCREEN_RADIUS * px, outCubic(grow * 1.2f))
+            pieces = listOf(Piece(r, radius, accent.copy(alpha = 1f - fade), 1f, lerp(RING_EDGE, FRAME_EDGE, grow) * px))
+            if (t < T_HOLD) {
+                window = r
+                windowRadius = radius
+            }
+        }
+    }
+    val contentAlpha = when {
+        done -> 1f
+        t < T_GROW -> 0f
+        t < T_HOLD -> outCubic((grow - 0.25f) / 0.35f)
+        else -> 1f
+    }
+    val splashAlpha = when {
+        t < T_GROW -> 1f - merge * 0.4f
+        else -> 0.6f * (1f - grow)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { origin = it.positionInWindow(); screen = it.size.toSize() },
+    ) {
+        val clip = window
+        val clipRadius = windowRadius
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = contentAlpha }
+                .drawWithContent {
+                    if (clip == null) {
+                        drawContent()
+                    } else {
+                        val path = Path().apply { addRoundRect(RoundRect(clip, CornerRadius(clipRadius))) }
+                        clipPath(path) { this@drawWithContent.drawContent() }
+                    }
+                },
+        ) {
+            content()
+        }
+        if (!done) {
+            Box(modifier = Modifier.fillMaxSize().background(ThrumField).graphicsLayer { alpha = splashAlpha }) {
+                // No "Checking your phone's motor": that check runs on the first launch only.
+                Splash(
+                    onPills = { splashPills = it.translate(-origin) },
+                    onWord = { splashWord = it.translate(-origin) },
+                    checking = false,
+                )
+            }
+            Canvas(Modifier.fillMaxSize()) { pieces.forEach { drawPiece(it) } }
+            val word = splashWord
+            if (word != null) {
+                val wordAlpha = if (t < T_GROW) 1f else 1f - grow
+                Text(
+                    stringResource(R.string.app_name).uppercase(),
+                    style = ThrumType.splash,
+                    color = ThrumAccentInk,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .offset { IntOffset(word.left.roundToInt(), word.top.roundToInt()) }
+                        .graphicsLayer { alpha = wordAlpha },
+                )
+            }
+        }
+    }
+}
+
+
 /** One shape of the opening: a pill, the ring or the frame. [hollow] 0 is filled, 1 only the edge. */
 private class Piece(val rect: Rect, val radius: Float, val colour: Color, val hollow: Float, val edge: Float)
 
@@ -410,6 +536,10 @@ private const val T_HOLD = T_GROW + GROW
 private const val T_BACK = T_HOLD + HOLD
 private const val T_END = T_BACK + BACK
 
+/** On later launches the frame fades at the screen's edges instead of shrinking back. */
+private const val LAUNCH_FADE = 250f
+private const val T_LAUNCH_END = T_HOLD + LAUNCH_FADE
+
 /** The ring's size and edges, in dp, from the sketch. */
 private const val RING_D = 64f
 private const val MARK_RING_D = 34f
@@ -429,7 +559,7 @@ private const val MARK_SCALE = 0.3f
  * first frame, so they never change hands mid-flight.
  */
 @Composable
-private fun Splash(onPills: (Rect) -> Unit, onWord: (Rect) -> Unit) {
+private fun Splash(onPills: (Rect) -> Unit, onWord: (Rect) -> Unit, checking: Boolean = true) {
     val accent = ThrumAccent
     Box(
         modifier = Modifier
@@ -460,7 +590,7 @@ private fun Splash(onPills: (Rect) -> Unit, onWord: (Rect) -> Unit) {
             )
             Text(stringResource(R.string.onboarding_tagline), style = ThrumType.lead, color = ThrumInk, modifier = Modifier.padding(top = Space.S2))
             Spacer(Modifier.weight(1f))
-            Text(stringResource(R.string.onboarding_checking), style = ThrumType.meta, color = ThrumInk2)
+            if (checking) Text(stringResource(R.string.onboarding_checking), style = ThrumType.meta, color = ThrumInk2)
         }
     }
 }
