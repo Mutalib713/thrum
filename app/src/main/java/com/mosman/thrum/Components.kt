@@ -234,6 +234,7 @@ fun PrimaryButton(
     icon: String? = null,
     small: Boolean = false,
     enabled: Boolean = true,
+    trailingIcon: String? = null,
 ) {
     val h = if (small) 44.dp else 52.dp
     // Disabled reads as disabled without going unreadable: dark ink on the
@@ -260,6 +261,10 @@ fun PrimaryButton(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        if (trailingIcon != null) {
+            Spacer(Modifier.width(Space.S2))
+            ThrumIcon(name = trailingIcon, tint = ink, size = if (small) 14.dp else 18.dp)
+        }
     }
 }
 

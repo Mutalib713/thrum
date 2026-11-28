@@ -181,7 +181,7 @@
     <string name="onboarding_see_how">See how it works</string>
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_touch_title">Turn sound into touch</string>
-    <string name="onboarding_touch_body">Thrum finds the beats in a song and plays them on your phone\'s vibration motor.</string>
+    <string name="onboarding_touch_body">Thrum finds the beats in a song and plays them on your phone\'s vibration motor. We call that pattern a haptic.</string>
     <string name="onboarding_feel_android">Android today</string>
     <string name="onboarding_feel_thrum">With Thrum</string>
     <string name="onboarding_feel_note">This needs no permission at all.</string>
@@ -197,7 +197,7 @@
     <string name="onboarding_music_row">Music</string>
     <string name="onboarding_music_row_help">Play the songs on your phone and feel every beat.</string>
     <string name="onboarding_videos_row">Videos</string>
-    <string name="onboarding_videos_row_help">Feel the sound from a video.</string>
+    <string name="onboarding_videos_row_help">Feel the sound from a video on your phone.</string>
     <string name="onboarding_calls_title">Feel your calls</string>
     <string name="onboarding_calls_body">Pick a song as your ringtone. When someone calls, you hear it and Thrum plays its beat on the motor. On vibrate, you feel it without the sound.</string>
     <string name="onboarding_calls_permission">To know a call has started, Thrum needs to see call notifications. It checks one thing: is this a call? Nothing leaves your phone.</string>
@@ -212,7 +212,7 @@
     <string name="onboarding_done_title">You\'re set</string>
     <string name="onboarding_done_body">Pick a song as your ringtone, and scan your own music whenever you like.</string>
     <string name="onboarding_done_action">Choose your ringtone</string>
-    <string name="onboarding_done_look">Look around first</string>
+    <string name="onboarding_done_look">Skip to home</string>
 
     <!-- The tabs, in the order the final screens fix: Home first, because
          calls come first. -->

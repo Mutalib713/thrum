@@ -3,6 +3,18 @@ package com.mosman.thrum
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
+import kotlin.math.sin
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.PointMode
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.border
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.drawWithContent
@@ -59,6 +71,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,7 +108,8 @@ import kotlinx.coroutines.delay
 fun OnboardingFlow(onDone: () -> Unit) {
     val ctx = LocalContext.current
     val capability = remember { Haptics.capability(ctx) }
-    var screen by remember { mutableIntStateOf(0) }
+    // Saved, so turning the phone or changing the theme mid-way doesn't restart it (2026-11-28).
+    var screen by rememberSaveable { mutableIntStateOf(0) }
 
     // Back walks back through the screens, but never into the splash, which
     // would only bounce forward again a second later.
@@ -116,10 +130,10 @@ fun OnboardingFlow(onDone: () -> Unit) {
                 onSeeHow = { screen = 2 },
                 onSkip = onDone,
             )
-            screen == 2 -> SoundToTouch(onNext = { screen = 3 })
-            screen == 3 -> Sources(onNext = { screen = 4 })
+            screen == 2 -> SoundToTouch(onNext = { screen = 3 }, onSkip = onDone)
+            screen == 3 -> Sources(onNext = { screen = 4 }, onSkip = onDone)
             screen == 4 -> FeelCalls(onNext = { screen = 5 })
-            screen == 5 -> FeelMusic(onNext = { screen = 6 })
+            screen == 5 -> FeelMusic(onNext = { screen = 6 }, onSkip = onDone)
             else -> YouAreSet(onDone = onDone)
         }
     }
@@ -157,20 +171,17 @@ private fun Lead(text: String) {
 
 /**
  * The opening: the splash, then the move into the welcome page. Mutalib's
- * hollow-ring version, approved 2026-11-28 (scratch/transition-combo.html):
+ * pick B, "burst" (2026-11-28, scratch/opening-c.html):
  *
  * 1. The splash's five pills pulse to the sample rhythm.
- * 2. They slide together into one hollow yellow ring (only the edge is yellow;
- *    inside is the normal screen).
- * 3. The ring grows into a yellow frame, a window with the welcome page inside
- *    it, until the frame reaches the screen's edges.
- * 4. The frame shrinks back to a small ring where the welcome page's mark sits,
- *    and splits into the five pills there, while THRUM flies from the splash's
- *    spot to beside them (pick A, kept).
+ * 2. They burst into the welcome page's dotted wave: every dot of the wave
+ *    starts inside one of the pills and flies to its place, sweeping left to
+ *    right, while THRUM glides up to its spot beside the mark.
+ * 3. The welcome page's words fade in under the wave.
  *
- * One layer draws the pills, the ring and the frame through every step, so
- * nothing changes hands mid-flight. On landing, the welcome page's own pills
- * and wordmark take over in the same spot, on the same rhythm clock.
+ * One layer draws the pills and the flying dots; when the last dot lands, the
+ * welcome page's own wave takes over at exactly the same positions, on the same
+ * ripple clock, so nothing jumps.
  *
  * With Android's "Remove animations" on, the welcome page simply appears.
  * [settled] is the way back from the next screen: the welcome page, no splash.
@@ -182,13 +193,9 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
     val rhythm = remember { Demo.rhythm() }
     val rhythmMath = remember { BarMath(rhythm.amplitudes, rhythm.stepMs) }
     val startedAt = remember { SystemClock.uptimeMillis() }
-    val palette = LocalThrumPalette.current
-    val density = LocalDensity.current
     var origin by remember { mutableStateOf(Offset.Zero) }
-    var screen by remember { mutableStateOf(Size.Zero) }
     var splashPills by remember { mutableStateOf<Rect?>(null) }
     var splashWord by remember { mutableStateOf<Rect?>(null) }
-    var welcomePills by remember { mutableStateOf<Rect?>(null) }
     var welcomeWord by remember { mutableStateOf<Rect?>(null) }
 
     LaunchedEffect(Unit) {
@@ -201,124 +208,28 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
 
     val t = clock.value
     val done = t >= T_END
-    val merge = inOut((t - T_MERGE) / MERGE)
-    val grow = inOut((t - T_GROW) / GROW)
-    val back = inOut((t - T_BACK) / BACK)
-
-    // Where everything is this frame, in the opening's own coordinates.
-    val px = with(density) { 1.dp.toPx() }
-    val fromP = splashPills
-    val toP = welcomePills ?: fromP
-    var pieces: List<Piece> = emptyList()
-    var window: Rect? = null
-    var windowRadius = 0f
-    if (!done && fromP != null && toP != null && screen != Size.Zero) {
-        val circle = Rect(fromP.center, RING_D * px / 2)
-        val full = Rect(Offset.Zero, screen)
-        val markCircle = Rect(toP.center, MARK_RING_D * px / 2)
-        val accent = palette.accent
-        when {
-            t < T_GROW -> {
-                // 1-2: the pills pulse, then slide together into one ring.
-                val pills = pillRects(fromP.center, 1f, rhythmMath, min(t, T_MERGE).toLong(), px)
-                val hollow = clamp01((merge - 0.55f) / 0.45f)
-                pieces = pills.mapIndexed { k, r ->
-                    val at = lerpRect(r, circle, merge)
-                    val colour = if (merge > 0.45f || k == 2) accent else palette.ink
-                    Piece(at, min(at.width, at.height) / 2, colour, hollow, RING_EDGE * px)
-                }
-            }
-            t < T_BACK -> {
-                // 3: the ring grows into a frame that reaches the screen's edges.
-                val w = lerp(circle.width, screen.width, outCubic(grow * 1.35f))
-                val h = lerp(circle.height, screen.height, grow)
-                val centre = Offset(screen.width / 2, lerp(circle.center.y, screen.height / 2, grow))
-                val r = Rect(centre.x - w / 2, centre.y - h / 2, centre.x + w / 2, centre.y + h / 2)
-                val radius = lerp(circle.width / 2, SCREEN_RADIUS * px, outCubic(grow * 1.2f))
-                pieces = listOf(Piece(r, radius, accent, 1f, lerp(RING_EDGE, FRAME_EDGE, grow) * px))
-                window = r
-                windowRadius = radius
-            }
-            else -> {
-                // 4: the frame shrinks to a ring at the mark, then splits into the pills.
-                val toCircle = clamp01(back / 0.65f)
-                val split = clamp01((back - 0.65f) / 0.35f)
-                val edge = lerp(FRAME_EDGE, MARK_EDGE, outCubic(toCircle)) * px
-                if (split <= 0f) {
-                    val r = lerpRect(full, markCircle, outCubic(toCircle))
-                    pieces = listOf(Piece(r, lerp(SCREEN_RADIUS * px, markCircle.width / 2, outCubic(toCircle)), accent, 1f, edge))
-                } else {
-                    // The same clock the welcome page's mark runs on, so the handover doesn't jump.
-                    val marks = pillRects(toP.center, MARK_SCALE, rhythmMath, SystemClock.uptimeMillis() - startedAt, px)
-                    pieces = marks.mapIndexed { k, mp ->
-                        val r = lerpRect(markCircle, mp, inOut(split))
-                        val colour = if (split > 0.5f && k != 2) palette.ink else accent
-                        Piece(r, min(r.width, r.height) / 2, colour, 1f - split, edge)
-                    }
-                }
-            }
-        }
-    }
-    // The welcome page: hidden until the frame opens; inside the frame while it grows
-    // (plain dark while the ring is small, so no cut-off words show through), then everywhere.
-    val welcomeAlpha = when {
-        done -> 1f
-        t < T_GROW -> 0f
-        t < T_BACK -> outCubic((grow - 0.25f) / 0.35f)
-        else -> 1f
-    }
-    val splashAlpha = when {
-        t < T_GROW -> 1f - merge * 0.4f
-        t < T_HOLD -> 0.6f * (1f - grow)
-        else -> 0f
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .onGloballyPositioned { origin = it.positionInWindow(); screen = it.size.toSize() },
-    ) {
-        val clip = window
-        val clipRadius = windowRadius
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = welcomeAlpha }
-                .drawWithContent {
-                    if (clip == null) {
-                        drawContent()
-                    } else {
-                        val path = Path().apply { addRoundRect(RoundRect(clip, CornerRadius(clipRadius))) }
-                        clipPath(path) { this@drawWithContent.drawContent() }
-                    }
-                },
-        ) {
+    val burst = (t - SPLASH) / BURST
+    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
+        Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (done) 1f else clamp01((t - SPLASH - 1100f) / 300f) }) {
             Welcome(
                 onSeeHow = onSeeHow,
                 onSkip = onSkip,
-                lockupShown = done,
+                landed = done,
                 rhythm = rhythm,
                 rhythmStartedAt = startedAt,
-                onPills = { welcomePills = it.translate(-origin) },
                 onWord = { welcomeWord = it.translate(-origin) },
             )
         }
         if (!done) {
-            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = splashAlpha }) {
+            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - clamp01(burst * 3f) }) {
                 Splash(onPills = { splashPills = it.translate(-origin) }, onWord = { splashWord = it.translate(-origin) })
             }
-            // The moving layer: the pills, the ring and the frame.
-            Canvas(Modifier.fillMaxSize()) { pieces.forEach { drawPiece(it) } }
-            // THRUM: fades under the growing frame, then flies to the lockup as the frame pulls back.
+            BurstLayer(t = t, pills = splashPills, rhythmMath = rhythmMath, waveFraction = WELCOME_WAVE, fadeOut = 0f)
+            // THRUM glides from the splash's spot to beside the mark.
             val fromW = splashWord
             if (fromW != null) {
                 val to = welcomeWord ?: fromW
-                val fly = if (t >= T_BACK) outCubic((back - 0.15f) / 0.85f) else 0f
-                val wordAlpha = when {
-                    t < T_GROW -> 1f
-                    t < T_BACK -> 1f - grow
-                    else -> clamp01(back * 3f)
-                }
+                val fly = outCubic((t - SPLASH - 500f) / 700f)
                 val centre = lerp(fromW.center, to.center, fly)
                 val scale = lerp(1f, to.height / fromW.height, fly)
                 Text(
@@ -329,7 +240,7 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
                     softWrap = false,
                     modifier = Modifier
                         .offset { IntOffset((centre.x - fromW.width / 2).roundToInt(), (centre.y - fromW.height / 2).roundToInt()) }
-                        .graphicsLayer { scaleX = scale; scaleY = scale; alpha = wordAlpha },
+                        .graphicsLayer { scaleX = scale; scaleY = scale },
                 )
             }
         }
@@ -337,11 +248,84 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
 }
 
 /**
+ * The pills, then their burst into the wave. [t] is the opening's clock;
+ * [waveFraction] is how tall the wave the dots fly into is, as a share of the
+ * screen; [fadeOut] (0 to 1) fades the landed wave away, for later launches
+ * that open onto Home, which has no wave.
+ */
+@Composable
+private fun BurstLayer(t: Float, pills: Rect?, rhythmMath: BarMath, waveFraction: Float, fadeOut: Float) {
+    val palette = LocalThrumPalette.current
+    val density = LocalDensity.current
+    val target = remember { FloatArray(DotWave.ROWS * DotWave.COLS * 2) }
+    // Each dot's start inside its pill, and its delay: the same every launch.
+    val seeds = remember {
+        val count = DotWave.ROWS * DotWave.COLS
+        Triple(
+            FloatArray(count) { seeded(it) },
+            FloatArray(count) { seeded(it + 9) },
+            FloatArray(count) { n -> (n % DotWave.COLS) / (DotWave.COLS - 1f) * 0.35f + seeded(n + 3) * 0.15f },
+        )
+    }
+    Canvas(Modifier.fillMaxSize()) {
+        val from = pills ?: return@Canvas
+        val px = with(density) { 1.dp.toPx() }
+        val dark = palette.field.luminance() < 0.5f
+        val accent = if (dark) palette.accent else palette.accentInk
+        val ink = palette.ink
+        val shapes = pillRects(from.center, 1f, rhythmMath, min(t, SPLASH).toLong(), px)
+        if (t < SPLASH) {
+            shapes.forEachIndexed { k, r ->
+                drawRoundRect(if (k == 2) accent else ink, r.topLeft, r.size, CornerRadius(min(r.width, r.height) / 2))
+            }
+            return@Canvas
+        }
+        val burst = (t - SPLASH) / BURST
+        val waveH = size.height * waveFraction
+        val landedAlpha = 1f - fadeOut
+        // The sky comes in as the dots leave the pills.
+        if (dark) drawWaveSky(clamp01(burst * 1.5f) * landedAlpha, height = waveH)
+        DotWave.positions(size.width, waveH, DotWave.phaseAt(SystemClock.uptimeMillis()), target)
+        val (sx, sy, delay) = seeds
+        fun progress(n: Int) = outCubic((burst - delay[n]) / 0.55f)
+        // Landed dots: drawn exactly as the wave draws them.
+        drawDotWave(target, accent, landedAlpha) { n -> progress(n) < 1f }
+        if (burst >= 1.2f) return@Canvas
+        // Flying dots, in batches by how far along they are and which colour they started.
+        val levels = 10
+        val lists = Array(levels * 2) { ArrayList<Offset>(300) }
+        for (n in 0 until DotWave.ROWS * DotWave.COLS) {
+            val q = progress(n)
+            if (q >= 1f) continue
+            val pill = n % 5
+            val r = shapes[pill]
+            val x = lerp(r.left + sx[n] * r.width, target[n * 2], q)
+            val y = lerp(r.top + sy[n] * r.height, target[n * 2 + 1], q)
+            val level = (q * levels).toInt().coerceIn(0, levels - 1)
+            lists[(if (pill == 2) levels else 0) + level].add(Offset(x, y))
+        }
+        val dot = DotWave.radius(DotWave.ROWS / 2, size.width) * 2f
+        for (i in lists.indices) {
+            val points = lists[i]
+            if (points.isEmpty()) continue
+            val q = (i % levels + 0.5f) / levels
+            val start = if (i >= levels) accent else ink
+            val colour = androidx.compose.ui.graphics.lerp(start, accent, q).copy(alpha = lerp(1f, 0.8f, q))
+            drawPoints(points, PointMode.Points, colour, strokeWidth = lerp(dot * 1.6f, dot, q), cap = StrokeCap.Round)
+        }
+    }
+}
+
+/** A repeatable "random" number from 0 to 1, so every launch bursts the same way. */
+private fun seeded(n: Int): Float {
+    val x = sin(n * 127.1f) * 43758.547f
+    return x - kotlin.math.floor(x)
+}
+
+/**
  * The opening on every launch after the first (Mutalib, 2026-11-28: "open
- * every time"). The same first half as [SplashToWelcome]: the pills pulse,
- * merge into the hollow ring, and the ring grows into a frame with the app
- * inside it. There is no welcome page to land on, so instead of shrinking
- * back, the frame reaches the screen's edges and fades, leaving Home.
+ * every time"), in the same burst: the pills pulse and burst into the wave.
+ * There is no welcome page to land on, so the wave then fades, leaving Home.
  *
  * [content] is always composed in the same place, so the app underneath
  * keeps its state when the opening ends. Remove animations skips it.
@@ -352,10 +336,7 @@ fun OpeningInto(active: Boolean, onDone: () -> Unit, content: @Composable () -> 
     val clock = remember { Animatable(0f) }
     val rhythm = remember { Demo.rhythm() }
     val rhythmMath = remember { BarMath(rhythm.amplitudes, rhythm.stepMs) }
-    val palette = LocalThrumPalette.current
-    val density = LocalDensity.current
     var origin by remember { mutableStateOf(Offset.Zero) }
-    var screen by remember { mutableStateOf(Size.Zero) }
     var splashPills by remember { mutableStateOf<Rect?>(null) }
     var splashWord by remember { mutableStateOf<Rect?>(null) }
 
@@ -367,125 +348,48 @@ fun OpeningInto(active: Boolean, onDone: () -> Unit, content: @Composable () -> 
 
     val t = clock.value
     val done = !active || t >= T_LAUNCH_END
-    val merge = inOut((t - T_MERGE) / MERGE)
-    val grow = inOut((t - T_GROW) / GROW)
-    val fade = outCubic((t - T_HOLD) / LAUNCH_FADE)
+    val burst = (t - SPLASH) / BURST
+    val fade = clamp01((t - SPLASH - BURST) / LAUNCH_FADE)
 
-    val px = with(density) { 1.dp.toPx() }
-    val fromP = splashPills
-    var pieces: List<Piece> = emptyList()
-    var window: Rect? = null
-    var windowRadius = 0f
-    if (!done && fromP != null && screen != Size.Zero) {
-        val circle = Rect(fromP.center, RING_D * px / 2)
-        val accent = palette.accent
-        if (t < T_GROW) {
-            val pills = pillRects(fromP.center, 1f, rhythmMath, min(t, T_MERGE).toLong(), px)
-            val hollow = clamp01((merge - 0.55f) / 0.45f)
-            pieces = pills.mapIndexed { k, r ->
-                val at = lerpRect(r, circle, merge)
-                val colour = if (merge > 0.45f || k == 2) accent else palette.ink
-                Piece(at, min(at.width, at.height) / 2, colour, hollow, RING_EDGE * px)
-            }
-        } else {
-            val w = lerp(circle.width, screen.width, outCubic(grow * 1.35f))
-            val h = lerp(circle.height, screen.height, grow)
-            val centre = Offset(screen.width / 2, lerp(circle.center.y, screen.height / 2, grow))
-            val r = Rect(centre.x - w / 2, centre.y - h / 2, centre.x + w / 2, centre.y + h / 2)
-            val radius = lerp(circle.width / 2, SCREEN_RADIUS * px, outCubic(grow * 1.2f))
-            pieces = listOf(Piece(r, radius, accent.copy(alpha = 1f - fade), 1f, lerp(RING_EDGE, FRAME_EDGE, grow) * px))
-            if (t < T_HOLD) {
-                window = r
-                windowRadius = radius
-            }
-        }
-    }
-    val contentAlpha = when {
-        done -> 1f
-        t < T_GROW -> 0f
-        t < T_HOLD -> outCubic((grow - 0.25f) / 0.35f)
-        else -> 1f
-    }
-    val splashAlpha = when {
-        t < T_GROW -> 1f - merge * 0.4f
-        else -> 0.6f * (1f - grow)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .onGloballyPositioned { origin = it.positionInWindow(); screen = it.size.toSize() },
-    ) {
-        val clip = window
-        val clipRadius = windowRadius
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = contentAlpha }
-                .drawWithContent {
-                    if (clip == null) {
-                        drawContent()
-                    } else {
-                        val path = Path().apply { addRoundRect(RoundRect(clip, CornerRadius(clipRadius))) }
-                        clipPath(path) { this@drawWithContent.drawContent() }
-                    }
-                },
-        ) {
-            content()
-        }
+    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
+        Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (done) 1f else outCubic(fade) }) { content() }
         if (!done) {
-            Box(modifier = Modifier.fillMaxSize().background(ThrumField).graphicsLayer { alpha = splashAlpha }) {
-                // No "Checking your phone's motor": that check runs on the first launch only.
-                Splash(
-                    onPills = { splashPills = it.translate(-origin) },
-                    onWord = { splashWord = it.translate(-origin) },
-                    checking = false,
-                )
-            }
-            Canvas(Modifier.fillMaxSize()) { pieces.forEach { drawPiece(it) } }
-            val word = splashWord
-            if (word != null) {
-                val wordAlpha = if (t < T_GROW) 1f else 1f - grow
-                Text(
-                    stringResource(R.string.app_name).uppercase(),
-                    style = ThrumType.splash,
-                    color = ThrumAccentInk,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier
-                        .offset { IntOffset(word.left.roundToInt(), word.top.roundToInt()) }
-                        .graphicsLayer { alpha = wordAlpha },
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 1f - fade }
+                    .background(ThrumField),
+            ) {
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - clamp01(burst * 3f) }) {
+                    // No "Checking your phone's motor": that check runs on the first launch only.
+                    Splash(
+                        onPills = { splashPills = it.translate(-origin) },
+                        onWord = { splashWord = it.translate(-origin) },
+                        checking = false,
+                    )
+                }
+                BurstLayer(t = t, pills = splashPills, rhythmMath = rhythmMath, waveFraction = WELCOME_WAVE, fadeOut = 0f)
+                val word = splashWord
+                if (word != null) {
+                    Text(
+                        stringResource(R.string.app_name).uppercase(),
+                        style = ThrumType.splash,
+                        color = ThrumAccentInk,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .offset { IntOffset(word.left.roundToInt(), word.top.roundToInt()) }
+                            .graphicsLayer { alpha = 1f - clamp01((burst - 0.4f) / 0.5f) },
+                    )
+                }
             }
         }
-    }
-}
-
-
-/** One shape of the opening: a pill, the ring or the frame. [hollow] 0 is filled, 1 only the edge. */
-private class Piece(val rect: Rect, val radius: Float, val colour: Color, val hollow: Float, val edge: Float)
-
-private fun DrawScope.drawPiece(p: Piece) {
-    val fill = 1f - p.hollow
-    if (fill > 0f) drawRoundRect(p.colour.copy(alpha = p.colour.alpha * fill), p.rect.topLeft, p.rect.size, CornerRadius(p.radius))
-    val stroke = p.edge * p.hollow
-    if (stroke > 0.3f) {
-        // The edge sits inside the shape, as the sketch's border does.
-        val inset = stroke / 2
-        drawRoundRect(
-            p.colour,
-            Offset(p.rect.left + inset, p.rect.top + inset),
-            Size(p.rect.width - stroke, p.rect.height - stroke),
-            CornerRadius((p.radius - inset).coerceAtLeast(0f)),
-            style = Stroke(stroke),
-        )
     }
 }
 
 /**
  * The five pills around [centre] at [scale], each at its rhythm height: the same
- * numbers [Bars] draws Pills with in the splash's [PILLS_W] x [PILLS_H] box, so the
- * opening's pills and the welcome page's mark are the same shape.
+ * numbers [Bars] draws Pills with in the splash's [PILLS_W] x [PILLS_H] box.
  */
 private fun pillRects(centre: Offset, scale: Float, math: BarMath, ms: Long, px: Float): List<Rect> {
     val scales = floatArrayOf(0.5f, 0.78f, 1f, 0.78f, 0.5f)
@@ -505,20 +409,9 @@ private fun pillRects(centre: Offset, scale: Float, math: BarMath, ms: Long, px:
     }
 }
 
-private fun lerpRect(a: Rect, b: Rect, k: Float) =
-    Rect(lerp(a.left, b.left, k), lerp(a.top, b.top, k), lerp(a.right, b.right, k), lerp(a.bottom, b.bottom, k))
-
 private fun clamp01(x: Float) = x.coerceIn(0f, 1f)
 
-/** Ease in and out, cubic: the sketch's `ease`. */
-private fun inOut(x: Float): Float {
-    val k = clamp01(x)
-    if (k < 0.5f) return 4 * k * k * k
-    val f = -2 * k + 2
-    return 1 - f * f * f / 2
-}
-
-/** Ease out, cubic: the sketch's `easeOut`. */
+/** Ease out, cubic: fast at the start, settling gently. */
 private fun outCubic(x: Float): Float {
     val f = 1 - clamp01(x)
     return 1 - f * f * f
@@ -526,27 +419,15 @@ private fun outCubic(x: Float): Float {
 
 /** The opening's timeline in ms, from the approved sketch. */
 private const val SPLASH = 1200f
-private const val MERGE = 500f
-private const val GROW = 600f
-private const val HOLD = 120f
-private const val BACK = 750f
-private const val T_MERGE = SPLASH
-private const val T_GROW = T_MERGE + MERGE
-private const val T_HOLD = T_GROW + GROW
-private const val T_BACK = T_HOLD + HOLD
-private const val T_END = T_BACK + BACK
+private const val BURST = 1300f
+private const val T_END = SPLASH + 1400f
 
-/** On later launches the frame fades at the screen's edges instead of shrinking back. */
-private const val LAUNCH_FADE = 250f
-private const val T_LAUNCH_END = T_HOLD + LAUNCH_FADE
+/** On later launches the landed wave fades into Home. */
+private const val LAUNCH_FADE = 350f
+private const val T_LAUNCH_END = SPLASH + BURST + LAUNCH_FADE
 
-/** The ring's size and edges, in dp, from the sketch. */
-private const val RING_D = 64f
-private const val MARK_RING_D = 34f
-private const val RING_EDGE = 7f
-private const val FRAME_EDGE = 9f
-private const val MARK_EDGE = 3.5f
-private const val SCREEN_RADIUS = 30f
+/** How tall the welcome page's wave is, as a share of the screen: the sketch's 430 of 650. */
+private const val WELCOME_WAVE = 0.66f
 
 /** The pills' box, on the splash and (scaled to [MARK_SCALE]) on the welcome page. */
 private val PILLS_W = 200.dp
@@ -595,37 +476,109 @@ private fun Splash(onPills: (Rect) -> Unit, onWord: (Rect) -> Unit, checking: Bo
     }
 }
 
+/**
+ * One onboarding screen in direction C (Mutalib, 2026-11-28): the dotted wave
+ * across the top, the progress dots in the middle above it, the words from
+ * [textTop] (a share of the screen's height) down, and the two choices pinned
+ * at the bottom: the way out on the left, the main button on the right with ›.
+ * [art] sits over the wave (the cards some screens show there).
+ */
+@Composable
+private fun WaveStep(
+    step: Int?,
+    textTop: Float,
+    left: String?,
+    onLeft: () -> Unit,
+    right: String,
+    onRight: () -> Unit,
+    waveFraction: Float = OTHER_WAVE,
+    waveAlpha: Float = 1f,
+    art: @Composable BoxScope.(screenHeight: Dp) -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val h = maxHeight
+        DotWaveBackground(modifier = Modifier.fillMaxWidth().height(h * waveFraction), alpha = waveAlpha)
+        art(h)
+        if (step != null) {
+            ThrumDots(
+                count = 5,
+                activeIndex = step,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                    .padding(top = Space.S3),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                .verticalScroll(rememberScrollState())
+                .padding(start = Space.S5, end = Space.S5, top = h * textTop, bottom = FOOT_ROOM),
+            content = content,
+        )
+        StepFoot(
+            left = left,
+            onLeft = onLeft,
+            right = right,
+            onRight = onRight,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+}
+
+/** Bottom of every onboarding screen: the way out on the left, the main button on the right with ›. */
+@Composable
+private fun StepFoot(left: String?, onLeft: () -> Unit, right: String, onRight: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color.Transparent, ThrumField, ThrumField)))
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+            .padding(start = Space.S3, end = Space.S4, top = Space.S5, bottom = Space.S4),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (left != null) {
+            ThrumTextButton(text = left, onClick = onLeft, color = ThrumInk2)
+        } else {
+            Spacer(Modifier.width(1.dp))
+        }
+        Spacer(Modifier.width(Space.S2))
+        PrimaryButton(text = right, onClick = onRight, trailingIcon = "chev")
+    }
+}
+
+/** Room under the words for the pinned foot, so the last line never hides behind it. */
+private val FOOT_ROOM = 104.dp
+
+/** How tall the wave is on the screens after the welcome page: a little shorter, leaving room for more words. */
+private const val OTHER_WAVE = 0.52f
+
 @Composable
 private fun Welcome(
     onSeeHow: () -> Unit,
     onSkip: () -> Unit,
-    lockupShown: Boolean,
+    landed: Boolean,
     rhythm: Score,
     rhythmStartedAt: Long,
-    onPills: (Rect) -> Unit,
     onWord: (Rect) -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = Space.S5, vertical = 28.dp),
+    WaveStep(
+        step = 0,
+        textTop = 0.50f,
+        left = stringResource(R.string.onboarding_skip),
+        onLeft = onSkip,
+        right = stringResource(R.string.onboarding_see_how),
+        onRight = onSeeHow,
+        waveFraction = WELCOME_WAVE,
+        // The opening draws the wave while its dots fly in, then hands it over.
+        waveAlpha = if (landed) 1f else 0f,
     ) {
-        ThrumDots(count = 5, activeIndex = 0)
-        // The pills mark beside the wordmark, where the splash's pills land.
-        // Hidden while they fly, so there is never two of them.
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(PILLS_W * MARK_SCALE, PILLS_H * MARK_SCALE)
-                    .onGloballyPositioned { onPills(it.boundsInWindow()) }
-                    .graphicsLayer { alpha = if (lockupShown) 1f else 0f },
-                contentAlignment = Alignment.Center,
-            ) {
+        // The lockup: the pills mark beside THRUM, just above the title.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(PILLS_W * MARK_SCALE, PILLS_H * MARK_SCALE), contentAlignment = Alignment.Center) {
                 // The same rhythm clock as the splash, so the pulses carry on.
                 val at = remember { SystemClock.uptimeMillis() - rhythmStartedAt }
                 Bars(
@@ -647,7 +600,8 @@ private fun Welcome(
                 softWrap = false,
                 modifier = Modifier
                     .onGloballyPositioned { onWord(it.boundsInWindow()) }
-                    .graphicsLayer { alpha = if (lockupShown) 1f else 0f },
+                    // Hidden while the opening's THRUM glides here, so there is never two.
+                    .graphicsLayer { alpha = if (landed) 1f else 0f },
             )
         }
         Text(
@@ -656,34 +610,24 @@ private fun Welcome(
             style = ThrumType.hero,
             color = ThrumInk,
             modifier = Modifier
-                .padding(top = 14.dp)
+                .padding(top = Space.S2)
                 .semantics { heading() },
         )
-        Text(stringResource(R.string.onboarding_welcome_body), style = ThrumType.lead, color = ThrumInkSoft, modifier = Modifier.padding(top = Space.S4))
+        Text(stringResource(R.string.onboarding_welcome_body), style = ThrumType.lead, color = ThrumInkSoft, modifier = Modifier.padding(top = Space.S3))
         Row(
-            modifier = Modifier.padding(top = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = Space.S4),
+            verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(Space.S2),
         ) {
             ThrumIcon(name = "check", tint = ThrumAccentInk, size = 18.dp)
             Text(stringResource(R.string.onboarding_welcome_capable), style = ThrumType.meta, color = ThrumInk)
         }
-        Spacer(Modifier.weight(1f))
-        PrimaryButton(text = stringResource(R.string.onboarding_see_how), onClick = onSeeHow, modifier = Modifier.fillMaxWidth())
-        ThrumTextButton(
-            text = stringResource(R.string.onboarding_skip),
-            onClick = onSkip,
-            color = ThrumInk2,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Space.S2),
-        )
     }
 }
 
-/** Screen 3. Which of the two patterns is playing: 0 none, 1 Android's, 2 Thrum's. */
+/** Screen 2. Which of the two patterns is playing: 0 none, 1 Android's, 2 Thrum's. */
 @Composable
-private fun SoundToTouch(onNext: () -> Unit) {
+private fun SoundToTouch(onNext: () -> Unit, onSkip: () -> Unit) {
     val ctx = LocalContext.current
     val buzz = remember { Demo.systemBuzz() }
     val rhythm = remember { Demo.rhythm() }
@@ -711,62 +655,66 @@ private fun SoundToTouch(onNext: () -> Unit) {
         }
     }
 
-    Step {
-        ThrumDots(count = 5, activeIndex = 1)
-        Statement(stringResource(R.string.onboarding_touch_title))
-        Lead(stringResource(R.string.onboarding_touch_body))
-
-        // How it works: a sound, the beats in it, the motor.
-        ThrumCard(modifier = Modifier.padding(top = 20.dp), padding = PaddingValues(Space.S4)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Space.S2),
+    WaveStep(
+        step = 1,
+        textTop = 0.40f,
+        left = stringResource(R.string.onboarding_skip),
+        onLeft = onSkip,
+        right = stringResource(R.string.onboarding_next),
+        onRight = onNext,
+        art = { screenH ->
+            // The sound becomes beats: the wave on the left, the pills it turns into on the right.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = screenH * 0.13f, end = Space.S5),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // The new bars (2026-11-28): the sound drawn as a wave (Mirror), the
-                // beats Thrum finds in it as Pills, both looping the sample rhythm.
-                val loop = rememberLoopMs(rhythm)
-                Column(modifier = Modifier.weight(1f)) {
-                    Bars(style = BarStyle.MIRROR, score = rhythm, positionMs = loop, playing = true, compact = true, modifier = Modifier.fillMaxWidth().height(44.dp))
-                    Text(stringResource(R.string.onboarding_diagram_sound), style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 6.dp))
-                }
-                ThrumIcon(name = "chev", tint = ThrumInk2, size = 16.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Bars(style = BarStyle.PILLS, score = rhythm, positionMs = loop, playing = true, compact = true, modifier = Modifier.fillMaxWidth().height(44.dp))
-                    Text(stringResource(R.string.onboarding_diagram_beats), style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 6.dp))
-                }
-                ThrumIcon(name = "chev", tint = ThrumInk2, size = 16.dp)
-                Column(modifier = Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    ThrumIcon(name = "vib", tint = ThrumAccentInk, size = 34.dp)
-                    Text(stringResource(R.string.onboarding_diagram_phone), style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
-                }
+                Text(stringResource(R.string.onboarding_diagram_beats), style = ThrumType.meta, color = ThrumInk2)
+                Bars(
+                    style = BarStyle.PILLS,
+                    score = rhythm,
+                    positionMs = rememberLoopMs(rhythm),
+                    playing = true,
+                    modifier = Modifier.padding(top = Space.S2).size(120.dp, 90.dp),
+                )
             }
-        }
-
-        ThrumCard(modifier = Modifier.padding(top = Space.S3), padding = PaddingValues(Space.S4)) {
-            Overline(stringResource(R.string.onboarding_feel_title))
-            FeelRow(
-                label = stringResource(R.string.onboarding_feel_android),
-                score = buzz,
-                playing = playing == 1,
-                onToggle = { toggle(1, buzz) },
+            Text(
+                stringResource(R.string.onboarding_diagram_sound),
+                style = ThrumType.meta,
+                color = ThrumInk2,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = screenH * 0.13f, start = Space.S5),
             )
-            FeelRow(
-                label = stringResource(R.string.onboarding_feel_thrum),
-                score = rhythm,
-                playing = playing == 2,
-                onToggle = { toggle(2, rhythm) },
-            )
-        }
+        },
+    ) {
+        Statement(stringResource(R.string.onboarding_touch_title), top = 0)
+        Lead(stringResource(R.string.onboarding_touch_body))
+        Text(
+            stringResource(R.string.onboarding_feel_title),
+            style = ThrumType.row,
+            color = ThrumInkSoft,
+            modifier = Modifier.padding(top = Space.S4),
+        )
+        FeelRow(
+            label = stringResource(R.string.onboarding_feel_android),
+            score = buzz,
+            playing = playing == 1,
+            onToggle = { toggle(1, buzz) },
+        )
+        FeelRow(
+            label = stringResource(R.string.onboarding_feel_thrum),
+            score = rhythm,
+            playing = playing == 2,
+            onToggle = { toggle(2, rhythm) },
+        )
         Text(
             stringResource(R.string.onboarding_feel_note),
             style = ThrumType.meta,
             color = ThrumInk2,
             modifier = Modifier.padding(top = 10.dp),
         )
-
-        Spacer(Modifier.height(Space.S6))
-        PrimaryButton(text = stringResource(R.string.onboarding_next), onClick = onNext, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -775,34 +723,39 @@ private fun FeelRow(label: String, score: Score, playing: Boolean, onToggle: () 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = Space.S3),
+            .padding(top = Space.S2)
+            .clip(RoundedCornerShape(Radius.large))
+            .background(ThrumSurface)
+            .padding(horizontal = Space.S3, vertical = Space.S2),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.S3),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = ThrumType.meta, color = ThrumInk2)
-            // Moves only while this row plays; otherwise still at its strongest beat.
-            SongBars(score = score, playing = playing, positionMs = rememberLoopMs(score), modifier = Modifier.fillMaxWidth().height(36.dp))
-        }
         CirclePlayButton(playing = playing, onClick = onToggle)
+        Text(label, style = ThrumType.meta, color = ThrumInk, modifier = Modifier.width(96.dp))
+        // Moves only while this row plays; otherwise still at its strongest beat.
+        SongBars(score = score, playing = playing, positionMs = rememberLoopMs(score), modifier = Modifier.weight(1f).height(32.dp))
     }
 }
 
 @Composable
-private fun Sources(onNext: () -> Unit) {
-    Step {
-        ThrumDots(count = 5, activeIndex = 2)
-        Statement(stringResource(R.string.onboarding_sources_title))
+private fun Sources(onNext: () -> Unit, onSkip: () -> Unit) {
+    WaveStep(
+        step = 2,
+        textTop = 0.38f,
+        left = stringResource(R.string.onboarding_skip),
+        onLeft = onSkip,
+        right = stringResource(R.string.onboarding_next),
+        onRight = onNext,
+    ) {
+        Statement(stringResource(R.string.onboarding_sources_title), top = 0)
         Lead(stringResource(R.string.onboarding_sources_body))
-        ThrumCard(modifier = Modifier.padding(top = 22.dp), padding = PaddingValues(0.dp)) {
+        Column(modifier = Modifier.padding(top = Space.S3)) {
             SourceRow("phone", stringResource(R.string.onboarding_calls_row), stringResource(R.string.onboarding_calls_row_help))
             HorizontalDivider(color = ThrumRule, thickness = 1.dp)
             SourceRow("music", stringResource(R.string.onboarding_music_row), stringResource(R.string.onboarding_music_row_help))
             HorizontalDivider(color = ThrumRule, thickness = 1.dp)
             SourceRow("video", stringResource(R.string.onboarding_videos_row), stringResource(R.string.onboarding_videos_row_help))
         }
-        Spacer(Modifier.height(Space.S6))
-        PrimaryButton(text = stringResource(R.string.onboarding_next), onClick = onNext, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -811,7 +764,7 @@ private fun SourceRow(icon: String, title: String, subtitle: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Space.S4, vertical = 14.dp),
+            .padding(vertical = Space.S3),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -831,85 +784,99 @@ private fun FeelCalls(onNext: () -> Unit) {
     val permitted by rememberPolled(hasCallAccess(ctx)) { hasCallAccess(it) }
     val mayBeLocked = remember { callAccessMayBeLocked(ctx) }
     var asked by remember { mutableStateOf(Store(ctx).callAccessAsked) }
-    Step {
-        ThrumDots(count = 5, activeIndex = 3)
-        ThrumCard(modifier = Modifier.padding(top = Space.S5), padding = PaddingValues(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Overline(stringResource(R.string.onboarding_calls_example_head))
-                ThrumIcon(name = "phone", tint = ThrumAccentInk, size = 18.dp)
+    val callRhythm = remember { Demo.rhythm() }
+    WaveStep(
+        step = 3,
+        textTop = 0.44f,
+        // "Maybe later" is the way out here; once access is on there's nothing to put off.
+        left = if (permitted) null else stringResource(R.string.onboarding_calls_later),
+        onLeft = onNext,
+        right = stringResource(if (permitted) R.string.onboarding_next else R.string.onboarding_calls_action),
+        onRight = {
+            if (permitted) {
+                onNext()
+            } else {
+                asked = true
+                openCallAccess(ctx)
             }
-            // An illustration of a call's rhythm in the new bars, looping the sample.
-            val callRhythm = remember { Demo.rhythm() }
-            Bars(
-                style = rememberBarStyle(),
-                score = callRhythm,
-                positionMs = rememberLoopMs(callRhythm),
-                playing = true,
-                modifier = Modifier.padding(top = Space.S3).fillMaxWidth().height(96.dp),
-            )
+        },
+        art = { screenH ->
+            // An incoming call, over the wave: the song's beat on the motor.
+            ThrumCard(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = screenH * 0.24f, start = Space.S6, end = Space.S6),
+                padding = PaddingValues(horizontal = Space.S4, vertical = Space.S3),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.S3)) {
+                    IconCircle(icon = "phone", size = 36.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.onboarding_calls_example_head), style = ThrumType.row, color = ThrumInk)
+                        Text(stringResource(R.string.onboarding_calls_example_line), style = ThrumType.meta, color = ThrumInk2)
+                    }
+                    Bars(
+                        style = rememberBarStyle(),
+                        score = callRhythm,
+                        positionMs = rememberLoopMs(callRhythm),
+                        playing = true,
+                        compact = true,
+                        modifier = Modifier.size(52.dp, 40.dp),
+                    )
+                }
+            }
+        },
+    ) {
+        Statement(stringResource(R.string.onboarding_calls_title), top = 0)
+        Lead(stringResource(R.string.onboarding_calls_body))
+        if (!permitted) {
+            // The reassurance sits right above the button it is about (2026-11-28).
             Text(
-                stringResource(R.string.onboarding_calls_example_line),
+                stringResource(R.string.onboarding_calls_permission),
                 style = ThrumType.meta,
                 color = ThrumInk2,
-                modifier = Modifier.padding(top = Space.S2),
-            )
-        }
-        Statement(stringResource(R.string.onboarding_calls_title), top = 24)
-        Lead(stringResource(R.string.onboarding_calls_body))
-        Text(
-            stringResource(R.string.onboarding_calls_permission),
-            style = ThrumType.meta,
-            color = ThrumInk2,
-            modifier = Modifier.padding(top = Space.S3),
-        )
-        Spacer(Modifier.height(Space.S6))
-        if (permitted) {
-            PrimaryButton(text = stringResource(R.string.onboarding_next), onClick = onNext, modifier = Modifier.fillMaxWidth())
-        } else {
-            PrimaryButton(
-                text = stringResource(R.string.onboarding_calls_action),
-                onClick = {
-                    asked = true
-                    openCallAccess(ctx)
-                },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.padding(top = Space.S4),
             )
             if (asked && mayBeLocked) {
-                CallAccessLockedHelp(modifier = Modifier.padding(top = Space.S5))
+                CallAccessLockedHelp(modifier = Modifier.padding(top = Space.S4))
             }
-            ThrumTextButton(
-                text = stringResource(R.string.onboarding_calls_later),
-                onClick = onNext,
-                color = ThrumInk2,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Space.S2),
-            )
         }
     }
 }
 
 @Composable
-private fun FeelMusic(onNext: () -> Unit) {
-    Step {
-        ThrumDots(count = 5, activeIndex = 4)
-        // An illustration of a rhythm, not a pretend player: there is no
-        // song here to play, so there is no play button.
-        ThrumCard(modifier = Modifier.padding(top = Space.S5), padding = PaddingValues(Space.S4)) {
-            val musicRhythm = remember { Demo.rhythm() }
-            Bars(
-                style = rememberBarStyle(),
-                score = musicRhythm,
-                positionMs = rememberLoopMs(musicRhythm),
-                playing = true,
-                modifier = Modifier.fillMaxWidth().height(110.dp),
-            )
-        }
-        Statement(stringResource(R.string.onboarding_music_title), top = 24)
+private fun FeelMusic(onNext: () -> Unit, onSkip: () -> Unit) {
+    val musicRhythm = remember { Demo.rhythm() }
+    WaveStep(
+        step = 4,
+        textTop = 0.46f,
+        left = stringResource(R.string.onboarding_skip),
+        onLeft = onSkip,
+        right = stringResource(R.string.onboarding_next),
+        onRight = onNext,
+        art = { screenH ->
+            // An illustration of a rhythm, not a pretend player: there is no
+            // song here to play, so there is no play button.
+            ThrumCard(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = screenH * 0.26f, start = Space.S6, end = Space.S6),
+                padding = PaddingValues(horizontal = Space.S4, vertical = Space.S3),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.S3)) {
+                    IconCircle(icon = "music", size = 36.dp)
+                    Bars(
+                        style = rememberBarStyle(),
+                        score = musicRhythm,
+                        positionMs = rememberLoopMs(musicRhythm),
+                        playing = true,
+                        compact = true,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                    )
+                }
+            }
+        },
+    ) {
+        Statement(stringResource(R.string.onboarding_music_title), top = 0)
         Lead(stringResource(R.string.onboarding_music_body))
         Text(
             stringResource(R.string.onboarding_music_privacy),
@@ -917,24 +884,29 @@ private fun FeelMusic(onNext: () -> Unit) {
             color = ThrumInk2,
             modifier = Modifier.padding(top = Space.S3),
         )
-        Spacer(Modifier.height(Space.S6))
-        PrimaryButton(text = stringResource(R.string.onboarding_next), onClick = onNext, modifier = Modifier.fillMaxWidth())
     }
 }
 
 @Composable
 private fun YouAreSet(onDone: () -> Unit) {
-    Step {
-        // Empty, and it says so: this is where the first haptic will be.
-        ThrumCard(
-            modifier = Modifier.padding(top = 28.dp),
-            backgroundColor = ThrumSurface,
-            padding = PaddingValues(20.dp),
-        ) {
+    WaveStep(
+        step = null,
+        textTop = 0.50f,
+        // Both finish first launch. The pick itself happens on Home, whose
+        // empty calls card exists for exactly this.
+        left = stringResource(R.string.onboarding_done_look),
+        onLeft = onDone,
+        right = stringResource(R.string.onboarding_done_action),
+        onRight = onDone,
+        art = { screenH ->
+            // Empty, and it says so: this is where the first haptic will be.
             Box(
                 modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = screenH * 0.12f, start = Space.S6, end = Space.S6)
                     .fillMaxWidth()
-                    .heightIn(min = 100.dp),
+                    .heightIn(min = 100.dp)
+                    .border(1.5.dp, ThrumRule, RoundedCornerShape(Radius.large)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -944,21 +916,10 @@ private fun YouAreSet(onDone: () -> Unit) {
                     textAlign = TextAlign.Center,
                 )
             }
-        }
-        Statement(stringResource(R.string.onboarding_done_title), top = 24)
+        },
+    ) {
+        Statement(stringResource(R.string.onboarding_done_title), top = 0)
         Lead(stringResource(R.string.onboarding_done_body))
-        Spacer(Modifier.height(Space.S6))
-        // Both finish first launch. The pick itself happens on Home, whose
-        // empty calls card exists for exactly this.
-        PrimaryButton(text = stringResource(R.string.onboarding_done_action), onClick = onDone, modifier = Modifier.fillMaxWidth())
-        ThrumTextButton(
-            text = stringResource(R.string.onboarding_done_look),
-            onClick = onDone,
-            color = ThrumInk2,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Space.S2),
-        )
     }
 }
 
