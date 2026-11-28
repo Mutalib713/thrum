@@ -84,3 +84,22 @@ Their intro layout: a segmented progress bar across the top, Skip top right, Bac
 - Marketing words in the intro ("a revolutionary app").
 - File and engine terms in user copy: "OGG", "playback capture", "haptic layers", "Signal density", "Transient (Beta) … still WIP".
 - A whole tab that ships saying "Still Work In Progress!".
+
+## V3 on the phone, 2026-11-28
+
+Mutalib installed V3 himself; Android reports `versionName=3.0`. Walked: the intro (replayed from Settings), Offline home, the demo player, the BitChord tab (not signed in), Settings, About.
+
+**What changed:**
+
+- **Spotify capture is gone.** The Spotify tab is now **BitChord**, "YouTube Music client": sign in with Google, then your library, likes and playlists play inside the app with haptics. The permissions match: `RECORD_AUDIO` and the screen-capture service are no longer requested; `INTERNET`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` and `POST_NOTIFICATIONS` are.
+- **How it plays is unchanged:** `dumpsys vibrator_manager` still logs `external` vibrations, usage MEDIA, while the demo plays: the audio system drives the motor (audio-coupled haptics).
+- Intro page 3 is now BitChord: "Connect BitChord to your YouTube Music account. The app plays through ExoPlayer and learns each track from the decoded audio itself."
+- Haptic Strength's intro line now ends "…may not work with some devices."
+- The empty library has a proper empty state: "Your haptic library is empty" / "Convert a song and it will stay here between launches." / **Convert a song**.
+- BitChord's sign-in screen: "Feel every song", three benefit lines with icons ("Your YouTube Music library, likes, and playlists", "Haptics synced to every track, automatically", "Profiles cached on your phone after the first play"), **Continue with Google**, and under it "Uses your own YouTube Music account, nothing is being logged."
+- Dynamic color's help line now reads "Makes the interface look prettier (atleast in my opinion). Requires Android 12 or up."
+- Continuous engine: "Smooth, always present texture" (was "always-on").
+
+**More for Thrum to take:** an empty state that says what will live there and offers the one action that fills it; a reassurance line right under the button that asks for trust (Thrum's call-access screen already does this); and owning a limit in the copy ("may not work with some devices"), which is Sacred Rule 2 in their words.
+
+**Not for Thrum:** BitChord streams from a service through an unofficial client: network, someone else's audio, a sign-in to the user's Google account. That breaks Rules 3 and 4. Engine names in copy ("ExoPlayer", "decoded audio") and the joke help line, also not.
