@@ -14,6 +14,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import android.graphics.BlurMaskFilter
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
@@ -68,9 +77,10 @@ fun Bars(
         BarColours(palette.accent, palette.ink, palette.inkSoft, palette.ink2, palette.rule, palette.line, palette.surface, palette.surface2, palette.field)
     }
     val time = rememberSmoothMs(positionMs, playing && motionAllowed())
+    val textMeasurer = rememberTextMeasurer()
     Canvas(modifier.semantics { if (description != null) contentDescription = description }) {
         val t = time.value
-        val d = BarDraw(this, math, colours, compact)
+        val d = BarDraw(this, math, colours, compact, textMeasurer)
         when (style) {
             BarStyle.TAPE -> d.tape(t)
             BarStyle.PILLS -> d.pills(t)
@@ -188,7 +198,7 @@ private class BarColours(
     val field: Color,
 )
 
-private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val compact: Boolean) {
+private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val compact: Boolean, val text: TextMeasurer) {
     private val w = s.size.width
     private val h = s.size.height
     private fun dp(v: Float) = with(s) { v.dp.toPx() }
@@ -212,10 +222,10 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
         s.drawRoundRect(colour, Offset(x, y), Size(width, height), CornerRadius(r, r))
     }
 
-    /** A soft glow: a radial fade from [colour] at [strength] to nothing at [radius]. */
+    /** A soft glow of [colour] around [centre], reaching about [radius], at [strength] (0 to 1). */
     private fun glow(centre: Offset, radius: Float, colour: Color, strength: Float) {
         if (strength <= 0f || radius <= 0f) return
-        s.drawCircle(Brush.radialGradient(listOf(colour.a(strength), Color.Transparent), centre, radius), radius, centre)
+        blurred(colour.a(strength.coerceIn(0f, 1f)), radius * 0.45f) { canvas, paint -> canvas.drawCircle(centre.x, centre.y, radius * 0.55f, paint) }
     }
 
     // ---- A to O: bars and lines ------------------------------------------------
@@ -496,25 +506,33 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
         }
     }
 
-    /** A music note as shapes (no font glyph): one note, or two joined by a beam. */
+    /**
+     * A music note, ♪ or ♫ for two joined, as the sketch draws it: a text
+     * character, centred on (x, y). Built from shapes before 2026-11-28, they
+     * smudged into a blob at this size; the font's own glyph stays crisp. These
+     * are plain text symbols, not emoji.
+     */
     private fun note(x: Float, y: Float, size: Float, beamed: Boolean, colour: Color) {
-        val hw = size * 0.42f
-        val hh = size * 0.3f
-        val stem = size * 0.08f
-        fun head(hx: Float) {
-            s.drawOval(colour, Offset(hx - hw / 2, y - hh / 2), Size(hw, hh))
-            s.drawRect(colour, Offset(hx + hw * 0.5f - stem, y - size), Size(stem, size))
-        }
-        if (beamed) {
-            head(x - size * 0.3f); head(x + size * 0.3f)
-            s.drawRect(colour, Offset(x - size * 0.3f + hw * 0.5f - stem, y - size), Size(size * 0.6f + stem, stem * 1.6f))
-        } else {
-            head(x)
-            val flag = Path().apply {
-                moveTo(x + hw * 0.5f, y - size)
-                quadraticBezierTo(x + hw * 0.5f + size * 0.35f, y - size * 0.7f, x + hw * 0.5f + size * 0.15f, y - size * 0.45f)
+        if (colour.alpha <= 0.01f) return
+        val layout = text.measure(
+            if (beamed) "♫" else "♪",
+            style = TextStyle(color = colour, fontSize = with(s) { (size * 1.35f).toSp() }),
+        )
+        s.drawText(layout, topLeft = Offset(x - layout.size.width / 2f, y - layout.size.height * 0.62f))
+    }
+
+    /**
+     * A real soft glow, light spilling past the edge the way the sketch's canvas
+     * shadows and the pins do; the flat fade it replaced looked painted on.
+     */
+    private fun blurred(colour: Color, radius: Float, draw: (android.graphics.Canvas, android.graphics.Paint) -> Unit) {
+        if (radius <= 0.5f || colour.alpha <= 0.01f) return
+        s.drawIntoCanvas { canvas ->
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = colour.toArgb()
+                maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
             }
-            s.drawPath(flag, colour, style = Stroke(stem, cap = StrokeCap.Round))
+            draw(canvas.nativeCanvas, paint)
         }
     }
 
@@ -535,8 +553,11 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
                 s.drawRoundRect(c.ink, Offset(x, y), Size(cw, ch), CornerRadius(cw * 0.45f), style = Stroke(r * 0.07f))
             } else {
                 glow(Offset(x + cw / 2, y + ch / 2), r * 0.6f, c.accent, cupGlow * 0.6f)
-                s.drawRoundRect(c.ink, Offset(x, y), Size(cw, ch), CornerRadius(cw * 0.45f))
-                s.drawRoundRect(c.ink2.a(0.6f), Offset(x + if (side < 0) cw * 0.55f else 0f, y + ch * 0.15f), Size(cw * 0.45f, ch * 0.7f), CornerRadius(cw * 0.2f))
+                // Shaded, not a flat block: lit on the outer side, falling off
+                // towards the head, as the pins' cups are.
+                val shade = if (side < 0) listOf(c.ink, c.inkSoft, c.ink2) else listOf(c.ink2, c.inkSoft, c.ink)
+                s.drawRoundRect(Brush.horizontalGradient(shade, startX = x, endX = x + cw), Offset(x, y), Size(cw, ch), CornerRadius(cw * 0.45f))
+                s.drawRoundRect(c.field.a(0.35f), Offset(x + if (side < 0) cw * 0.58f else cw * 0.04f, y + ch * 0.15f), Size(cw * 0.38f, ch * 0.7f), CornerRadius(cw * 0.2f))
             }
         }
     }
@@ -558,7 +579,7 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
     fun listen(t: Long) {
         val e = m.env(t)
         if (compact) { headphones(w / 2, h * 0.5f, h * 0.36f, cupGlow = e); return }
-        val r = h * 0.2f
+        val r = h * 0.24f
         val cx = w / 2
         val cy = h * 0.36f
         headphones(cx, cy, r, cupGlow = e * 0.6f)
@@ -578,7 +599,7 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
 
     /** R, Cups: bars bounce between the cups, a spark on the band flickers on strong hits. */
     fun cups(t: Long) {
-        val r = if (compact) h * 0.36f else h * 0.22f
+        val r = if (compact) h * 0.36f else h * 0.26f
         val cx = w / 2
         val cy = if (compact) h * 0.48f else h * 0.42f
         headphones(cx, cy, r)
@@ -625,9 +646,9 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
     /** S, Heart: a glowing heart between the cups beats with the motor. */
     fun heart(t: Long) {
         val e = m.env(t)
-        val r = if (compact) h * 0.36f else h * 0.22f
+        val r = if (compact) h * 0.36f else h * 0.27f
         val cx = w / 2
-        val cy = if (compact) h * 0.46f else h * 0.42f
+        val cy = if (compact) h * 0.46f else h * 0.44f
         headphones(cx, cy, r)
         val k = r * 0.5f * (1 + e * 0.22f) / 16f
         val hx = cx
@@ -639,7 +660,11 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
             close()
         }
         val width = r * (if (compact) 0.09f else 0.07f) * (1 + e * 0.5f)
-        s.drawPath(heart, c.accent.a(0.25f * e), style = Stroke(width * 3.5f, cap = StrokeCap.Round))
+        blurred(c.accent.a(0.35f + 0.55f * e), width * (1.5f + e * 2.5f)) { canvas, paint ->
+            paint.style = android.graphics.Paint.Style.STROKE
+            paint.strokeWidth = width * 1.6f
+            canvas.drawPath(heart.asAndroidPath(), paint)
+        }
         s.drawPath(heart, c.accent, style = Stroke(width, cap = StrokeCap.Round))
         if (!compact) cupNotes(cx, cy + r * 0.3f, r, t, r * 0.36f)
     }
@@ -647,7 +672,7 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
     /** T, Glow: thin outline headphones over a glowing line that stretches on each beat. */
     fun glow(t: Long) {
         val e = m.env(t)
-        val r = if (compact) h * 0.32f else h * 0.22f
+        val r = if (compact) h * 0.32f else h * 0.26f
         val cx = w / 2
         val cy = if (compact) h * 0.4f else h * 0.36f
         headphones(cx, cy, r, outline = true)
@@ -655,15 +680,16 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
         val ly = cy + r * (if (compact) 1.05f else 1.45f)
         val thick = dp(if (compact) 1.5f else 2.5f)
         val brush = Brush.horizontalGradient(0f to c.ink.a(0f), 0.5f to c.ink, 1f to c.ink.a(0f), startX = cx - len, endX = cx + len)
-        s.drawRect(Brush.horizontalGradient(0f to c.ink.a(0f), 0.5f to c.ink.a(0.25f + e * 0.25f), 1f to c.ink.a(0f), startX = cx - len, endX = cx + len),
-            Offset(cx - len, ly - thick * 2), Size(len * 2, thick * 5))
+        blurred(c.ink.a(0.35f + e * 0.45f), thick * (2f + e * 3f)) { canvas, paint ->
+            canvas.drawRect(cx - len * 0.8f, ly - thick, cx + len * 0.8f, ly + thick, paint)
+        }
         s.drawRect(brush, Offset(cx - len, ly - thick / 2), Size(len * 2, thick))
     }
 
     /** W, Album: headphones round an album square that bumps on each beat; a wave progress line below. */
     fun album(t: Long) {
         val e = m.env(t)
-        val r = if (compact) h * 0.36f else h * 0.2f
+        val r = if (compact) h * 0.36f else h * 0.24f
         val cx = w / 2
         val cy = if (compact) h * 0.42f else h * 0.34f
         val sq = r * 1.05f * (1 + e * 0.08f)
