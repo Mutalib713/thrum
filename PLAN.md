@@ -920,6 +920,29 @@ Mutalib picks the method first (PROFILE §7: plain sound processing, or an AI mo
 
 ---
 
+### [ ] Task 33: ⚠ Export the song with its vibration inside it (Rule 3, changed 2026-11-28)
+
+**What Mutalib asked for:** "i want the export to contain both the music and the vibrator". He chose "always include it" and "vibration inside the song": one audio file that plays sound and vibration together in any player on phones that support it, the way Sound To Haptics' files do.
+
+**How Android plays such a file (read from AOSP source, 2026-11-28):**
+- Only **OGG** files (Opus or Vorbis inside) can carry it. `OggExtractor.cpp` reads a comment `ANDROID_HAPTIC=<n>` and treats the last *n* channels as vibration, not sound (`setChannelMask`). Tag name from `MetaDataUtils.cpp` `parseVorbisComment`.
+- **FLAC does not work:** `FLACExtractor.cpp` reads the comments but never sets the haptic channel mask.
+- **Android's own Opus encoder takes at most 2 channels** (`C2SoftOpusEnc.h`: `kMaxNumChannelsSupported = 2`). Stereo music plus one vibration channel is 3.
+- `MediaMuxer`'s OGG writer (`OggWriter.cpp`) writes an empty comment list, so the `ANDROID_HAPTIC=1` comment has to be added to the file afterwards (rewrite the `OpusTags` page and its checksum).
+
+**The choice for Mutalib before building:**
+- **A. Mono music + vibration** with the built-in encoder: 2 channels (sound, vibration). Nothing added to the app; the music in the export loses its stereo.
+- **B. Stereo music + vibration** by adding an Opus or Vorbis encoder to Thrum as native code (the NDK): keeps stereo, adds a native build and some app size [NEEDS: measure].
+
+**Spike first (one sitting, his Pixel):**
+1. Look for ringtones on the Pixel that already carry `ANDROID_HAPTIC` (`/product/media/audio/ringtones`), and read what their vibration channel holds: a waveform near the motor's resonant frequency, or a slow envelope. Thrum's scores are envelopes; the channel may need a carrier.
+2. Make one test file by hand and play it on the Pixel: does the motor follow it in Files / the default player, and as the ringtone? `dumpsys vibrator_manager` should log `external` vibrations, usage MEDIA, as it did for Sound To Haptics.
+3. Only then build the encoder path in the app.
+
+**Also decide:** Rule 4 (never redistribute anyone else's audio) now sits awkwardly with Share; see PROFILE §6. The export screen copy ("Thrum file (vibration only)", "Only the vibration is exported") changes when this lands, not before.
+
+**Proof:** an exported song plays with sound and vibration on the Pixel in a player that isn't Thrum, with `dumpsys vibrator_manager` showing it; a phone without haptic playback plays the sound alone.
+
 ## Milestone 3 — Ship it
 
 ### [~] Task 11 — Hardening pass — **BUILT 2026-09-26, three of seven attacks need the phone**
