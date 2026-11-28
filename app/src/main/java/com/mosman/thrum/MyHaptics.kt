@@ -58,9 +58,10 @@ object MyHaptics {
         if (ThrumFile.isImported(uri)) "Imported" else kindLabel(kind)
 
     /**
-     * The rows for one filter, in the order the screen shows them: made
-     * haptics first (newest first, the order the database returns), then
-     * videos and files picked but not yet made, alphabetically.
+     * The rows for one filter, in the order the screen shows them: videos and
+     * files still being made first, so what you just
+     * picked is where you can see it (Mutalib, 2026-11-28; it used to land at
+     * the bottom); then made haptics, newest first, the order the database returns.
      */
     fun rows(
         haptics: List<Haptic>,
@@ -95,7 +96,7 @@ object MyHaptics {
                     readable = track.readable,
                 )
             }
-        val all = made + picked
+        val all = picked + made
         return all.filter { row ->
             when (filter) {
                 Filter.ALL -> true

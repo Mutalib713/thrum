@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -84,7 +86,10 @@ fun MyHapticsTab(
     val store = remember { Store(ctx) }
     val scope = rememberCoroutineScope()
 
-    var filterIndex by remember { mutableIntStateOf(0) }
+    // Saved, so coming back from the phone's file chooser keeps the filter you
+    // were on; it used to fall back to All (Mutalib, 2026-11-28).
+    var filterIndex by rememberSaveable { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
     var showMake by remember { mutableStateOf(false) }
     var errorLine by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<Set<String>?>(null) }
@@ -139,6 +144,14 @@ fun MyHapticsTab(
                 kind = kind,
             )
             withContext(Dispatchers.IO) { db.dao().upsertTracks(listOf(track.toEntity(System.currentTimeMillis()))) }
+            // Show it: switch only if this filter would hide it, then go to the top, where it lands.
+            val shown = when (MyHaptics.Filter.entries[filterIndex]) {
+                MyHaptics.Filter.ALL -> true
+                MyHaptics.Filter.VIDEO -> kind == TrackKind.VIDEO
+                MyHaptics.Filter.AUDIO -> kind != TrackKind.VIDEO
+            }
+            if (!shown) filterIndex = MyHaptics.Filter.ALL.ordinal
+            listState.animateScrollToItem(0)
             // The row is already showing "making"; this is what lands in it.
             val made = HapticMaker.make(ctx, track)
             if (made.error != null) errorLine = made.error
@@ -234,6 +247,7 @@ fun MyHapticsTab(
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .background(ThrumField)

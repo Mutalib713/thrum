@@ -578,6 +578,8 @@ class LibraryTest {
         assertTrue(fileRow.subtitle.contains("Audio"))
         val videoRow = rows.first { it.uri == "video" }
         assertTrue(!videoRow.hasHaptic)
+        // Still being made, so it sits on top, where the user can see it.
+        assertEquals("video", rows.first().uri)
         assertEquals(MyHaptics.kindLabel(TrackKind.VIDEO), videoRow.subtitle.substringBefore(" ·"))
     }
 
