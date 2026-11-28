@@ -151,8 +151,9 @@ fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
     }
 
     // Thrum Originals: built into the app, shown above everything else (2026-11-28).
-    val originals by produceState(emptyList<Track>()) { value = Originals.list(ctx) }
+    val originals = rememberOriginals()
     val showOriginals = originals.isNotEmpty() || BuildConfig.DEBUG
+    var originalsPage by remember { mutableStateOf(false) }
 
     val all = tracks
     // The list, when there is one to show; every other state is a page.
@@ -162,6 +163,7 @@ fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
         if (listed != null) {
             SongList(
                 originals = if (showOriginals) originals else null,
+                onOpenOriginals = { originalsPage = true },
                 tracks = listed,
                 haptics = haptics,
                 query = query,
@@ -182,7 +184,7 @@ fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
             ThrumPage(overTabs = true) {
                 Header(showExport = false, onExport = { onExport(null) })
                 if (showOriginals) {
-                    OriginalsHeading(count = originals.size, modifier = Modifier.padding(top = Space.S4))
+                    OriginalsHeading(count = originals.size, modifier = Modifier.padding(top = Space.S4), onOpen = { originalsPage = true })
                     originals.forEachIndexed { index, track ->
                         OriginalRow(
                             track = track,
@@ -314,6 +316,9 @@ fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
         RowActionsHost(actions)
 
         // Screen 10: asked once, after the first scan that finds songs.
+        if (originalsPage) {
+            OriginalsScreen(haptics = haptics, onClose = { originalsPage = false })
+        }
         if (askMode) {
             ThrumBottomSheet(onDismiss = { askMode = false }) {
                 val found = all?.size ?: 0
@@ -416,8 +421,13 @@ private fun SongList(
     selected: Set<String>,
     onSelected: (Set<String>) -> Unit,
     originals: List<Track>? = null,
+    onOpenOriginals: () -> Unit = {},
 ) {
     val shown = Track.search(tracks, query)
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val menuCopy = stringResource(R.string.originals_copy)
+    val menuCopyHelp = stringResource(R.string.originals_copy_help)
     val selecting = selected.isNotEmpty()
     // A song's menu: no Rename and no Delete here, Mutalib's pick. These are
     // the phone's own songs, and a scan would bring a renamed one back.
@@ -436,6 +446,9 @@ private fun SongList(
             RowMenuItem("tune", menuTune) { actions.tune(track) },
             RowMenuItem("share", menuShare, menuShareHelp) { actions.share(listOf(track)) },
             RowMenuItem("export", menuExport, menuExportHelp) { onExportSome(listOf(track.sourceUri)) },
+        ) + listOfNotNull(
+            // Test builds only: lets Mutalib try a song as an Original on his phone.
+            if (BuildConfig.DEBUG) copyToOriginalsItem(ctx, scope, track, menuCopy, menuCopyHelp) else null,
         )
     }
     LazyColumn(
@@ -490,7 +503,7 @@ private fun SongList(
             }
         }
         if (originals != null && !selecting && query.isBlank()) {
-            item { OriginalsHeading(count = originals.size, modifier = Modifier.padding(top = Space.S4)) }
+            item { OriginalsHeading(count = originals.size, modifier = Modifier.padding(top = Space.S4), onOpen = onOpenOriginals) }
             itemsIndexed(originals, key = { _, t -> "original:" + t.sourceUri }) { index, track ->
                 OriginalRow(
                     track = track,
@@ -592,36 +605,4 @@ internal fun ModeOption(selected: Boolean, title: String, help: String, onSelect
             Text(help, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
         }
     }
-}
-
-/**
- * One of Thrum's Originals: the same row as a song. No menu yet: setting one
- * as the ringtone, sharing and exporting are built for the phone's own files,
- * and haven't been tried on a file that lives inside the app.
- */
-@Composable
-private fun OriginalRow(
-    track: Track,
-    index: Int,
-    count: Int,
-    haptics: Map<String, Haptic>,
-    onOpen: () -> Unit,
-    onPlayHere: () -> Unit,
-) {
-    LibraryRow(
-        name = track.name,
-        subtitle = track.durationMs.takeIf { it > 0 }?.let(::clockOf).orEmpty(),
-        score = haptics[track.sourceUri]?.score,
-        kindIcon = "music",
-        first = index == 0,
-        last = index == count - 1,
-        canPlay = track.readable,
-        playing = Player.now?.track?.sourceUri == track.sourceUri && Player.now?.playing == true,
-        selecting = false,
-        selected = false,
-        onPlay = onPlayHere,
-        onOpen = onOpen,
-        onSelect = {},
-        menu = emptyList(),
-    )
 }

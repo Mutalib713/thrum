@@ -229,6 +229,13 @@
     <!-- Thrum Originals: music built into the app (2026-11-28). -->
     <string name="originals_title">Thrum Originals</string>
     <string name="originals_help">Built into Thrum. No scan needed.</string>
+    <string name="originals_see_all">See all</string>
+    <string name="originals_page_body">Music that comes with Thrum, each with its haptic. Play any of them before you scan a thing.</string>
+    <string name="originals_remove" translatable="false">Remove from Thrum Originals</string>
+    <string name="originals_copy" translatable="false">Copy to Thrum Originals</string>
+    <string name="originals_copy_help" translatable="false">Test builds only: on this phone</string>
+    <string name="originals_copied" translatable="false">Added %1$s to Thrum Originals.</string>
+    <string name="originals_copy_failed" translatable="false">That file couldn\'t be copied.</string>
     <string name="originals_empty_test_build" translatable="false">Test builds only: none yet. Put audio files in app/src/main/assets/originals, then build.</string>
     <string name="music_intro_title">Your music isn\'t here yet</string>
     <string name="music_intro_body">Scan your phone to find your songs, then play any of them here and feel every beat.</string>
