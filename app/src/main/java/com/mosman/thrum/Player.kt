@@ -229,6 +229,22 @@ object Player {
         disconnect()
     }
 
+    /**
+     * Something was deleted. If it is what is playing, everything stops (before
+     * 2026-11-28 a deleted haptic kept playing, and its song with it); if it is
+     * only further along the queue, it leaves the queue so Next never lands on it.
+     */
+    fun forget(ctx: Context, uris: Collection<String>) {
+        val current = now?.track?.sourceUri
+        if (current != null && current in uris) {
+            stop(ctx)
+            return
+        }
+        if (queue.none { it.sourceUri in uris }) return
+        queue = queue.filterNot { it.sourceUri in uris }
+        index = queue.indexOfFirst { it.sourceUri == current }
+    }
+
     /** For the rest of the app: Home's test call must not fight a running player. */
     fun stopAll() {
         motor?.let { stop(it) }

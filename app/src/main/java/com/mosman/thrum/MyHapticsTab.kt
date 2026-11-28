@@ -7,6 +7,8 @@ import android.provider.DocumentsContract
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,7 +42,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -83,6 +88,9 @@ fun MyHapticsTab(
     var showMake by remember { mutableStateOf(false) }
     var errorLine by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<Set<String>?>(null) }
+    // Rows sliding out after a delete, and the last delete, kept for Undo.
+    var leaving by remember { mutableStateOf(emptySet<String>()) }
+    var undo by remember { mutableStateOf<LibraryActions.Deleted?>(null) }
     var renaming by remember { mutableStateOf<MyHaptics.Row?>(null) }
     var selected by remember { mutableStateOf(emptySet<String>()) }
     val selecting = selected.isNotEmpty()
@@ -328,6 +336,18 @@ fun MyHapticsTab(
                 }
             }
             itemsIndexed(rows, key = { _, row -> row.uri }) { index, row ->
+                // A deleted row slides off to the right and fades; then the rows
+                // below close the gap (Mutalib, 2026-11-28: "so I know it has been deleted").
+                val gone = row.uri in leaving
+                val slide by animateFloatAsState(if (gone) 1f else 0f, tween(LEAVE_MS), label = "leave")
+                Box(
+                    modifier = Modifier
+                        .animateItem()
+                        .graphicsLayer {
+                            translationX = size.width * slide
+                            alpha = 1f - slide
+                        },
+                ) {
                 LibraryRow(
                     name = row.name,
                     subtitle = row.subtitle,
@@ -351,6 +371,7 @@ fun MyHapticsTab(
                     },
                     noteWarn = !row.readable,
                 )
+                }
             }
             errorLine?.let { message ->
                 item {
@@ -399,14 +420,43 @@ fun MyHapticsTab(
 
     RowActionsHost(actions)
 
+    // "Deleted · Undo", for a few seconds, above the mini player when it shows.
+    undo?.let { last ->
+        LaunchedEffect(last) {
+            delay(UNDO_MS)
+            if (undo === last) undo = null
+        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            UndoBar(
+                text = pluralStringResource(R.plurals.haptics_deleted, last.count, last.count),
+                onUndo = {
+                    undo = null
+                    scope.launch { LibraryActions.restore(ctx, last) }
+                },
+                modifier = Modifier.padding(
+                    start = Space.S3,
+                    end = Space.S3,
+                    bottom = if (Player.now != null) 92.dp else Space.S3,
+                ),
+            )
+        }
+    }
+
     deleting?.let { uris ->
         DeleteDialog(
             count = uris.size,
             onDismiss = { deleting = null },
             onDelete = {
-                scope.launch { LibraryActions.delete(ctx, uris) }
                 selected = selected - uris
                 deleting = null
+                // Stop it at once, even before the slide finishes.
+                Player.forget(ctx, uris)
+                leaving = leaving + uris
+                scope.launch {
+                    delay(LEAVE_MS.toLong())
+                    undo = LibraryActions.delete(ctx, uris)
+                    leaving = leaving - uris
+                }
             },
         )
     }
@@ -499,3 +549,7 @@ private fun MakeOption(icon: String, title: String, subtitle: String, onClick: (
         }
     }
 }
+
+/** How long a deleted row takes to slide away, and how long Undo stays. */
+private const val LEAVE_MS = 260
+private const val UNDO_MS = 5_000L

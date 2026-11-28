@@ -87,14 +87,35 @@ object LibraryActions {
      * Mutalib's pick). The song for calls keeps working: its rhythm is
      * kept apart, in Store.
      */
-    suspend fun delete(ctx: Context, uris: Collection<String>) {
+    suspend fun delete(ctx: Context, uris: Collection<String>): Deleted {
+        // Nothing deleted may keep playing.
+        withContext(Dispatchers.Main) { Player.forget(ctx, uris) }
+        val dao = LibraryDb.get(ctx).dao()
+        return withContext(Dispatchers.IO) {
+            val haptics = mutableListOf<HapticEntity>()
+            val tracks = mutableListOf<TrackEntity>()
+            uris.forEach { uri ->
+                dao.hapticFor(uri)?.let(haptics::add)
+                dao.removeHaptic(uri)
+                val entity = dao.trackFor(uri)
+                if (entity != null && entity.toTrack().kind != TrackKind.MUSIC) {
+                    tracks += entity
+                    dao.removeTrack(uri)
+                }
+            }
+            Deleted(uris.size, haptics, tracks)
+        }
+    }
+
+    /** What [delete] removed, kept for a few seconds so Undo can put it back. */
+    class Deleted(val count: Int, val haptics: List<HapticEntity>, val tracks: List<TrackEntity>)
+
+    /** Undo: the rows come back exactly as they were. */
+    suspend fun restore(ctx: Context, deleted: Deleted) {
         val dao = LibraryDb.get(ctx).dao()
         withContext(Dispatchers.IO) {
-            uris.forEach { uri ->
-                dao.removeHaptic(uri)
-                val track = dao.trackFor(uri)?.toTrack()
-                if (track != null && track.kind != TrackKind.MUSIC) dao.removeTrack(uri)
-            }
+            if (deleted.tracks.isNotEmpty()) dao.upsertTracks(deleted.tracks)
+            deleted.haptics.forEach { dao.upsertHaptic(it) }
         }
     }
 

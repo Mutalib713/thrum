@@ -770,3 +770,22 @@ fun <T> rememberPolled(initial: T, read: (Context) -> T): State<T> {
         }
     }
 }
+
+/**
+ * A short line at the bottom after something is done, with a way to take it
+ * back: "Deleted · Undo". The Gmail and Google Photos pattern (2026-11-28).
+ */
+@Composable
+fun UndoBar(text: String, onUndo: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(ThrumInk, RoundedCornerShape(Radius.large))
+            .padding(start = Space.S4, end = Space.S1)
+            .heightIn(min = 52.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, style = ThrumType.body, color = ThrumField, modifier = Modifier.weight(1f))
+        ThrumTextButton(text = stringResource(R.string.undo), onClick = onUndo, color = ThrumField)
+    }
+}

@@ -309,7 +309,12 @@
         <item quantity="other">Delete %1$d haptics?</item>
     </plurals>
     <!-- Since 2026-10-06 only what the user made is in My Haptics, so a deleted haptic is not made again. -->
-    <string name="haptics_delete_body">Your audio and video files stay on your phone. This only removes the haptic from Thrum, and it can\'t be undone.</string>
+    <string name="haptics_delete_body">Your audio and video files stay on your phone. This only removes the haptic from Thrum.</string>
+    <plurals name="haptics_deleted">
+        <item quantity="one">Haptic deleted</item>
+        <item quantity="other">%1$d haptics deleted</item>
+    </plurals>
+    <string name="undo">Undo</string>
 
     <!-- The rows of My Haptics and Music, their menu, and picking several (Mutalib, 2026-10-06). -->
     <string name="row_play">Play %1$s</string>
