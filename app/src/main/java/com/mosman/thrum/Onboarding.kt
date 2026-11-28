@@ -137,7 +137,16 @@ private fun Splash(onNext: () -> Unit) {
     ) {
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.weight(1f))
-            PulseRibbon(score = remember { Demo.rhythm() }, height = 110.dp, barWidth = 2.dp, barGap = 2.dp)
+            // Pills, Thrum's own style (Mutalib, 2026-11-28: B on the splash and
+            // as the default), swelling to the built-in sample rhythm. Sample,
+            // not a song: there is no song of the user's yet on first launch.
+            Bars(
+                style = BarStyle.PILLS,
+                score = remember { Demo.rhythm() },
+                positionMs = 0,
+                playing = true,
+                modifier = Modifier.fillMaxWidth().height(140.dp),
+            )
             Text(
                 stringResource(R.string.app_name).uppercase(),
                 style = ThrumType.splash,
