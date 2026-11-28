@@ -413,6 +413,15 @@ fun RingtoneAskSheet(name: String, onOpenSettings: () -> Unit, onVibrationOnly: 
                 .padding(top = Space.S3, bottom = Space.S4),
         )
         PrimaryButton(text = stringResource(R.string.ringtone_ask_open), onClick = onOpenSettings, modifier = Modifier.fillMaxWidth())
+        Text(
+            stringResource(R.string.ringtone_ask_why),
+            style = ThrumType.meta,
+            color = ThrumInk2,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Space.S2),
+        )
         ThrumTextButton(
             text = stringResource(R.string.ringtone_ask_vibration_only),
             onClick = onVibrationOnly,

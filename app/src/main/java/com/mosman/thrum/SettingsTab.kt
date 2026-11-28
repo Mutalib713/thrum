@@ -128,8 +128,14 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
             style = ThrumType.statement,
             color = ThrumInk,
             modifier = Modifier
-                .padding(top = 10.dp, bottom = Space.S4)
+                .padding(top = 10.dp)
                 .semantics { heading() },
+        )
+        Text(
+            stringResource(R.string.settings_subtitle),
+            style = ThrumType.meta,
+            color = ThrumInk2,
+            modifier = Modifier.padding(top = 2.dp, bottom = Space.S4),
         )
 
         SettingsSection(stringResource(R.string.settings_calls_section)) {
@@ -145,7 +151,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
             // used to do nothing, and looked stuck (Mutalib, 2026-10-06).
             SettingsRow(
                 name = stringResource(R.string.settings_call_access),
-                sub = stringResource(R.string.settings_access_change),
+                sub = stringResource(R.string.settings_call_access_help),
                 value = stringResource(if (callAccess) R.string.settings_on else R.string.settings_off),
                 onClick = { openCallAccess(ctx) },
             )
@@ -155,7 +161,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
                 SettingsDivider()
                 SettingsRow(
                     name = stringResource(R.string.settings_old_ringtone),
-                    sub = name,
+                    sub = stringResource(R.string.settings_old_ringtone_help, name),
                     onClick = {
                         restoreScope.launch {
                             if (Ringtone.restoreOld(ctx)) {
@@ -174,7 +180,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
         SettingsSection(stringResource(R.string.settings_music_section)) {
             SettingsRow(
                 name = stringResource(R.string.settings_music_access),
-                sub = stringResource(R.string.settings_access_change),
+                sub = stringResource(R.string.settings_music_access_help),
                 value = stringResource(if (musicAccess) R.string.settings_on else R.string.settings_off),
                 onClick = { openAppInfo(ctx) },
             )
@@ -215,6 +221,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
             SettingsDivider()
             SettingsRow(
                 name = stringResource(R.string.settings_make_haptics),
+                sub = stringResource(R.string.settings_make_haptics_help),
                 value = stringResource(if (background) R.string.settings_mode_background else R.string.settings_mode_as_played),
                 onClick = { askMode = true },
             )
@@ -223,6 +230,7 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
         SettingsSection(stringResource(R.string.settings_haptics_section)) {
             SettingsRow(
                 name = stringResource(R.string.settings_default_feel),
+                sub = stringResource(R.string.settings_default_feel_help),
                 value = stringResource(Tuning.matching(body)?.nameRes ?: R.string.settings_custom),
                 onClick = onOpenTune,
             )
@@ -231,13 +239,18 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
             // time: the picker opens over this tab and saves as it goes.
             SettingsRow(
                 name = stringResource(R.string.bars_title),
+                sub = stringResource(R.string.settings_bars_help),
                 value = stringResource(rememberBarStyle().nameRes()),
                 onClick = onOpenBars,
             )
         }
 
         SettingsSection(stringResource(R.string.settings_phone_section)) {
-            SettingsRow(name = stringResource(R.string.phonecheck_title), onClick = { showPhoneCheck = true })
+            SettingsRow(
+                name = stringResource(R.string.phonecheck_title),
+                sub = stringResource(R.string.settings_phone_check_help),
+                onClick = { showPhoneCheck = true },
+            )
             SettingsDivider()
             SettingsRow(name = stringResource(R.string.about_title), onClick = { showAbout = true })
         }

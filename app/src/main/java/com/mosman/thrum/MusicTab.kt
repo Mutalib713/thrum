@@ -199,6 +199,12 @@ fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
                             onClick = { openAppInfo(ctx) },
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        Text(
+                            stringResource(R.string.music_intro_privacy),
+                            style = ThrumType.meta,
+                            color = ThrumInk2,
+                            modifier = Modifier.padding(top = Space.S2),
+                        )
                         ThrumTextButton(
                             text = stringResource(R.string.music_pick_instead),
                             onClick = { picker.launch(arrayOf("audio/*")) },

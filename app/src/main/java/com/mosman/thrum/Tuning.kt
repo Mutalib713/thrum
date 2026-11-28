@@ -495,6 +495,12 @@ fun TuneScreen(target: TuneTarget, onClose: () -> Unit) {
                 )
             }
         }
+        Text(
+            stringResource(R.string.tune_reset_help),
+            style = ThrumType.meta,
+            color = ThrumInk2,
+            modifier = Modifier.padding(top = 2.dp),
+        )
 
         Spacer(Modifier.height(Space.S3))
         PrimaryButton(text = stringResource(R.string.tune_done), onClick = onClose, modifier = Modifier.fillMaxWidth())

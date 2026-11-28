@@ -79,7 +79,7 @@
     <string name="home_ringer_vibrate">on vibrate</string>
     <string name="home_ringer_ring">on ring</string>
     <string name="home_ringer_silent">on silent</string>
-    <string name="home_ringer_unknown">ringer unreadable</string>
+    <string name="home_ringer_unknown">can\'t tell the ringer mode</string>
     <string name="home_calls_window">Your ringtone is the song\'s first 45 seconds, heard and felt together, repeated until you answer.</string>
     <string name="home_calls_window_vibration">Calls vibrate to the song\'s first 45 seconds, repeated until you answer. Your ringtone is a different sound, so this plays on vibrate only.</string>
     <!-- Under Home's test call when "Hear and feel" is chosen. Thrum never
@@ -87,7 +87,7 @@
          that is this song once it is set as the ringtone. -->
     <string name="home_test_sound_note">Only the test plays this song\'s sound. On a real call, your phone rings with its own ringtone.</string>
     <string name="home_test_sound_ringtone">On a real call your phone plays this sound too, because it\'s your ringtone.</string>
-    <string name="home_last_call">Last call, %1$s: Thrum started your haptic %2$s after it rang.</string>
+    <string name="home_last_call">Last call, %1$s: Thrum started vibrating %2$s after it rang.</string>
     <!-- 2026-10-04 review. Screen 27 in the final screens' own words, without
          the demo pattern the first UI offered there (PROFILE §4 item 3). -->
     <string name="home_none_title">No ringtone chosen</string>
@@ -298,7 +298,7 @@
     <string name="make_audio">From audio</string>
     <string name="make_audio_help">A song, voice note or ringtone on your phone</string>
     <string name="make_video">From a video</string>
-    <string name="make_video_help">Feel the sound from any video</string>
+    <string name="make_video_help">Feel the sound from a video on your phone</string>
     <string name="make_thrum_file">Open a Thrum file</string>
     <string name="make_thrum_file_help">A haptic someone exported from Thrum</string>
     <string name="make_privacy">Thrum opens your phone\'s own file chooser and reads only the file you pick.</string>
@@ -346,7 +346,7 @@
 
     <!-- Set as ringtone (PROFILE §4 item 17). The setting's name is Android's own words. -->
     <string name="ringtone_ask_title">Make %1$s your ringtone?</string>
-    <string name="ringtone_ask_body">Your phone will ring with the first 45 seconds of this song and Thrum will vibrate to it, so you hear and feel the same thing.</string>
+    <string name="ringtone_ask_body">Your phone will ring with the first 45 seconds of this song and Thrum will vibrate to it, so you hear and feel the same thing. You can go back to your old ringtone in Settings.</string>
     <string name="ringtone_ask_how">Android asks you to allow this once. On the next screen, turn on \"Allow modifying system settings\", then come back.</string>
     <string name="ringtone_ask_open">Open Android\'s setting</string>
     <string name="ringtone_ask_vibration_only">Just the vibration</string>
@@ -414,7 +414,6 @@
     <string name="settings_old_ringtone">Go back to my old ringtone</string>
     <string name="old_ringtone_back">%1$s is your ringtone again, and calls use your phone\'s own buzz.</string>
     <string name="old_ringtone_failed">Android didn\'t change your ringtone back. You can pick it in Android\'s sound settings.</string>
-    <string name="settings_access_change">Change it in Android\'s settings</string>
     <string name="settings_music_section">Music</string>
     <string name="settings_music_access">Music access</string>
     <string name="settings_scan_new">Scan for new music</string>
@@ -428,6 +427,18 @@
     <string name="settings_scan_new_count" tools:ignore="PluralsCandidate">%1$d new</string>
     <string name="settings_scan_nothing_new">nothing new</string>
     <string name="settings_make_haptics">Make haptics</string>
+    <!-- One plain line under each Settings row, saying what it does (wording audit, 2026-11-28). -->
+    <string name="settings_subtitle">Calls, music and how it feels</string>
+    <string name="settings_call_access_help">Lets Thrum know when a call starts.</string>
+    <string name="settings_music_access_help">Lets Thrum find the songs on your phone.</string>
+    <string name="settings_make_haptics_help">When Thrum makes a song\'s haptic: all at once, or when you play it.</string>
+    <string name="settings_default_feel_help">How beats feel on your ringtone and new haptics.</string>
+    <string name="settings_bars_help">How the rhythm moves on the player.</string>
+    <string name="settings_phone_check_help">What your phone\'s motor can do, and what Thrum did on your last calls.</string>
+    <string name="settings_old_ringtone_help">%1$s. Your haptics stay in Thrum.</string>
+    <string name="tune_reset_help">Only the feel. Your ringtone and haptics stay.</string>
+    <string name="ringtone_ask_why">Thrum only uses this to set your ringtone.</string>
+    <string name="haptics_subtitle">Made from your audio, videos and Thrum files</string>
     <string name="settings_make_save">Save</string>
     <string name="settings_mode_background">In the background</string>
     <string name="settings_mode_as_played">As I play them</string>
@@ -449,8 +460,8 @@
     <string name="phonecheck_good_title">Your phone can do it</string>
     <string name="phonecheck_bad_title">This phone can\'t play rhythms</string>
     <string name="phonecheck_motor">Vibration motor</string>
-    <string name="phonecheck_amplitude">Strength control</string>
-    <string name="phonecheck_amplitude_help">The part rhythm needs</string>
+    <string name="phonecheck_amplitude">Changes how hard it buzzes</string>
+    <string name="phonecheck_amplitude_help">Thrum needs this to play a rhythm, not just one buzz.</string>
     <string name="phonecheck_yes">Yes</string>
     <string name="phonecheck_no">No</string>
     <string name="phonecheck_none">None</string>

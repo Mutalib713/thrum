@@ -280,12 +280,16 @@ fun MyHapticsTab(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            stringResource(R.string.tab_haptics),
-                            style = ThrumType.statement,
-                            color = ThrumInk,
-                            modifier = Modifier.semantics { heading() },
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.tab_haptics),
+                                style = ThrumType.statement,
+                                color = ThrumInk,
+                                modifier = Modifier.semantics { heading() },
+                            )
+                            // What lives here, always: the empty-list line only shows when there is nothing.
+                            Text(stringResource(R.string.haptics_subtitle), style = ThrumType.meta, color = ThrumInk2)
+                        }
                         val made = MyHaptics.rows(haptics, tracks, callsUri, MyHaptics.Filter.ALL).filter { it.hasHaptic }
                         if (made.isNotEmpty()) {
                             // Everything listed here: what the user made.
