@@ -4,6 +4,13 @@ import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import kotlin.math.sin
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.StrokeCap
@@ -67,6 +74,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -206,32 +214,40 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
         onArrived()
     }
 
-    val t = clock.value
-    val done = t >= T_END
-    val burst = (t - SPLASH) / BURST
-    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
-        Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (done) 1f else clamp01((t - SPLASH - 1100f) / 300f) }) {
+    // The clock is read only inside drawing and layout lambdas, never while
+    // composing: each frame then redraws, rather than rebuilding the welcome
+    // page underneath (on the Pixel that rebuild made frames late).
+    val done by remember { derivedStateOf { clock.value >= T_END } }
+    val onWord: (Rect) -> Unit = remember { { welcomeWord = it.translate(-origin) } }
+    var screen by remember { mutableStateOf(IntSize.Zero) }
+    WarmWave(screen)
+    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow(); screen = it.size }) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = if (done) 1f else clamp01((clock.value - SPLASH - 1100f) / 300f) }
+                // Not drawn at all until it starts to show: drawing it hidden cost every frame.
+                .drawWithContent { if (done || clock.value >= SPLASH + 1100f) drawContent() },
+        ) {
             Welcome(
                 onSeeHow = onSeeHow,
                 onSkip = onSkip,
                 landed = done,
                 rhythm = rhythm,
                 rhythmStartedAt = startedAt,
-                onWord = { welcomeWord = it.translate(-origin) },
+                onWord = onWord,
             )
         }
         if (!done) {
-            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - clamp01(burst * 3f) }) {
+            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - clamp01((clock.value - SPLASH) / BURST * 3f) }) {
                 Splash(onPills = { splashPills = it.translate(-origin) }, onWord = { splashWord = it.translate(-origin) })
             }
-            BurstLayer(t = t, pills = splashPills, rhythmMath = rhythmMath, waveFraction = WELCOME_WAVE, fadeOut = 0f)
+            BurstLayer(time = { clock.value }, pills = splashPills, rhythmMath = rhythmMath, waveFraction = WELCOME_WAVE)
             // THRUM glides from the splash's spot to beside the mark.
             val fromW = splashWord
             if (fromW != null) {
                 val to = welcomeWord ?: fromW
-                val fly = outCubic((t - SPLASH - 500f) / 700f)
-                val centre = lerp(fromW.center, to.center, fly)
-                val scale = lerp(1f, to.height / fromW.height, fly)
+                fun fly() = outCubic((clock.value - SPLASH - 500f) / 700f)
                 Text(
                     stringResource(R.string.app_name).uppercase(),
                     style = ThrumType.splash,
@@ -239,8 +255,15 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
                     maxLines = 1,
                     softWrap = false,
                     modifier = Modifier
-                        .offset { IntOffset((centre.x - fromW.width / 2).roundToInt(), (centre.y - fromW.height / 2).roundToInt()) }
-                        .graphicsLayer { scaleX = scale; scaleY = scale },
+                        .offset {
+                            val centre = lerp(fromW.center, to.center, fly())
+                            IntOffset((centre.x - fromW.width / 2).roundToInt(), (centre.y - fromW.height / 2).roundToInt())
+                        }
+                        .graphicsLayer {
+                            val scale = lerp(1f, to.height / fromW.height, fly())
+                            scaleX = scale
+                            scaleY = scale
+                        },
                 )
             }
         }
@@ -248,30 +271,30 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
 }
 
 /**
- * The pills, then their burst into the wave. [t] is the opening's clock;
- * [waveFraction] is how tall the wave the dots fly into is, as a share of the
- * screen; [fadeOut] (0 to 1) fades the landed wave away, for later launches
- * that open onto Home, which has no wave.
+ * The pills, then their burst into the wave. [time] reads the opening's clock,
+ * only while drawing; [waveFraction] is how tall the wave the dots fly into is,
+ * as a share of the screen.
  */
 @Composable
-private fun BurstLayer(t: Float, pills: Rect?, rhythmMath: BarMath, waveFraction: Float, fadeOut: Float) {
+private fun BurstLayer(time: () -> Float, pills: Rect?, rhythmMath: BarMath, waveFraction: Float) {
     val palette = LocalThrumPalette.current
     val density = LocalDensity.current
-    val target = remember { FloatArray(DotWave.ROWS * DotWave.COLS * 2) }
+    val (accent, dark) = dotWaveColour()
+    val flying = remember { DotBatches(FLY_LEVELS * 2, DotWave.COUNT) }
+    // Worked out once per screen size: where each dot lands, and the landed wave as one picture.
+    val cache = remember { BurstCache() }
     // Each dot's start inside its pill, and its delay: the same every launch.
     val seeds = remember {
-        val count = DotWave.ROWS * DotWave.COLS
         Triple(
-            FloatArray(count) { seeded(it) },
-            FloatArray(count) { seeded(it + 9) },
-            FloatArray(count) { n -> (n % DotWave.COLS) / (DotWave.COLS - 1f) * 0.35f + seeded(n + 3) * 0.15f },
+            FloatArray(DotWave.COUNT) { seeded(it) },
+            FloatArray(DotWave.COUNT) { seeded(it + 9) },
+            FloatArray(DotWave.COUNT) { n -> columnOf(n) * SWEEP + seeded(n + 3) * SCATTER },
         )
     }
     Canvas(Modifier.fillMaxSize()) {
+        val t = time()
         val from = pills ?: return@Canvas
         val px = with(density) { 1.dp.toPx() }
-        val dark = palette.field.luminance() < 0.5f
-        val accent = if (dark) palette.accent else palette.accentInk
         val ink = palette.ink
         val shapes = pillRects(from.center, 1f, rhythmMath, min(t, SPLASH).toLong(), px)
         if (t < SPLASH) {
@@ -280,41 +303,97 @@ private fun BurstLayer(t: Float, pills: Rect?, rhythmMath: BarMath, waveFraction
             }
             return@Canvas
         }
+        val w = size.width
+        // Whole pixels, as the welcome page's own wave is laid out, so they share one picture.
+        val waveH = (size.height * waveFraction).roundToInt().toFloat()
+        cache.prepare(w, waveH, accent)
+        val target = cache.target
         val burst = (t - SPLASH) / BURST
-        val waveH = size.height * waveFraction
-        val landedAlpha = 1f - fadeOut
         // The sky comes in as the dots leave the pills.
-        if (dark) drawWaveSky(clamp01(burst * 1.5f) * landedAlpha, height = waveH)
-        DotWave.positions(size.width, waveH, DotWave.phaseAt(SystemClock.uptimeMillis()), target)
+        if (dark) drawWaveSky(clamp01(burst * 1.5f), height = waveH)
+
+        // Columns where every dot has landed show as the finished picture, uncovered
+        // left to right with the sweep. Each column's last dot lands at its delay's
+        // upper end plus the flight time.
+        val landedTo = (burst - SCATTER - FLIGHT) / SWEEP
+        if (landedTo > 0f) {
+            val edge = if (landedTo >= 1f) w else {
+                // The leftmost screen x any not-yet-landed column can reach.
+                if (landedTo < 0.5f) w / 2f + (landedTo - 0.5f) * w * 1.25f else w / 2f + (landedTo - 0.5f) * w
+            }
+            clipRect(right = edge, bottom = waveH) { drawImage(cache.picture!!) }
+        }
+        if (landedTo >= 1f) return@Canvas
+
+        // Everything else is still flying (or waiting at its spot for its column).
         val (sx, sy, delay) = seeds
-        fun progress(n: Int) = outCubic((burst - delay[n]) / 0.55f)
-        // Landed dots: drawn exactly as the wave draws them.
-        drawDotWave(target, accent, landedAlpha) { n -> progress(n) < 1f }
-        if (burst >= 1.2f) return@Canvas
-        // Flying dots, in batches by how far along they are and which colour they started.
-        val levels = 10
-        val lists = Array(levels * 2) { ArrayList<Offset>(300) }
-        for (n in 0 until DotWave.ROWS * DotWave.COLS) {
-            val q = progress(n)
-            if (q >= 1f) continue
+        val levels = FLY_LEVELS
+        flying.clear()
+        for (n in 0 until DotWave.COUNT) {
+            if (columnOf(n) <= landedTo) continue
+            if (DotWave.brightness[n] <= 0.01f) continue
+            val q = outCubic((burst - delay[n]) / FLIGHT)
             val pill = n % 5
             val r = shapes[pill]
-            val x = lerp(r.left + sx[n] * r.width, target[n * 2], q)
-            val y = lerp(r.top + sy[n] * r.height, target[n * 2 + 1], q)
             val level = (q * levels).toInt().coerceIn(0, levels - 1)
-            lists[(if (pill == 2) levels else 0) + level].add(Offset(x, y))
+            flying.add(
+                (if (pill == 2) levels else 0) + level,
+                lerp(r.left + sx[n] * r.width, target[n * 2], q),
+                lerp(r.top + sy[n] * r.height, target[n * 2 + 1], q),
+            )
         }
-        val dot = DotWave.radius(DotWave.ROWS / 2, size.width) * 2f
-        for (i in lists.indices) {
-            val points = lists[i]
-            if (points.isEmpty()) continue
-            val q = (i % levels + 0.5f) / levels
-            val start = if (i >= levels) accent else ink
-            val colour = androidx.compose.ui.graphics.lerp(start, accent, q).copy(alpha = lerp(1f, 0.8f, q))
-            drawPoints(points, PointMode.Points, colour, strokeWidth = lerp(dot * 1.6f, dot, q), cap = StrokeCap.Round)
+        val dot = DotWave.radius(DotWave.ROWS / 2, w) * 2f
+        drawIntoCanvas { canvas ->
+            for (i in 0 until levels * 2) {
+                val q = (i % levels + 0.5f) / levels
+                val start = if (i >= levels) accent else ink
+                val colour = androidx.compose.ui.graphics.lerp(start, accent, q).copy(alpha = lerp(1f, 0.7f, q))
+                flying.draw(canvas.nativeCanvas, i, colour, lerp(dot * 1.5f, dot * 0.9f, q))
+            }
         }
     }
 }
+
+/** Where the burst's dots land, and the landed wave as a picture, for one screen size and colour. */
+private class BurstCache {
+    val target = FloatArray(DotWave.COUNT * 2)
+    var picture: ImageBitmap? = null
+    private var w = -1f
+    private var h = -1f
+    private var colour = Color.Unspecified
+
+    fun prepare(width: Float, height: Float, wave: Color) {
+        if (width == w && height == h && wave == colour && picture != null) return
+        DotWave.positions(width, height, target)
+        picture = WavePictures.get(width, height, wave)
+        w = width
+        h = height
+        colour = wave
+    }
+}
+
+/** Paints the wave's picture in the background while the splash shows, so the burst never waits for it. */
+@Composable
+private fun WarmWave(screen: IntSize) {
+    val (colour, _) = dotWaveColour()
+    LaunchedEffect(screen, colour) {
+        if (screen == IntSize.Zero) return@LaunchedEffect
+        withContext(Dispatchers.Default) {
+            WavePictures.get(screen.width.toFloat(), (screen.height * WELCOME_WAVE).roundToInt().toFloat(), colour)
+        }
+    }
+}
+
+/** A dot's column, 0 at the left to 1 at the right. */
+private fun columnOf(n: Int) = (n % DotWave.COLS) / (DotWave.COLS - 1f)
+
+/** The burst's timing, as shares of [BURST]: the left-to-right sweep, each dot's random extra delay, and its flight. */
+private const val SWEEP = 0.35f
+private const val SCATTER = 0.15f
+private const val FLIGHT = 0.55f
+
+/** How many steps of "how far along" the flying dots are drawn in. */
+private const val FLY_LEVELS = 10
 
 /** A repeatable "random" number from 0 to 1, so every launch bursts the same way. */
 private fun seeded(n: Int): Float {
@@ -346,21 +425,29 @@ fun OpeningInto(active: Boolean, onDone: () -> Unit, content: @Composable () -> 
         onDone()
     }
 
-    val t = clock.value
-    val done = !active || t >= T_LAUNCH_END
-    val burst = (t - SPLASH) / BURST
-    val fade = clamp01((t - SPLASH - BURST) / LAUNCH_FADE)
+    // Read only inside drawing lambdas, so the app underneath isn't rebuilt every frame.
+    val finished by remember { derivedStateOf { clock.value >= T_LAUNCH_END } }
+    val done = !active || finished
+    fun fade() = clamp01((clock.value - SPLASH - BURST) / LAUNCH_FADE)
+    var screen by remember { mutableStateOf(IntSize.Zero) }
+    if (!done) WarmWave(screen)
 
-    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
-        Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (done) 1f else outCubic(fade) }) { content() }
+    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow(); screen = it.size }) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = if (done) 1f else outCubic(fade()) }
+                // Home is ready underneath but not drawn until it starts to show.
+                .drawWithContent { if (done || clock.value >= SPLASH + BURST) drawContent() },
+        ) { content() }
         if (!done) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = 1f - fade }
+                    .graphicsLayer { alpha = 1f - fade() }
                     .background(ThrumField),
             ) {
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - clamp01(burst * 3f) }) {
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - clamp01((clock.value - SPLASH) / BURST * 3f) }) {
                     // No "Checking your phone's motor": that check runs on the first launch only.
                     Splash(
                         onPills = { splashPills = it.translate(-origin) },
@@ -368,7 +455,7 @@ fun OpeningInto(active: Boolean, onDone: () -> Unit, content: @Composable () -> 
                         checking = false,
                     )
                 }
-                BurstLayer(t = t, pills = splashPills, rhythmMath = rhythmMath, waveFraction = WELCOME_WAVE, fadeOut = 0f)
+                BurstLayer(time = { clock.value }, pills = splashPills, rhythmMath = rhythmMath, waveFraction = WELCOME_WAVE)
                 val word = splashWord
                 if (word != null) {
                     Text(
@@ -379,7 +466,7 @@ fun OpeningInto(active: Boolean, onDone: () -> Unit, content: @Composable () -> 
                         softWrap = false,
                         modifier = Modifier
                             .offset { IntOffset(word.left.roundToInt(), word.top.roundToInt()) }
-                            .graphicsLayer { alpha = 1f - clamp01((burst - 0.4f) / 0.5f) },
+                            .graphicsLayer { alpha = 1f - clamp01(((clock.value - SPLASH) / BURST - 0.4f) / 0.5f) },
                     )
                 }
             }
