@@ -148,7 +148,7 @@ The app's main noun is used everywhere (My Haptics, "Make a haptic", "Making its
 
 | Where | Today | Suggestion |
 |---|---|---|
-| Song rows and player [`rhythm hits` plurals, `player hits`] | "0:20 · 34 hits", "The rhythm: 34 hits over 0:20" | "34 beats": the onboarding already calls them beats. **His call:** "hits" may be deliberate, since not every hit is a musical beat. |
+| Home card, player, rhythm label [`ready_meta`, `player_hits`, `ribbon_label`] | "0:20 · 34 hits", "The rhythm: 34 hits over 0:20" | "34 beats": the onboarding already calls them beats. **His call:** "hits" may be deliberate, since not every hit is a musical beat. |
 | Phone check [`phonecheck_amplitude`, `phonecheck_amplitude_help`] | "Strength control" / "The part rhythm needs" | "Changes how hard it buzzes" / "Thrum needs this to play a rhythm, not just one buzz." |
 | Home status [`home_ringer_unknown`] | "ringer unreadable" | "can't tell the ringer mode" |
 | Home last call [`home_last_call`] | "Thrum started your haptic 0.4 s after it rang" | "Thrum started vibrating 0.4 s after it rang" |
