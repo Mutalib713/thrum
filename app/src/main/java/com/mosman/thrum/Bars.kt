@@ -131,6 +131,19 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
     private fun dp(v: Float) = with(s) { v.dp.toPx() }
     private fun Color.a(alpha: Float) = copy(alpha = (this.alpha * alpha).coerceIn(0f, 1f))
 
+    /**
+     * Up to [most] bars, fewer when each would end up narrower than [perBar]
+     * (a bar plus its gap) once [padding] is taken off; always odd, so one sits
+     * in the middle. Without this, the picker's small cards drew hairlines.
+     */
+    private fun barsThatFit(most: Int, perBar: Float, padding: Float): Int {
+        val fits = ((w - padding) / perBar).toInt().coerceIn(7, most)
+        return if (fits % 2 == 0) fits - 1 else fits
+    }
+
+    /** 1 when [natural] fits inside 92 % of the width, less when it doesn't. */
+    private fun fitTo(natural: Float): Float = if (natural <= 0f) 1f else min(1f, w * 0.92f / natural)
+
     private fun pill(x: Float, y: Float, width: Float, height: Float, colour: Color) {
         val r = min(width, height) / 2
         s.drawRoundRect(colour, Offset(x, y), Size(width, height), CornerRadius(r, r))
@@ -146,8 +159,8 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
 
     /** A, Tape: time slides past a centre line; now in yellow, what's coming faint on the right. */
     fun tape(t: Long) {
-        val n = if (compact) 11 else 41
-        val slice = if (compact) 120L else 60L
+        val n = if (compact) 11 else barsThatFit(41, dp(3f) + dp(3f), dp(28f))
+        val slice = if (compact) 120L else 60L * 41 / n
         val mid = (n - 1) / 2
         val gap = dp(if (compact) 2.5f else 3f)
         val bw = (w - dp(if (compact) 4f else 28f) - gap * (n - 1)) / n
@@ -173,8 +186,10 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
         val scales = if (compact) floatArrayOf(0.65f, 1f, 0.65f) else floatArrayOf(0.5f, 0.78f, 1f, 0.78f, 0.5f)
         val n = scales.size
         val mid = (n - 1) / 2
-        val bw = dp(if (compact) 9f else 26f)
-        val gap = dp(if (compact) 6f else 16f)
+        // Shrink to fit a narrow space (the picker's cards) rather than spill off its edges.
+        val fit = fitTo(dp(if (compact) 9f else 26f) * n + dp(if (compact) 6f else 16f) * (n - 1))
+        val bw = dp(if (compact) 9f else 26f) * fit
+        val gap = dp(if (compact) 6f else 16f) * fit
         val x0 = (w - (bw * n + gap * (n - 1))) / 2
         val cy = h / 2
         val maxH = h * (if (compact) 0.92f else 0.8f)
@@ -189,8 +204,9 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
     fun dots(t: Long) {
         val n = if (compact) 5 else 7
         val mid = (n - 1) / 2
-        val d = dp(if (compact) 7f else 12f)
-        val gap = dp(if (compact) 6f else 16f)
+        val fit = fitTo(dp(if (compact) 7f else 12f) * n + dp(if (compact) 6f else 16f) * (n - 1))
+        val d = dp(if (compact) 7f else 12f) * fit
+        val gap = dp(if (compact) 6f else 16f) * fit
         val x0 = (w - (d * n + gap * (n - 1))) / 2
         val cy = h / 2
         val maxH = h * (if (compact) 0.9f else 0.62f)
@@ -236,9 +252,9 @@ private class BarDraw(val s: DrawScope, val m: BarMath, val c: BarColours, val c
 
     /** F, Rise: bars on a floor; a beat rises in the middle and spreads outward as it ages. */
     fun rise(t: Long) {
-        val n = if (compact) 9 else 21
+        val n = if (compact) 9 else barsThatFit(21, dp(3f) + dp(5f), dp(44f))
         val mid = (n - 1) / 2
-        val slice = if (compact) 70L else 50L
+        val slice = if (compact) 70L else 50L * 21 / n
         val gap = dp(if (compact) 3f else 5f)
         val pad = dp(if (compact) 2f else 22f)
         val bw = (w - pad * 2 - gap * (n - 1)) / n
