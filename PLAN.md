@@ -939,6 +939,12 @@ Mutalib picks the method first (PROFILE §7: plain sound processing, or an AI mo
 2. Make one test file by hand and play it on the Pixel: does the motor follow it in Files / the default player, and as the ringtone? `dumpsys vibrator_manager` should log `external` vibrations, usage MEDIA, as it did for Sound To Haptics.
 3. Only then build the encoder path in the app.
 
+**Spike results, 2026-11-28 (his Pixel 6 Pro):**
+- **Google's own Pixel ringtones are exactly this format.** 20+ files in `/product/media/audio/ringtones` and `alarms` carry `ANDROID_HAPTIC=1` (Your_new_adventure, Hotline, Lollipop…). They are OGG **Vorbis, 2 channels: mono sound + 1 vibration channel**, 48 kHz. So option A (mono + vibration) is Google's own layout.
+- **Their vibration channel is a buzz, not a slow envelope:** a sine-like wave at about 70 to 115 Hz, switched on and off in pulses (measured by decoding Your_new_adventure.ogg with ffmpeg and finding the strongest frequency in its loudest 100 ms windows). Thrum's scores are envelopes, so the export must put a buzz inside them.
+- **A file made on the PC in that layout plays, but the Files app mutes the vibration.** `dumpsys audio` showed the Files player with `FLAG_MUTE_HAPTIC`, and `dumpsys vibrator_manager` stayed `IDLE`. Android mutes haptic channels unless the playing app asks for them (`AudioAttributes.Builder.setHapticChannelsMuted(false)`). **So an exported song does not vibrate in ordinary players.** It vibrates where something asks: Android's ringtone player (how Google's ringtones vibrate), Thrum's own player once it asks, and apps like Sound To Haptics.
+- Test files (made from a synthetic beat, not anyone's music): `scratch/haptic-ref/thrum-test-carrier.ogg` (110 Hz buzz shaped by the beat) and `thrum-test-envelope.ogg` (the envelope alone). Still to test: each as the ringtone on a real call, by hand.
+
 **Also decide:** Rule 4 (never redistribute anyone else's audio) now sits awkwardly with Share; see PROFILE §6. The export screen copy ("Thrum file (vibration only)", "Only the vibration is exported") changes when this lands, not before.
 
 **Proof:** an exported song plays with sound and vibration on the Pixel in a player that isn't Thrum, with `dumpsys vibrator_manager` showing it; a phone without haptic playback plays the sound alone.
