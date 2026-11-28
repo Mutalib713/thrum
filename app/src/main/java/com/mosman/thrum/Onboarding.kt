@@ -1,6 +1,24 @@
 package com.mosman.thrum
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.lerp
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.util.lerp
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,8 +96,14 @@ fun OnboardingFlow(onDone: () -> Unit) {
     ) {
         when {
             !capability.usable -> CapabilityDeadEnd(capability)
-            screen == 0 -> Splash(onNext = { screen = 1 })
-            screen == 1 -> Welcome(onSeeHow = { screen = 2 }, onSkip = onDone)
+            // The splash and the welcome page are one piece since 2026-11-28, so
+            // the pills and the wordmark can fly from one into the other.
+            screen <= 1 -> SplashToWelcome(
+                settled = screen == 1,
+                onArrived = { screen = 1 },
+                onSeeHow = { screen = 2 },
+                onSkip = onDone,
+            )
             screen == 2 -> SoundToTouch(onNext = { screen = 3 })
             screen == 3 -> Sources(onNext = { screen = 4 })
             screen == 4 -> FeelCalls(onNext = { screen = 5 })
@@ -119,14 +143,113 @@ private fun Lead(text: String) {
     Text(text, style = ThrumType.lead, color = ThrumInkSoft, modifier = Modifier.padding(top = Space.S3))
 }
 
+/**
+ * The splash, then the move into the welcome page: Mutalib's pick A on
+ * 2026-11-28 (scratch/transition-options.html). The pills and the wordmark
+ * don't belong to either screen while they move: one layer draws them,
+ * sliding and shrinking from where the splash keeps room for them to where
+ * the welcome page does. The splash fades out and the welcome page fades in
+ * underneath. On landing, the welcome page's own pills and wordmark take
+ * over in the same spot, and the rhythm runs on one clock throughout, so
+ * nothing jumps or restarts.
+ *
+ * With Android's "Remove animations" on, the welcome page simply appears.
+ * [settled] is the way back from the next screen: the welcome page, no splash.
+ */
 @Composable
-private fun Splash(onNext: () -> Unit) {
-    // The check has already run; this moment exists so the first thing the
-    // app ever does is say what it is doing.
+private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: () -> Unit, onSkip: () -> Unit) {
+    val moving = motionAllowed()
+    val progress = remember { Animatable(if (settled) 1f else 0f) }
+    val rhythm = remember { Demo.rhythm() }
+    val startedAt = remember { SystemClock.uptimeMillis() }
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    var splashPills by remember { mutableStateOf<Rect?>(null) }
+    var splashWord by remember { mutableStateOf<Rect?>(null) }
+    var welcomePills by remember { mutableStateOf<Rect?>(null) }
+    var welcomeWord by remember { mutableStateOf<Rect?>(null) }
+
     LaunchedEffect(Unit) {
-        delay(1200)
-        onNext()
+        if (progress.value >= 1f) return@LaunchedEffect
+        // The check has already run; this moment exists so the first thing
+        // the app ever does is say what it is doing.
+        delay(SPLASH_MS)
+        if (moving) progress.animateTo(1f, tween(MOVE_MS, easing = EaseOutCubic)) else progress.snapTo(1f)
+        onArrived()
     }
+
+    val p = progress.value
+    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
+        Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = EaseOutCubic.transform(((p - 0.35f) / 0.65f).coerceIn(0f, 1f)) }) {
+            Welcome(
+                onSeeHow = onSeeHow,
+                onSkip = onSkip,
+                lockupShown = p >= 1f,
+                rhythm = rhythm,
+                rhythmStartedAt = startedAt,
+                onPills = { welcomePills = it.translate(-origin) },
+                onWord = { welcomeWord = it.translate(-origin) },
+            )
+        }
+        if (p < 1f) {
+            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - (p * 1.6f).coerceAtMost(1f) }) {
+                Splash(onPills = { splashPills = it.translate(-origin) }, onWord = { splashWord = it.translate(-origin) })
+            }
+            // The moving layer: the pills and the wordmark on their way.
+            val density = LocalDensity.current
+            val fromP = splashPills
+            val toP = welcomePills
+            if (fromP != null) {
+                val to = toP ?: fromP
+                val centre = lerp(fromP.center, to.center, p)
+                val scale = lerp(1f, to.height / fromP.height, p)
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset((centre.x - fromP.width / 2).roundToInt(), (centre.y - fromP.height / 2).roundToInt()) }
+                        .requiredSize(with(density) { fromP.width.toDp() }, with(density) { fromP.height.toDp() })
+                        .graphicsLayer { scaleX = scale; scaleY = scale },
+                ) {
+                    Bars(style = BarStyle.PILLS, score = rhythm, positionMs = 0, playing = true, modifier = Modifier.fillMaxSize())
+                }
+            }
+            val fromW = splashWord
+            if (fromW != null) {
+                val to = welcomeWord ?: fromW
+                val centre = lerp(fromW.center, to.center, p)
+                val scale = lerp(1f, to.height / fromW.height, p)
+                Text(
+                    stringResource(R.string.app_name).uppercase(),
+                    style = ThrumType.splash,
+                    color = ThrumAccentInk,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .offset { IntOffset((centre.x - fromW.width / 2).roundToInt(), (centre.y - fromW.height / 2).roundToInt()) }
+                        .graphicsLayer { scaleX = scale; scaleY = scale },
+                )
+            }
+        }
+    }
+}
+
+/** How long the splash shows before the move, and the move itself (pick A's sketch). */
+private const val SPLASH_MS = 1200L
+private const val MOVE_MS = 700
+
+/** Ease out, cubic: fast at the start, settling gently into place, as the sketch moves. */
+private val EaseOutCubic = CubicBezierEasing(0.33f, 1f, 0.68f, 1f)
+
+/** The pills' box, on the splash and (scaled to [MARK_SCALE]) on the welcome page. */
+private val PILLS_W = 200.dp
+private val PILLS_H = 140.dp
+private const val MARK_SCALE = 0.3f
+
+/**
+ * The splash. It keeps room for the pills and the wordmark and reports where,
+ * but doesn't draw them: the moving layer in [SplashToWelcome] does, from the
+ * first frame, so they never change hands mid-flight.
+ */
+@Composable
+private fun Splash(onPills: (Rect) -> Unit, onWord: (Rect) -> Unit) {
     val accent = ThrumAccent
     Box(
         modifier = Modifier
@@ -137,22 +260,22 @@ private fun Splash(onNext: () -> Unit) {
     ) {
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.weight(1f))
-            // Pills, Thrum's own style (Mutalib, 2026-11-28: B on the splash and
-            // as the default), swelling to the built-in sample rhythm. Sample,
-            // not a song: there is no song of the user's yet on first launch.
-            Bars(
-                style = BarStyle.PILLS,
-                score = remember { Demo.rhythm() },
-                positionMs = 0,
-                playing = true,
-                modifier = Modifier.fillMaxWidth().height(140.dp),
-            )
+            // Room for Pills, Thrum's own style (Mutalib, 2026-11-28: B on the
+            // splash and as the default), swelling to the built-in sample
+            // rhythm: there is no song of the user's yet on first launch.
+            Box(Modifier.size(PILLS_W, PILLS_H).onGloballyPositioned { onPills(it.boundsInWindow()) })
+            // Room for the wordmark: drawn by the moving layer, kept here for
+            // its place and for screen readers.
             Text(
                 stringResource(R.string.app_name).uppercase(),
                 style = ThrumType.splash,
                 color = ThrumAccentInk,
+                maxLines = 1,
+                softWrap = false,
                 modifier = Modifier
                     .padding(top = 28.dp)
+                    .onGloballyPositioned { onWord(it.boundsInWindow()) }
+                    .graphicsLayer { alpha = 0f }
                     .semantics { heading() },
             )
             Text(stringResource(R.string.onboarding_tagline), style = ThrumType.lead, color = ThrumInk, modifier = Modifier.padding(top = Space.S2))
@@ -163,7 +286,15 @@ private fun Splash(onNext: () -> Unit) {
 }
 
 @Composable
-private fun Welcome(onSeeHow: () -> Unit, onSkip: () -> Unit) {
+private fun Welcome(
+    onSeeHow: () -> Unit,
+    onSkip: () -> Unit,
+    lockupShown: Boolean,
+    rhythm: Score,
+    rhythmStartedAt: Long,
+    onPills: (Rect) -> Unit,
+    onWord: (Rect) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -171,12 +302,44 @@ private fun Welcome(onSeeHow: () -> Unit, onSkip: () -> Unit) {
             .padding(horizontal = Space.S5, vertical = 28.dp),
     ) {
         ThrumDots(count = 5, activeIndex = 0)
-        Text(
-            stringResource(R.string.app_name).uppercase(),
-            style = ThrumType.wordmark,
-            color = ThrumAccentInk,
-            modifier = Modifier.padding(top = 40.dp),
-        )
+        // The pills mark beside the wordmark, where the splash's pills land.
+        // Hidden while they fly, so there is never two of them.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(PILLS_W * MARK_SCALE, PILLS_H * MARK_SCALE)
+                    .onGloballyPositioned { onPills(it.boundsInWindow()) }
+                    .graphicsLayer { alpha = if (lockupShown) 1f else 0f },
+                contentAlignment = Alignment.Center,
+            ) {
+                // The same rhythm clock as the splash, so the pulses carry on.
+                val at = remember { SystemClock.uptimeMillis() - rhythmStartedAt }
+                Bars(
+                    style = BarStyle.PILLS,
+                    score = rhythm,
+                    positionMs = at,
+                    playing = true,
+                    modifier = Modifier
+                        .requiredSize(PILLS_W, PILLS_H)
+                        .graphicsLayer { scaleX = MARK_SCALE; scaleY = MARK_SCALE },
+                )
+            }
+            Spacer(Modifier.width(Space.S2))
+            Text(
+                stringResource(R.string.app_name).uppercase(),
+                style = ThrumType.wordmark,
+                color = ThrumAccentInk,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier
+                    .onGloballyPositioned { onWord(it.boundsInWindow()) }
+                    .graphicsLayer { alpha = if (lockupShown) 1f else 0f },
+            )
+        }
         Text(
             // Two lines, as the screens draw it.
             stringResource(R.string.onboarding_tagline).replace(". ", ".\n"),

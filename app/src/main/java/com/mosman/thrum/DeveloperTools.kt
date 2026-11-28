@@ -73,6 +73,30 @@ fun DeveloperToolsScreen(onClose: () -> Unit) {
             modifier = Modifier.padding(bottom = Space.S4, start = Space.S1, end = Space.S1),
         )
 
+        // The splash and its move into the welcome page (2026-11-28) only play
+        // on a first launch. This shows them again without wiping anything:
+        // only the "has seen the introduction" flag flips, and finishing or
+        // skipping the introduction flips it back.
+        Overline("First launch", modifier = Modifier.padding(bottom = Space.S2, start = 2.dp))
+        ThrumCard(padding = PaddingValues(18.dp)) {
+            Text(
+                "Plays the splash, the pills flying into the welcome page, and the introduction again. " +
+                    "Your songs, haptics, ringtone and settings stay as they are.",
+                style = ThrumType.body,
+                color = ThrumInkSoft,
+            )
+            SecondaryButton(
+                text = "Replay first launch",
+                small = true,
+                onClick = {
+                    Store(ctx).onboarded = false
+                    onClose()
+                },
+                modifier = Modifier.padding(top = 14.dp),
+            )
+        }
+        Spacer(Modifier.height(Space.S5))
+
         PhonePermissionTest()
 
         // Table test: how hard can this phone hit? Task 8's question, still
