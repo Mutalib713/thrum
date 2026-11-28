@@ -52,7 +52,8 @@ import java.io.File
  */
 object Originals {
     private const val FOLDER = "originals"
-    private val AUDIO = setOf("mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "flac")
+    // Videos too (Mutalib, 2026-11-28): he makes Originals from videos; the player plays their sound.
+    private val AUDIO = setOf("mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "flac", "mp4", "m4v", "mov", "webm", "mkv", "3gp")
 
     /** Bumped whenever the Originals change, so every list showing them reloads. */
     var version by mutableIntStateOf(0)
@@ -139,6 +140,11 @@ object Originals {
             "audio/opus" -> "opus"
             "audio/wav", "audio/x-wav" -> "wav"
             "audio/flac", "audio/x-flac" -> "flac"
+            "video/mp4" -> "mp4"
+            "video/quicktime" -> "mov"
+            "video/webm" -> "webm"
+            "video/x-matroska" -> "mkv"
+            "video/3gpp" -> "3gp"
             else -> null
         }
     }

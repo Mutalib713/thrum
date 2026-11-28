@@ -242,8 +242,9 @@ fun MyHapticsTab(
             if (ready && !imported) add(RowMenuItem("tune", menuTune) { actions.tune(trackOf(row)) })
             if (ready) add(RowMenuItem("share", menuShare, menuShareHelp) { actions.share(listOf(trackOf(row))) })
             if (ready) add(RowMenuItem("export", menuExport, menuExportHelp) { onExport(listOf(row.uri)) })
-            // Test builds only: lets Mutalib try an audio file as an Original on his phone.
-            if (BuildConfig.DEBUG && !imported && row.kind == TrackKind.FILE) {
+            // Test builds only: lets Mutalib try an audio file or a video as an Original on his phone.
+            // Not an imported Thrum file: it holds only the vibration, no sound to play.
+            if (BuildConfig.DEBUG && !imported && (row.kind == TrackKind.FILE || row.kind == TrackKind.VIDEO)) {
                 add(copyToOriginalsItem(ctx, scope, trackOf(row), menuCopy, menuCopyHelp))
             }
             add(RowMenuItem("edit", menuRename) { renaming = row })
