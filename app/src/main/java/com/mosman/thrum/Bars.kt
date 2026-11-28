@@ -9,6 +9,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
@@ -39,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -157,6 +159,24 @@ fun SongBars(
         modifier = if (dim) modifier.alpha(0.55f) else modifier,
     )
 }
+
+/**
+ * A clock that loops [score] forever, for illustrations with no song behind
+ * them (the onboarding screens, the picker's previews), so they never run out.
+ */
+@Composable
+fun rememberLoopMs(score: Score): Long {
+    val ms by produceState(0L, score) {
+        val duration = (score.amplitudes.size.toLong() * score.stepMs).coerceAtLeast(1L)
+        while (true) {
+            delay(LOOP_TICK_MS)
+            value = (value + LOOP_TICK_MS) % duration
+        }
+    }
+    return ms
+}
+
+private const val LOOP_TICK_MS = 250L
 
 /** Android's "Remove animations": with the animator scale at 0, the bars draw still. */
 @Composable

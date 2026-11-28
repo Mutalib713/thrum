@@ -413,13 +413,16 @@ private fun SoundToTouch(onNext: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Space.S2),
             ) {
+                // The new bars (2026-11-28): the sound drawn as a wave (Mirror), the
+                // beats Thrum finds in it as Pills, both looping the sample rhythm.
+                val loop = rememberLoopMs(rhythm)
                 Column(modifier = Modifier.weight(1f)) {
-                    PulseRibbon(score = rhythm, height = 44.dp, barWidth = 2.dp, barGap = 1.dp, mirror = true)
+                    Bars(style = BarStyle.MIRROR, score = rhythm, positionMs = loop, playing = true, compact = true, modifier = Modifier.fillMaxWidth().height(44.dp))
                     Text(stringResource(R.string.onboarding_diagram_sound), style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 6.dp))
                 }
                 ThrumIcon(name = "chev", tint = ThrumInk2, size = 16.dp)
                 Column(modifier = Modifier.weight(1f)) {
-                    PulseRibbon(score = rhythm, height = 44.dp, barWidth = 2.dp, barGap = 1.dp)
+                    Bars(style = BarStyle.PILLS, score = rhythm, positionMs = loop, playing = true, compact = true, modifier = Modifier.fillMaxWidth().height(44.dp))
                     Text(stringResource(R.string.onboarding_diagram_beats), style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 6.dp))
                 }
                 ThrumIcon(name = "chev", tint = ThrumInk2, size = 16.dp)
@@ -468,7 +471,8 @@ private fun FeelRow(label: String, score: Score, playing: Boolean, onToggle: () 
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(label, style = ThrumType.meta, color = ThrumInk2)
-            PulseRibbon(score = score, height = 24.dp, barWidth = 2.dp, barGap = 1.dp)
+            // Moves only while this row plays; otherwise still at its strongest beat.
+            SongBars(score = score, playing = playing, positionMs = rememberLoopMs(score), modifier = Modifier.fillMaxWidth().height(36.dp))
         }
         CirclePlayButton(playing = playing, onClick = onToggle)
     }
@@ -528,12 +532,14 @@ private fun FeelCalls(onNext: () -> Unit) {
                 Overline(stringResource(R.string.onboarding_calls_example_head))
                 ThrumIcon(name = "phone", tint = ThrumAccentInk, size = 18.dp)
             }
-            PulseRibbon(
-                score = remember { Demo.rhythm() },
-                height = 56.dp,
-                barWidth = 3.dp,
-                barGap = 1.dp,
-                modifier = Modifier.padding(top = Space.S3),
+            // An illustration of a call's rhythm in the new bars, looping the sample.
+            val callRhythm = remember { Demo.rhythm() }
+            Bars(
+                style = rememberBarStyle(),
+                score = callRhythm,
+                positionMs = rememberLoopMs(callRhythm),
+                playing = true,
+                modifier = Modifier.padding(top = Space.S3).fillMaxWidth().height(96.dp),
             )
             Text(
                 stringResource(R.string.onboarding_calls_example_line),
@@ -584,7 +590,14 @@ private fun FeelMusic(onNext: () -> Unit) {
         // An illustration of a rhythm, not a pretend player: there is no
         // song here to play, so there is no play button.
         ThrumCard(modifier = Modifier.padding(top = Space.S5), padding = PaddingValues(Space.S4)) {
-            PulseRibbon(score = remember { Demo.rhythm() }, height = 64.dp, barWidth = 2.dp, barGap = 1.dp)
+            val musicRhythm = remember { Demo.rhythm() }
+            Bars(
+                style = rememberBarStyle(),
+                score = musicRhythm,
+                positionMs = rememberLoopMs(musicRhythm),
+                playing = true,
+                modifier = Modifier.fillMaxWidth().height(110.dp),
+            )
         }
         Statement(stringResource(R.string.onboarding_music_title), top = 24)
         Lead(stringResource(R.string.onboarding_music_body))
