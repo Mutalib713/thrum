@@ -3,7 +3,19 @@ package com.mosman.thrum
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.unit.toSize
+import kotlin.math.abs
+import kotlin.math.min
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
@@ -144,14 +156,21 @@ private fun Lead(text: String) {
 }
 
 /**
- * The splash, then the move into the welcome page: Mutalib's pick A on
- * 2026-11-28 (scratch/transition-options.html). The pills and the wordmark
- * don't belong to either screen while they move: one layer draws them,
- * sliding and shrinking from where the splash keeps room for them to where
- * the welcome page does. The splash fades out and the welcome page fades in
- * underneath. On landing, the welcome page's own pills and wordmark take
- * over in the same spot, and the rhythm runs on one clock throughout, so
- * nothing jumps or restarts.
+ * The opening: the splash, then the move into the welcome page. Mutalib's
+ * hollow-ring version, approved 2026-11-28 (scratch/transition-combo.html):
+ *
+ * 1. The splash's five pills pulse to the sample rhythm.
+ * 2. They slide together into one hollow yellow ring (only the edge is yellow;
+ *    inside is the normal screen).
+ * 3. The ring grows into a yellow frame, a window with the welcome page inside
+ *    it, until the frame reaches the screen's edges.
+ * 4. The frame shrinks back to a small ring where the welcome page's mark sits,
+ *    and splits into the five pills there, while THRUM flies from the splash's
+ *    spot to beside them (pick A, kept).
+ *
+ * One layer draws the pills, the ring and the frame through every step, so
+ * nothing changes hands mid-flight. On landing, the welcome page's own pills
+ * and wordmark take over in the same spot, on the same rhythm clock.
  *
  * With Android's "Remove animations" on, the welcome page simply appears.
  * [settled] is the way back from the next screen: the welcome page, no splash.
@@ -159,63 +178,149 @@ private fun Lead(text: String) {
 @Composable
 private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: () -> Unit, onSkip: () -> Unit) {
     val moving = motionAllowed()
-    val progress = remember { Animatable(if (settled) 1f else 0f) }
+    val clock = remember { Animatable(if (settled) T_END else 0f) }
     val rhythm = remember { Demo.rhythm() }
+    val rhythmMath = remember { BarMath(rhythm.amplitudes, rhythm.stepMs) }
     val startedAt = remember { SystemClock.uptimeMillis() }
+    val palette = LocalThrumPalette.current
+    val density = LocalDensity.current
     var origin by remember { mutableStateOf(Offset.Zero) }
+    var screen by remember { mutableStateOf(Size.Zero) }
     var splashPills by remember { mutableStateOf<Rect?>(null) }
     var splashWord by remember { mutableStateOf<Rect?>(null) }
     var welcomePills by remember { mutableStateOf<Rect?>(null) }
     var welcomeWord by remember { mutableStateOf<Rect?>(null) }
 
     LaunchedEffect(Unit) {
-        if (progress.value >= 1f) return@LaunchedEffect
-        // The check has already run; this moment exists so the first thing
-        // the app ever does is say what it is doing.
-        delay(SPLASH_MS)
-        if (moving) progress.animateTo(1f, tween(MOVE_MS, easing = EaseOutCubic)) else progress.snapTo(1f)
+        if (clock.value >= T_END) return@LaunchedEffect
+        // The check has already run; the splash exists so the first thing the
+        // app ever does is say what it is doing.
+        if (moving) clock.animateTo(T_END, tween(T_END.toInt(), easing = LinearEasing)) else clock.snapTo(T_END)
         onArrived()
     }
 
-    val p = progress.value
-    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
-        Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = EaseOutCubic.transform(((p - 0.35f) / 0.65f).coerceIn(0f, 1f)) }) {
+    val t = clock.value
+    val done = t >= T_END
+    val merge = inOut((t - T_MERGE) / MERGE)
+    val grow = inOut((t - T_GROW) / GROW)
+    val back = inOut((t - T_BACK) / BACK)
+
+    // Where everything is this frame, in the opening's own coordinates.
+    val px = with(density) { 1.dp.toPx() }
+    val fromP = splashPills
+    val toP = welcomePills ?: fromP
+    var pieces: List<Piece> = emptyList()
+    var window: Rect? = null
+    var windowRadius = 0f
+    if (!done && fromP != null && toP != null && screen != Size.Zero) {
+        val circle = Rect(fromP.center, RING_D * px / 2)
+        val full = Rect(Offset.Zero, screen)
+        val markCircle = Rect(toP.center, MARK_RING_D * px / 2)
+        val accent = palette.accent
+        when {
+            t < T_GROW -> {
+                // 1-2: the pills pulse, then slide together into one ring.
+                val pills = pillRects(fromP.center, 1f, rhythmMath, min(t, T_MERGE).toLong(), px)
+                val hollow = clamp01((merge - 0.55f) / 0.45f)
+                pieces = pills.mapIndexed { k, r ->
+                    val at = lerpRect(r, circle, merge)
+                    val colour = if (merge > 0.45f || k == 2) accent else palette.ink
+                    Piece(at, min(at.width, at.height) / 2, colour, hollow, RING_EDGE * px)
+                }
+            }
+            t < T_BACK -> {
+                // 3: the ring grows into a frame that reaches the screen's edges.
+                val w = lerp(circle.width, screen.width, outCubic(grow * 1.35f))
+                val h = lerp(circle.height, screen.height, grow)
+                val centre = Offset(screen.width / 2, lerp(circle.center.y, screen.height / 2, grow))
+                val r = Rect(centre.x - w / 2, centre.y - h / 2, centre.x + w / 2, centre.y + h / 2)
+                val radius = lerp(circle.width / 2, SCREEN_RADIUS * px, outCubic(grow * 1.2f))
+                pieces = listOf(Piece(r, radius, accent, 1f, lerp(RING_EDGE, FRAME_EDGE, grow) * px))
+                window = r
+                windowRadius = radius
+            }
+            else -> {
+                // 4: the frame shrinks to a ring at the mark, then splits into the pills.
+                val toCircle = clamp01(back / 0.65f)
+                val split = clamp01((back - 0.65f) / 0.35f)
+                val edge = lerp(FRAME_EDGE, MARK_EDGE, outCubic(toCircle)) * px
+                if (split <= 0f) {
+                    val r = lerpRect(full, markCircle, outCubic(toCircle))
+                    pieces = listOf(Piece(r, lerp(SCREEN_RADIUS * px, markCircle.width / 2, outCubic(toCircle)), accent, 1f, edge))
+                } else {
+                    // The same clock the welcome page's mark runs on, so the handover doesn't jump.
+                    val marks = pillRects(toP.center, MARK_SCALE, rhythmMath, SystemClock.uptimeMillis() - startedAt, px)
+                    pieces = marks.mapIndexed { k, mp ->
+                        val r = lerpRect(markCircle, mp, inOut(split))
+                        val colour = if (split > 0.5f && k != 2) palette.ink else accent
+                        Piece(r, min(r.width, r.height) / 2, colour, 1f - split, edge)
+                    }
+                }
+            }
+        }
+    }
+    // The welcome page: hidden until the frame opens; inside the frame while it grows
+    // (plain dark while the ring is small, so no cut-off words show through), then everywhere.
+    val welcomeAlpha = when {
+        done -> 1f
+        t < T_GROW -> 0f
+        t < T_BACK -> outCubic((grow - 0.25f) / 0.35f)
+        else -> 1f
+    }
+    val splashAlpha = when {
+        t < T_GROW -> 1f - merge * 0.4f
+        t < T_HOLD -> 0.6f * (1f - grow)
+        else -> 0f
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { origin = it.positionInWindow(); screen = it.size.toSize() },
+    ) {
+        val clip = window
+        val clipRadius = windowRadius
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = welcomeAlpha }
+                .drawWithContent {
+                    if (clip == null) {
+                        drawContent()
+                    } else {
+                        val path = Path().apply { addRoundRect(RoundRect(clip, CornerRadius(clipRadius))) }
+                        clipPath(path) { this@drawWithContent.drawContent() }
+                    }
+                },
+        ) {
             Welcome(
                 onSeeHow = onSeeHow,
                 onSkip = onSkip,
-                lockupShown = p >= 1f,
+                lockupShown = done,
                 rhythm = rhythm,
                 rhythmStartedAt = startedAt,
                 onPills = { welcomePills = it.translate(-origin) },
                 onWord = { welcomeWord = it.translate(-origin) },
             )
         }
-        if (p < 1f) {
-            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - (p * 1.6f).coerceAtMost(1f) }) {
+        if (!done) {
+            Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = splashAlpha }) {
                 Splash(onPills = { splashPills = it.translate(-origin) }, onWord = { splashWord = it.translate(-origin) })
             }
-            // The moving layer: the pills and the wordmark on their way.
-            val density = LocalDensity.current
-            val fromP = splashPills
-            val toP = welcomePills
-            if (fromP != null) {
-                val to = toP ?: fromP
-                val centre = lerp(fromP.center, to.center, p)
-                val scale = lerp(1f, to.height / fromP.height, p)
-                Box(
-                    modifier = Modifier
-                        .offset { IntOffset((centre.x - fromP.width / 2).roundToInt(), (centre.y - fromP.height / 2).roundToInt()) }
-                        .requiredSize(with(density) { fromP.width.toDp() }, with(density) { fromP.height.toDp() })
-                        .graphicsLayer { scaleX = scale; scaleY = scale },
-                ) {
-                    Bars(style = BarStyle.PILLS, score = rhythm, positionMs = 0, playing = true, modifier = Modifier.fillMaxSize())
-                }
-            }
+            // The moving layer: the pills, the ring and the frame.
+            Canvas(Modifier.fillMaxSize()) { pieces.forEach { drawPiece(it) } }
+            // THRUM: fades under the growing frame, then flies to the lockup as the frame pulls back.
             val fromW = splashWord
             if (fromW != null) {
                 val to = welcomeWord ?: fromW
-                val centre = lerp(fromW.center, to.center, p)
-                val scale = lerp(1f, to.height / fromW.height, p)
+                val fly = if (t >= T_BACK) outCubic((back - 0.15f) / 0.85f) else 0f
+                val wordAlpha = when {
+                    t < T_GROW -> 1f
+                    t < T_BACK -> 1f - grow
+                    else -> clamp01(back * 3f)
+                }
+                val centre = lerp(fromW.center, to.center, fly)
+                val scale = lerp(1f, to.height / fromW.height, fly)
                 Text(
                     stringResource(R.string.app_name).uppercase(),
                     style = ThrumType.splash,
@@ -224,19 +329,94 @@ private fun SplashToWelcome(settled: Boolean, onArrived: () -> Unit, onSeeHow: (
                     softWrap = false,
                     modifier = Modifier
                         .offset { IntOffset((centre.x - fromW.width / 2).roundToInt(), (centre.y - fromW.height / 2).roundToInt()) }
-                        .graphicsLayer { scaleX = scale; scaleY = scale },
+                        .graphicsLayer { scaleX = scale; scaleY = scale; alpha = wordAlpha },
                 )
             }
         }
     }
 }
 
-/** How long the splash shows before the move, and the move itself (pick A's sketch). */
-private const val SPLASH_MS = 1200L
-private const val MOVE_MS = 700
+/** One shape of the opening: a pill, the ring or the frame. [hollow] 0 is filled, 1 only the edge. */
+private class Piece(val rect: Rect, val radius: Float, val colour: Color, val hollow: Float, val edge: Float)
 
-/** Ease out, cubic: fast at the start, settling gently into place, as the sketch moves. */
-private val EaseOutCubic = CubicBezierEasing(0.33f, 1f, 0.68f, 1f)
+private fun DrawScope.drawPiece(p: Piece) {
+    val fill = 1f - p.hollow
+    if (fill > 0f) drawRoundRect(p.colour.copy(alpha = p.colour.alpha * fill), p.rect.topLeft, p.rect.size, CornerRadius(p.radius))
+    val stroke = p.edge * p.hollow
+    if (stroke > 0.3f) {
+        // The edge sits inside the shape, as the sketch's border does.
+        val inset = stroke / 2
+        drawRoundRect(
+            p.colour,
+            Offset(p.rect.left + inset, p.rect.top + inset),
+            Size(p.rect.width - stroke, p.rect.height - stroke),
+            CornerRadius((p.radius - inset).coerceAtLeast(0f)),
+            style = Stroke(stroke),
+        )
+    }
+}
+
+/**
+ * The five pills around [centre] at [scale], each at its rhythm height: the same
+ * numbers [Bars] draws Pills with in the splash's [PILLS_W] x [PILLS_H] box, so the
+ * opening's pills and the welcome page's mark are the same shape.
+ */
+private fun pillRects(centre: Offset, scale: Float, math: BarMath, ms: Long, px: Float): List<Rect> {
+    val scales = floatArrayOf(0.5f, 0.78f, 1f, 0.78f, 0.5f)
+    val boxW = PILLS_W.value * px
+    val boxH = PILLS_H.value * px
+    val fit = min(1f, boxW * 0.92f / ((26f * 5 + 16f * 4) * px))
+    val bw = 26f * px * fit
+    val gap = 16f * px * fit
+    val maxH = boxH * 0.8f
+    val total = bw * 5 + gap * 4
+    return scales.mapIndexed { k, sc ->
+        val v = math.env(ms - abs(k - 2) * 45L)
+        val h = (bw + v * sc * (maxH - bw)) * scale
+        val w = bw * scale
+        val x = centre.x + (-total / 2 + k * (bw + gap) + bw / 2) * scale
+        Rect(x - w / 2, centre.y - h / 2, x + w / 2, centre.y + h / 2)
+    }
+}
+
+private fun lerpRect(a: Rect, b: Rect, k: Float) =
+    Rect(lerp(a.left, b.left, k), lerp(a.top, b.top, k), lerp(a.right, b.right, k), lerp(a.bottom, b.bottom, k))
+
+private fun clamp01(x: Float) = x.coerceIn(0f, 1f)
+
+/** Ease in and out, cubic: the sketch's `ease`. */
+private fun inOut(x: Float): Float {
+    val k = clamp01(x)
+    if (k < 0.5f) return 4 * k * k * k
+    val f = -2 * k + 2
+    return 1 - f * f * f / 2
+}
+
+/** Ease out, cubic: the sketch's `easeOut`. */
+private fun outCubic(x: Float): Float {
+    val f = 1 - clamp01(x)
+    return 1 - f * f * f
+}
+
+/** The opening's timeline in ms, from the approved sketch. */
+private const val SPLASH = 1200f
+private const val MERGE = 500f
+private const val GROW = 600f
+private const val HOLD = 120f
+private const val BACK = 750f
+private const val T_MERGE = SPLASH
+private const val T_GROW = T_MERGE + MERGE
+private const val T_HOLD = T_GROW + GROW
+private const val T_BACK = T_HOLD + HOLD
+private const val T_END = T_BACK + BACK
+
+/** The ring's size and edges, in dp, from the sketch. */
+private const val RING_D = 64f
+private const val MARK_RING_D = 34f
+private const val RING_EDGE = 7f
+private const val FRAME_EDGE = 9f
+private const val MARK_EDGE = 3.5f
+private const val SCREEN_RADIUS = 30f
 
 /** The pills' box, on the splash and (scaled to [MARK_SCALE]) on the welcome page. */
 private val PILLS_W = 200.dp
