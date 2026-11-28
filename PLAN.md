@@ -920,6 +920,20 @@ Mutalib picks the method first (PROFILE §7: plain sound processing, or an AI mo
 
 ---
 
+### [ ] Task 34: ⚠⚠ Spike: give the ringtone Thrum's rhythm as Android's own "ringtone vibration" (found 2026-11-28)
+
+**Why it could matter more than anything else on this list:** Mutalib's Pixel (Android 17) now has a Vibrations picker in the ringtone settings (PROFILE R3, "seen shipped"). Its patterns are XML files of duration + amplitude steps, which is what a Thrum score already is. If Android accepts a vibration file Thrum writes, the phone's own ringer would play the song's rhythm on every call, in vibrate mode too, with no notification listener: the R1 wall gone, on phones that have this.
+
+**How Android links them (AOSP `media/java/android/media/Utils.java`, `Ringtone.java`):** the ringtone setting is a URI; a `vibration_uri` query parameter on it names the vibration file; `Ringtone.setUri` parses that file with `VibrationXmlParser` when `Flags.enableRingtoneHapticsCustomization()` is on, reading it **by file path**, and repeats it with a short gap.
+
+**The spike (one sitting, his Pixel, his OK first: it changes his ringtone setting):**
+1. Write the current ringtone's Thrum score as a `<vibration-effect>` XML file in `/sdcard/Ringtones/Thrum/`.
+2. Set the ringtone setting to the same sound URI plus `?vibration_uri=<that file>`; note the old value to put back.
+3. Real incoming call in vibrate mode, then ring mode: `dumpsys vibrator_manager` shows a `RINGTONE` vibration with the score's duration, and his hand says it's the song's rhythm.
+4. If the ringer can't read a file on shared storage, try the app's own files, then report; don't work around it with anything a Play app can't do (Rule 7).
+
+**Proof:** the call vibrates to the song's rhythm on vibrate, by `dumpsys` and by hand; the old ringtone setting is restored afterwards.
+
 ### [ ] Task 33: ⚠ Export the song with its vibration inside it (Rule 3, changed 2026-11-28)
 
 **What Mutalib asked for:** "i want the export to contain both the music and the vibrator". He chose "always include it" and "vibration inside the song": one audio file that plays sound and vibration together in any player on phones that support it, the way Sound To Haptics' files do.

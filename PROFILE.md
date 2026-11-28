@@ -283,6 +283,8 @@ Mutalib's verdict on the same calls: *"a clear rhythm."* No mush.
 **R3 — Google ships this themselves.** The `enableRingtoneHapticsCustomization` flag is already present in Android on Mutalib's phone, and the Pixel Sounds app has an unreleased "Synchronized" ringtone vibration pattern. Google is clearly building this. If it ships, Pixel users get something similar for free.
 *Mitigation:* not controllable. Samsung and other capable non-Pixel phones remain, and Google's version uses presets rather than the user's own audio. Do not build a twelve-month roadmap on the Pixel audience alone.
 
+*Seen shipped, 2026-11-28, on Mutalib's Pixel 6 Pro (Android 17, SDK 37, Sound picker 3.4):* the ringtone picker now has a **Vibrations** section ("10 available": Classic Long Vibration, Bumps, Buzz, Rhythm, Swirl, Drumbeat, Gears, Swoop, Heartbeat, Snare) and a "Ringtone vibration" strength slider. The patterns are plain XML files in `/product/media/vibration/ringtone/` (`<vibration-effect><waveform-effect><waveform-entry durationMs amplitude/>`), the same shape as a Thrum score. In AOSP, `Ringtone.setUri` reads a vibration file from the ringtone URI's `vibration_uri` query parameter when `enableRingtoneHapticsCustomization` is on, and loads it by file path (`Utils.parseVibrationEffect`). **Unverified:** whether the flag is on for calls in vibrate mode (needs a real call), and whether a file Thrum writes is readable by the ringer and accepted (PLAN Task 34). Google's are still presets, not the user's song.
+
 **R4 — Wrong-phone reviews.** Users on incapable hardware install, feel nothing, leave one-star reviews.
 *Mitigation:* Sacred Rule 2, the honest capability screen, plus an explicit hardware warning in the Play listing.
 
