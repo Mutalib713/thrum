@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -149,6 +150,10 @@ fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
         }
     }
 
+    // Thrum Originals: built into the app, shown above everything else (2026-11-28).
+    val originals by produceState(emptyList<Track>()) { value = Originals.list(ctx) }
+    val showOriginals = originals.isNotEmpty() || BuildConfig.DEBUG
+
     val all = tracks
     // The list, when there is one to show; every other state is a page.
     val listed = all?.takeIf { it.isNotEmpty() && !scanning && !(deniedByUser && !granted) }
@@ -156,6 +161,7 @@ fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         if (listed != null) {
             SongList(
+                originals = if (showOriginals) originals else null,
                 tracks = listed,
                 haptics = haptics,
                 query = query,
@@ -175,6 +181,19 @@ fun MusicTab(onExport: (List<String>?) -> Unit, onTune: (TuneTarget) -> Unit) {
         } else {
             ThrumPage(overTabs = true) {
                 Header(showExport = false, onExport = { onExport(null) })
+                if (showOriginals) {
+                    OriginalsHeading(count = originals.size, modifier = Modifier.padding(top = Space.S4))
+                    originals.forEachIndexed { index, track ->
+                        OriginalRow(
+                            track = track,
+                            index = index,
+                            count = originals.size,
+                            haptics = haptics,
+                            onOpen = { Player.openSong(ctx, track, originals) },
+                            onPlayHere = { Player.playHere(ctx, track, originals) },
+                        )
+                    }
+                }
                 when {
                     // Screen 12. Granting in system settings flips this back by
                     // itself, because access is polled.
@@ -396,6 +415,7 @@ private fun SongList(
     onExportSome: (List<String>) -> Unit,
     selected: Set<String>,
     onSelected: (Set<String>) -> Unit,
+    originals: List<Track>? = null,
 ) {
     val shown = Track.search(tracks, query)
     val selecting = selected.isNotEmpty()
@@ -467,6 +487,19 @@ private fun SongList(
                         }
                     }
                 }
+            }
+        }
+        if (originals != null && !selecting && query.isBlank()) {
+            item { OriginalsHeading(count = originals.size, modifier = Modifier.padding(top = Space.S4)) }
+            itemsIndexed(originals, key = { _, t -> "original:" + t.sourceUri }) { index, track ->
+                OriginalRow(
+                    track = track,
+                    index = index,
+                    count = originals.size,
+                    haptics = haptics,
+                    onOpen = { onOpen(track, originals) },
+                    onPlayHere = { onPlayHere(track, originals) },
+                )
             }
         }
         item { Spacer(Modifier.height(14.dp)) }
@@ -559,4 +592,36 @@ internal fun ModeOption(selected: Boolean, title: String, help: String, onSelect
             Text(help, style = ThrumType.meta, color = ThrumInk2, modifier = Modifier.padding(top = 2.dp))
         }
     }
+}
+
+/**
+ * One of Thrum's Originals: the same row as a song. No menu yet: setting one
+ * as the ringtone, sharing and exporting are built for the phone's own files,
+ * and haven't been tried on a file that lives inside the app.
+ */
+@Composable
+private fun OriginalRow(
+    track: Track,
+    index: Int,
+    count: Int,
+    haptics: Map<String, Haptic>,
+    onOpen: () -> Unit,
+    onPlayHere: () -> Unit,
+) {
+    LibraryRow(
+        name = track.name,
+        subtitle = track.durationMs.takeIf { it > 0 }?.let(::clockOf).orEmpty(),
+        score = haptics[track.sourceUri]?.score,
+        kindIcon = "music",
+        first = index == 0,
+        last = index == count - 1,
+        canPlay = track.readable,
+        playing = Player.now?.track?.sourceUri == track.sourceUri && Player.now?.playing == true,
+        selecting = false,
+        selected = false,
+        onPlay = onPlayHere,
+        onOpen = onOpen,
+        onSelect = {},
+        menu = emptyList(),
+    )
 }

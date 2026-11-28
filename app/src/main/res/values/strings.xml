@@ -226,6 +226,10 @@
             which needs no permission at all. Copy follows screens 8, 9 and 12;
             screen 9's streaming list is not built because a MediaStore query
             finishes in well under a second — there is nothing to stream. -->
+    <!-- Thrum Originals: music built into the app (2026-11-28). -->
+    <string name="originals_title">Thrum Originals</string>
+    <string name="originals_help">Built into Thrum. No scan needed.</string>
+    <string name="originals_empty_test_build" translatable="false">Test builds only: none yet. Put audio files in app/src/main/assets/originals, then build.</string>
     <string name="music_intro_title">Your music isn\'t here yet</string>
     <string name="music_intro_body">Scan your phone to find your songs, then play any of them here and feel every beat.</string>
     <string name="music_intro_privacy">Thrum reads music and audio files only. Nothing leaves your phone.</string>
