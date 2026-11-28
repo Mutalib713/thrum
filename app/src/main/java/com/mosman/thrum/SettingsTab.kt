@@ -54,7 +54,7 @@ import java.util.Locale
  * up low-quality songs" (Task 29, not built, and its row only opened Home).
  */
 @Composable
-fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () -> Unit) {
+fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () -> Unit, onOpenBars: () -> Unit) {
     val ctx = LocalContext.current
     val store = remember { Store(ctx) }
     val db = remember { LibraryDb.get(ctx) }
@@ -218,6 +218,14 @@ fun SettingsTab(onOpenMusic: () -> Unit, onOpenHome: () -> Unit, onOpenTune: () 
                 name = stringResource(R.string.settings_default_feel),
                 value = stringResource(Tuning.matching(body)?.nameRes ?: R.string.settings_custom),
                 onClick = onOpenTune,
+            )
+            SettingsDivider()
+            // How the rhythm moves on the player (2026-11-28). Read fresh each
+            // time: the picker opens over this tab and saves as it goes.
+            SettingsRow(
+                name = stringResource(R.string.bars_title),
+                value = stringResource(store.barStyle.nameRes()),
+                onClick = onOpenBars,
             )
         }
 

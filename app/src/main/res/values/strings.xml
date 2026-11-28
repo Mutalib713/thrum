@@ -466,4 +466,25 @@
 
     <!-- Test builds only: the link from Home to DeveloperTools.kt -->
     <string name="developer_tools">Developer tools</string>
+
+    <!-- Bars (2026-11-28): how the rhythm moves on the player. The styles Mutalib picked
+         from scratch/bars-options.html; the letters there are in BarStyle.kt. -->
+    <string name="bars_title">Bars</string>
+    <string name="bars_sub">How the rhythm moves on the player. It follows the vibration, so it only moves while your phone does.</string>
+    <string name="bars_sub_sample">How the rhythm moves on the player. It follows the vibration, so it only moves while your phone does. These previews play a sample rhythm until you play a song.</string>
+    <string name="bar_tape">Tape</string>
+    <string name="bar_pills">Pills</string>
+    <string name="bar_dots">Dots</string>
+    <string name="bar_blocks">Blocks</string>
+    <string name="bar_rise">Rise</string>
+    <string name="bar_pulse">Pulse</string>
+    <string name="bar_mirror">Mirror</string>
+    <string name="bar_meter">Meter</string>
+    <string name="bar_moon">Moon</string>
+    <string name="bar_listen">Listen</string>
+    <string name="bar_cups">Cups</string>
+    <string name="bar_heart">Heart</string>
+    <string name="bar_glow">Glow</string>
+    <string name="bar_album">Album</string>
+    <string name="bars_rhythm_description">The rhythm, drawn as %1$s</string>
 </resources>

@@ -50,6 +50,11 @@ class Store(ctx: Context) {
         get() = prefs.getString(KEY_PENDING_RINGTONE, null)
         set(value) = putOrRemove(KEY_PENDING_RINGTONE, value)
 
+    /** How the rhythm is drawn on the player and the mini player; Pills until the user picks another. */
+    var barStyle: BarStyle
+        get() = BarStyle.fromKey(prefs.getString(KEY_BAR_STYLE, null))
+        set(value) = putOrRemove(KEY_BAR_STYLE, value.key)
+
     private fun putOrRemove(key: String, value: String?) = prefs.edit().apply {
         if (value == null) remove(key) else putString(key, value)
     }.apply()
@@ -303,6 +308,7 @@ class Store(ctx: Context) {
         const val KEY_THRUM_RINGTONE_FOR = "thrum_ringtone_for"
         const val KEY_OLD_RINGTONE = "old_ringtone"
         const val KEY_PENDING_RINGTONE = "pending_ringtone"
+        const val KEY_BAR_STYLE = "bar_style"
         const val KEY_EVENTS = "events"
         const val KEY_SCORE = "armed_score"
         const val KEY_URI = "source_uri"

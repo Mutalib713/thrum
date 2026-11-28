@@ -87,6 +87,8 @@ private fun Tabs(onDeveloperTools: (() -> Unit)?) {
     var tuning by remember { mutableStateOf<TuneTarget?>(null) }
     // Home's Create card: My Haptics opens with its "make a haptic" choice up.
     var makeRequested by remember { mutableStateOf(false) }
+    // The Bars picker, from Settings or the player; it opens over both.
+    var bars by remember { mutableStateOf(false) }
 
     // Screens over the tabs, nearest first. Tune and Export open over the
     // player too, so closing them returns to the song, not to a tab.
@@ -100,10 +102,15 @@ private fun Tabs(onDeveloperTools: (() -> Unit)?) {
         ExportScreen(thisSongFirst = request.thisSongFirst, uris = request.uris, onClose = { export = null })
         return
     }
+    if (bars) {
+        BarsScreen(onClose = { bars = false })
+        return
+    }
     if (Player.open) {
         PlayerScreen(
             onTune = { target -> tuning = target },
             onExport = { export = ExportRequest(thisSongFirst = true) },
+            onBars = { bars = true },
         )
         return
     }
@@ -138,6 +145,7 @@ private fun Tabs(onDeveloperTools: (() -> Unit)?) {
                     onOpenMusic = { tab = NavTab.MUSIC },
                     onOpenHome = { tab = NavTab.HOME },
                     onOpenTune = { tuning = TuneTarget.Calls },
+                    onOpenBars = { bars = true },
                 )
             }
 

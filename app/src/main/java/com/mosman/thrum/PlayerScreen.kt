@@ -48,10 +48,12 @@ import androidx.compose.ui.unit.dp
  * the song playing, which is what the mini player is for.
  */
 @Composable
-fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
+fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit, onBars: () -> Unit) {
     val ctx = LocalContext.current
     val now = Player.now
     val actions = rememberRowActions(onTune)
+    // Read each time the player opens: the Bars picker opens over it.
+    val barStyle = remember { Store(ctx).barStyle }
 
     BackHandler { Player.open = false }
 
@@ -77,8 +79,12 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButtonBox(icon = "back", label = stringResource(R.string.player_close), onClick = { Player.open = false })
-            if (haptic != null && !now.preparing) {
-                IconButtonBox(icon = "export", label = stringResource(R.string.export_title), onClick = onExport)
+            Row {
+                // The shortcut to the Bars picker (2026-11-28), beside Export.
+                IconButtonBox(icon = "vib", label = stringResource(R.string.bars_title), onClick = onBars)
+                if (haptic != null && !now.preparing) {
+                    IconButtonBox(icon = "export", label = stringResource(R.string.export_title), onClick = onExport)
+                }
             }
         }
 
@@ -128,12 +134,15 @@ fun PlayerScreen(onTune: (TuneTarget) -> Unit, onExport: () -> Unit) {
 
             haptic != null -> {
                 ThrumCard(modifier = Modifier.padding(top = 14.dp), padding = PaddingValues(Space.S4)) {
-                    PulseRibbon(
+                    // The rhythm in the user's Bars style (Pills unless they
+                    // picked another): the vibration at this moment, not the sound.
+                    Bars(
+                        style = barStyle,
                         score = haptic.score,
-                        progress = if (now.durationMs > 0) now.positionMs.toFloat() / now.durationMs else -1f,
-                        height = 180.dp,
-                        barWidth = 2.dp,
-                        barGap = 1.dp,
+                        positionMs = now.positionMs,
+                        playing = now.playing,
+                        modifier = Modifier.fillMaxWidth().height(180.dp),
+                        description = stringResource(R.string.bars_rhythm_description, stringResource(barStyle.nameRes())),
                     )
                 }
 
@@ -239,6 +248,7 @@ fun MiniPlayer() {
     val now = Player.now ?: return
     val haptic = Player.haptic
     val shape = RoundedCornerShape(Radius.large)
+    val barStyle = remember { Store(ctx).barStyle }
 
     Row(
         modifier = Modifier
@@ -252,15 +262,15 @@ fun MiniPlayer() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.S3),
     ) {
-        Box(Modifier.width(44.dp)) {
-            PulseRibbon(
-                score = haptic?.score,
-                progress = if (now.durationMs > 0) now.positionMs.toFloat() / now.durationMs else -1f,
-                height = 26.dp,
-                barWidth = 2.dp,
-                barGap = 1.dp,
-            )
-        }
+        // The small version of the player's Bars style.
+        Bars(
+            style = barStyle,
+            score = haptic?.score,
+            positionMs = now.positionMs,
+            playing = now.playing,
+            compact = true,
+            modifier = Modifier.width(52.dp).height(40.dp),
+        )
         Column(modifier = Modifier.weight(1f)) {
             Text(now.track.name, style = ThrumType.row, color = ThrumInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
