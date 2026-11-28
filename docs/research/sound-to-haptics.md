@@ -62,3 +62,25 @@ So the sound and the vibration are one file played by the audio system, which dr
 1. Rule 5: keep it as written, or reword it to match the facts and consider a "feel what's playing" feature for apps that allow capture.
 2. Audio-coupled haptics for Thrum's own player and for the v2 ringtone-with-vibration (option B). This needs an encoder on the phone: they ship FFmpeg, which is why their APK is 54 MB. It's a stack choice.
 3. Which wording ideas to adopt (listed in the 2026-10-06 conversation).
+
+## Re-check, 2026-11-28: v2.0 again, and what V3 adds
+
+Walked every screen on the Pixel again: the six intro pages, Home, the demo player, the Spotify tab and Settings. **The wording is unchanged from v2.0 above.** The phone still runs v2.0; installing V3 is Mutalib's to do (the release is an APK with no published source, and V3 is signed with a new key, so v2.0 has to be uninstalled first).
+
+From the release notes, not seen running: **Stable-V3** (2026-11-14) adds "BitChord", a YouTube Music client inside the app (sign in, search, library, playlists) wired to their haptic engine; it calms the Transient mode ("fewer textures, wider accent spacing") and replaces a silent wait on playback failure with "actionable copy and a Retry button". **Stable-V3.1** (2026-11-16) is bug fixes. Downloads at the time: 17 (V3.1), 3 (V3).
+
+Their intro layout: a segmented progress bar across the top, Skip top right, Back bottom left, Next bottom right, one picture, a one-to-three-word title and one or two sentences per page.
+
+### What Thrum can take from how they describe things
+
+1. **Every setting carries one plain line saying what it does to you**: "Prevents the display sleeping mid-track", "Frees space; Spotify songs can be re-cached again". Several Thrum rows show a value with no line under it.
+2. **Name what you feel, not the audio term**: Bass → THUD, Beats → IMPACT, Vocals → SWISH. Thrum's Focus dial is the abstract kind.
+3. **Say what an action leaves alone**: "Theme, background, and motion preferences only" under Reset. Thrum's delete prompt already does this ("Your audio and video files stay on your phone").
+4. **A subtitle under a screen title summing it up**: "Settings · Appearance, motion, and storage".
+5. **A no-commitment first try**: "Try the demo track instead" sits right under the main action on an empty Home.
+
+### What not to copy
+
+- Marketing words in the intro ("a revolutionary app").
+- File and engine terms in user copy: "OGG", "playback capture", "haptic layers", "Signal density", "Transient (Beta) … still WIP".
+- A whole tab that ships saying "Still Work In Progress!".
